@@ -86,9 +86,9 @@ pub fn load_apps() -> Vec<App> {
     let Ok(text) = std::env::var("BRASOS_NATIVE_APPS").map(std::fs::read_to_string).unwrap_or(Ok(String::new())) else { return vec![] };
     text.lines()
         .filter_map(|l| {
-            let mut f = l.splitn(3, '	');
+            let mut f = l.splitn(3, '\t');
             let (id, net, argv) = (f.next()?, f.next()?, f.next()?);
-            let argv: Vec<String> = argv.split('').map(String::from).collect();
+            let argv: Vec<String> = argv.split('\x1f').map(String::from).collect();
             (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: net == "1", argv })
         })
         .collect()
