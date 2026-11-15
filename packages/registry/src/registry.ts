@@ -71,7 +71,7 @@ export function createRegistry(o: RegistryOptions) {
       if (ctx.target.kind !== "shell") return;
       const path = ctx.url.pathname;
       if (path === "/os/apps" && req.method === "GET") {
-        const g = ctx.gate("apps.read");
+        const g = ctx.gate("apps.read", { quiet: true });
         return g.ok ? json(list()) : g.res;
       }
       if ((path === "/os/apps/install" || path === "/os/apps/uninstall") && req.method === "POST") {

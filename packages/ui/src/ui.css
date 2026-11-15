@@ -1,0 +1,91 @@
+/* @brasos/ui: design tokens and the basic components. Everything is driven by the variables below, so the whole OS can be
+   restyled by overriding them (put overrides in packages/shell/src/user.css, which loads last). */
+:root {
+  --bg: #0b0d12;
+  --panel: #151922;
+  --panel-2: #1c212d;
+  --text: #e6e8ee;
+  --muted: #9aa3b5;
+  --accent: #5b8cff;
+  --danger: #ff6b6b;
+  --warn: #ffb454;
+  --border: #ffffff1a;
+  --hover: #ffffff14;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --gap: 8px;
+  --font: system-ui, sans-serif;
+  --shadow: 0 10px 40px #0008;
+  color-scheme: dark;
+}
+
+.ui-root, .ui-root * { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px var(--font); }
+
+/* buttons */
+.ui-btn {
+  background: var(--hover); color: inherit; border: 0; border-radius: var(--radius-sm); padding: 5px 12px;
+  font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.ui-btn:hover:not(:disabled) { background: var(--accent); }
+.ui-btn:focus-visible, .ui-tile:focus-visible, .ui-item:focus-visible, .ui-menu button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ui-btn:disabled { opacity: 0.4; cursor: default; }
+.ui-btn--primary { background: var(--accent); }
+.ui-btn--danger:hover:not(:disabled) { background: var(--danger); }
+.ui-btn--ghost { background: transparent; }
+.ui-iconbtn { padding: 4px 8px; }
+
+/* fields */
+.ui-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.ui-field input, .ui-field textarea, .ui-input {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 10px; font: inherit; min-width: 0;
+}
+.ui-field input:focus, .ui-field textarea:focus, .ui-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* toolbar and breadcrumb */
+.ui-toolbar { display: flex; align-items: center; gap: var(--gap); padding: 6px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.ui-toolbar .grow { flex: 1; min-width: 0; }
+.ui-crumbs { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; overflow: hidden; }
+.ui-crumbs .sep { color: var(--muted); }
+
+/* list */
+.ui-list { display: flex; flex-direction: column; overflow: auto; outline: none; }
+.ui-item { display: flex; align-items: center; gap: var(--gap); padding: 5px 10px; cursor: default; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; }
+.ui-item:hover { background: var(--hover); }
+.ui-item[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* icon tiles (desktop, file grids) */
+.ui-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 88px; padding: 8px 4px; border: 0;
+  background: transparent; color: inherit; font: inherit; border-radius: var(--radius-sm); cursor: default; text-align: center;
+}
+.ui-tile .glyph { font-size: 32px; line-height: 1; }
+.ui-tile .label { font-size: 12px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ui-tile:hover { background: var(--hover); }
+.ui-tile[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* menu and dialog */
+.ui-backdrop { position: fixed; inset: 0; z-index: 1000; }
+.ui-backdrop--dim { background: #0006; display: flex; align-items: center; justify-content: center; }
+.ui-menu { position: fixed; z-index: 1001; min-width: 160px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+.ui-menu button { background: transparent; color: inherit; border: 0; border-radius: 4px; padding: 6px 10px; text-align: left; font: inherit; cursor: pointer; }
+.ui-menu button:hover { background: var(--accent); }
+.ui-menu button.danger:hover { background: var(--danger); }
+.ui-dialog { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; min-width: 280px; max-width: 80vw; display: flex; flex-direction: column; gap: 12px; }
+.ui-dialog h2 { margin: 0; font-size: 15px; }
+.ui-dialog .actions { display: flex; justify-content: flex-end; gap: var(--gap); }
+
+/* window and dock (used by the shell) */
+.ui-window {
+  position: absolute; width: 640px; height: 420px; min-width: 240px; min-height: 120px; display: flex; flex-direction: column;
+  resize: both; overflow: hidden; background: var(--panel); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.ui-window > header { display: flex; align-items: center; gap: var(--gap); padding: 6px 10px; cursor: grab; user-select: none; touch-action: none; background: var(--hover); }
+.ui-window > header .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-window .body { position: relative; flex: 1; min-height: 0; }
+.ui-window .body iframe { width: 100%; height: 100%; border: 0; background: Canvas; color-scheme: light dark; }
+.ui-window .shield { position: absolute; inset: 0; }
+.ui-notice { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--gap); background: #000a; text-align: center; }
+.ui-dock { position: absolute; left: 0; right: 0; bottom: 0; height: 44px; display: flex; align-items: center; gap: var(--gap); padding: 0 12px; background: var(--panel); border-top: 1px solid var(--border); }
+.ui-badge { margin-left: auto; color: var(--warn); font-size: 12px; }

@@ -2,8 +2,8 @@
 // (brasos.hardened.enable). It only ever restricts: default deny for apps and for capabilities.
 import type { Policy } from "@brasos/host/types";
 
-/** the only capabilities left on: no terminal, no web gateway, no installing apps */
-const SAFE_CAPABILITIES = new Set(["apps.read"]);
+/** the only capabilities left on: no terminal, no web gateway, no installing apps, no files, no agents */
+const SAFE_CAPABILITIES = new Set(["apps.read", "docs.read"]);
 
 export const hardened: Policy = {
   name: "hardened",

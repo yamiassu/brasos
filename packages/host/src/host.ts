@@ -4,6 +4,9 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createAudit, type Sink } from "@brasos/audit";
+import { createAgent } from "@brasos/agent";
+import { createDocs } from "@brasos/docs";
+import { createFiles } from "@brasos/files";
 import { createRegistry } from "@brasos/registry";
 import { createGateway, readText } from "@brasos/web-gateway";
 import { build } from "./build";
@@ -23,13 +26,19 @@ export type HostOptions = {
   /** build into dist and return without serving */
   buildOnly?: boolean;
   stateDir?: string;
+  /** the user's files live here (default: <stateDir>/home; without either, files are unavailable) */
+  home?: string;
+  /** markdown guides (default: <root>/docs/guide) */
+  docsDir?: string;
   audit?: Sink[];
   /** gateway tuning; allowPrivate is tests only (lets it reach loopback upstreams) */
   gateway?: { allowPrivate?: boolean; maxSites?: number };
 };
 
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
-const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open"];
+const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "ui.host"];
+/** what an authenticated AI agent may do (on top of each tool's own check and the enabled packages' policies) */
+const AGENT_CAPS = ["agent.call", "apps.read", "fs.read", "fs.write", "docs.read", "ui.control"];
 
 /** localhost = shell, <id>.localhost = app, <id>.web.localhost = website (32 hex chars), <id>--<n>.localhost = restarted app window */
 function targetOf(host: string): Target | null {
@@ -72,7 +81,11 @@ export async function startHost(o: HostOptions) {
       .filter((a) => a.kind === "builtin" && existsSync(join(root, "apps", a.id, "server.ts")))
       .map(async (a) => (await import(pathToFileURL(join(root, "apps", a.id, "server.ts")).href)).createSlice({ audit }) as Slice),
   );
-  const slices: Slice[] = [registry.slice, gateway.slice, ...appSlices];
+  const files = createFiles({ home: o.home ?? (o.stateDir && join(o.stateDir, "home")) });
+  const docs = createDocs({ dir: o.docsDir ?? join(root, "docs/guide") });
+  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice];
+  const agent = createAgent({ tools: () => slices.flatMap((s) => s.tools ?? []), stateDir: o.stateDir });
+  slices.push(agent.slice, ...appSlices);
   const bySlice = new Map(slices.map((s) => [s.name, s]));
 
   /** caller identity comes from the browser-set Origin header (a page can't forge it); same-origin GETs carry Sec-Fetch-Site instead */
@@ -102,7 +115,7 @@ export async function startHost(o: HostOptions) {
   };
 
   function gateFor(req: Request, url: URL) {
-    return (cap: string, opts?: { sameOrigin?: boolean }): Gate => {
+    return (cap: string, opts?: { sameOrigin?: boolean; quiet?: boolean }): Gate => {
       const caller = callerOf(req, url);
       const label = !caller ? "unknown" : caller.kind === "app" ? (registry.has(caller.id) ? caller.id : "unknown-app") : caller.kind;
       const permitted =
@@ -111,7 +124,7 @@ export async function startHost(o: HostOptions) {
         !!caller && permitted && policies.every((p) => p.allowCapability?.(cap) ?? true) &&
         (!opts?.sameOrigin || req.headers.get("origin") === url.origin);
       audit(`capability.${cap}`, ok ? "allow" : "deny", { app: label, origin: (req.headers.get("origin") ?? "").slice(0, 100) }, {},
-        ok ? undefined : { key: `${cap}:${label}`, ms: 1000 });
+        ok && !opts?.quiet ? undefined : { key: `${ok ? "allow" : "deny"}:${cap}:${label}`, ms: 1000 });
       return ok ? { ok, caller: caller! } : { ok, res: cors(json({ error: "denied" }, 403), req, url) };
     };
   }
@@ -142,6 +155,11 @@ export async function startHost(o: HostOptions) {
         target,
         audit,
         gate: gateFor(req, url),
+        allow(cap, as, detail) {
+          const ok = as === "agent" && AGENT_CAPS.includes(cap) && policies.every((p) => p.allowCapability?.(cap) ?? true);
+          audit(`capability.${cap}`, ok ? "allow" : "deny", { app: as }, detail ?? {}, ok ? undefined : { key: `deny:${cap}:${as}`, ms: 1000 });
+          return ok;
+        },
         upgrade: (slice, data) => (upgraded = server.upgrade(req, { data: { ...data, slice } })),
       };
 

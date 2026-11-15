@@ -1,0 +1,10 @@
+{
+  "name": "@brasos/ui",
+  "version": "0.0.0",
+  "description": "Basic React components for building a BrasOS interface",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": { ".": "./src/index.ts", "./ui.css": "./src/ui.css" },
+  "sideEffects": ["*.css"],
+  "license": "Apache-2.0"
+}

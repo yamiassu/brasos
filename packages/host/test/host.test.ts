@@ -12,7 +12,7 @@ const shell = { headers: { "sec-fetch-site": "same-origin" } };
 
 test("the shell and every app are served, each on its own origin", async () => {
   expect((await h.at("localhost")).status).toBe(200);
-  for (const id of ["about", "terminal", "crash-test", "browser"]) expect((await h.at(`${id}.localhost`)).status).toBe(200);
+  for (const id of ["about", "terminal", "crash-test", "browser", "files", "docs"]) expect((await h.at(`${id}.localhost`)).status).toBe(200);
 });
 
 test("a restarted window's origin (<id>--<n>) serves the same app", async () => {
@@ -45,7 +45,7 @@ test("/os/info is public and lists enabled packages", async () => {
 
 test("the app list comes from manifests, sorted, with permissions", async () => {
   const apps = await (await h.at("localhost", "/os/apps", shell)).json();
-  expect(apps.map((a: any) => a.id)).toEqual(["about", "browser", "crash-test", "terminal"]);
+  expect(apps.map((a: any) => a.id)).toEqual(["about", "browser", "crash-test", "docs", "files", "terminal"]);
   expect(apps.find((a: any) => a.id === "terminal").permissions).toEqual(["pty"]);
 });
 

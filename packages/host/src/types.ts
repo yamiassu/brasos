@@ -37,15 +37,43 @@ export type Ctx = {
   /** the origin the request was addressed to */
   target: Target;
   audit: AuditFn;
-  /** the capability check: caller identity from the browser-set Origin header, manifest permission, policies, audited */
-  gate(cap: string, opts?: { sameOrigin?: boolean }): Gate;
+  /**
+   * The capability check: caller identity from the browser-set Origin header, manifest permission, policies, audited.
+   * `quiet` is for read-only capabilities: allows are throttled in the trail (with a suppressed count); denials never are.
+   */
+  gate(cap: string, opts?: { sameOrigin?: boolean; quiet?: boolean }): Gate;
+  /** The same check for a non-browser caller the slice has already authenticated (an AI agent holding the token). Audited. */
+  allow(cap: string, as: "agent", detail?: Record<string, unknown>): boolean;
   /** upgrade to a WebSocket handled by `slice`'s `ws` handlers */
   upgrade(slice: string, data?: Record<string, unknown>): boolean;
 };
 
-/** A vertical slice's contribution to the server: routes and/or WebSocket handlers. Return undefined to pass. */
+/** Object schema subset: enough to describe tool arguments to an agent and to validate them (see packages/agent). */
+export type JsonSchema = {
+  type: "object";
+  properties?: Record<string, { type: "string" | "number" | "integer" | "boolean"; description?: string; enum?: string[]; minimum?: number; maximum?: number }>;
+  required?: string[];
+};
+
+/**
+ * Something an AI agent can do. Slices declare tools next to their routes; the agent slice exposes them over MCP.
+ * A tool is only callable if the agent holds its `capability` and no enabled package forbids it.
+ */
+export type Tool = {
+  /** letters, digits, `_` and `-` (e.g. "fs_list") */
+  name: string;
+  description: string;
+  inputSchema: JsonSchema;
+  capability: string;
+  readOnly?: boolean;
+  destructive?: boolean;
+  run(args: any): unknown | Promise<unknown>;
+};
+
+/** A vertical slice's contribution to the server: routes, tools and/or WebSocket handlers. Return undefined to pass. */
 export interface Slice {
   name: string;
+  tools?: Tool[];
   handle?(req: Request, ctx: Ctx): Response | undefined | Promise<Response | undefined>;
   ws?: {
     open(ws: ServerWebSocket<any>): void;
