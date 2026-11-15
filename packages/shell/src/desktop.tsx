@@ -5,7 +5,7 @@ import { IconTile, Menu } from "@brasos/ui";
 
 const TEXT = /\.(txt|md|json|ts|tsx|js|css|html|csv|log|toml|ya?ml)$/i;
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
-export const iconFor = (e: FsEntry) => (e.kind === "dir" ? "📁" : e.kind === "link" ? "🔗" : TEXT.test(e.name) ? "📝" : IMAGE.test(e.name) ? "🖼️" : "📄");
+export const iconFor = (e: FsEntry) => (e.kind === "dir" ? "folder" : e.kind === "link" ? "link" : TEXT.test(e.name) ? "text" : IMAGE.test(e.name) ? "image" : "file");
 
 export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
   apps: AppInfo[];

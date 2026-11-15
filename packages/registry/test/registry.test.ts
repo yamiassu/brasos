@@ -20,7 +20,7 @@ function fixture() {
 test("builtin apps come from manifests, sorted, with defaults", () => {
   const r = createRegistry({ appsDir: fixture() });
   expect(r.list().map((a) => [a.id, a.name, a.icon, a.permissions])).toEqual([
-    ["alpha", "Alpha", "🧩", []],
+    ["alpha", "Alpha", "app", []],
     ["zeta", "Zeta", "Z", ["pty"]],
   ]);
   expect(r.has("zeta")).toBe(true);

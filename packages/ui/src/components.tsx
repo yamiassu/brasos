@@ -5,6 +5,8 @@ import {
   useEffect, useRef,
 } from "react";
 
+import { Icon } from "./icons";
+
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
 export function Button({ variant = "default", className, ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "primary" | "danger" | "ghost" }) {
@@ -117,7 +119,7 @@ export function IconTile({ icon, label, selected, onSelect, onOpen }: { icon: Re
       onDoubleClick={onOpen}
       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onOpen?.())}
     >
-      <span className="glyph" aria-hidden="true">{icon}</span>
+      <span className="glyph" aria-hidden="true">{typeof icon === "string" ? <Icon name={icon} size={36} /> : icon}</span>
       <span className="label">{label}</span>
     </button>
   );
@@ -156,8 +158,10 @@ export function Dialog({ title, children, actions, onClose }: { title: string; c
 }
 
 /** Window chrome (title bar and body). Dragging and focus are the shell's business: pass pointer handlers in `headerProps`. */
-export function WindowFrame({ title, icon, onClose, headerProps, style, children }: {
+export function WindowFrame({ title, icon, focused, onClose, headerProps, style, children }: {
   title: string;
+  /** the window with the user's attention glows brighter */
+  focused?: boolean;
   icon?: ReactNode;
   onClose(): void;
   headerProps?: HTMLAttributes<HTMLElement>;
@@ -165,9 +169,9 @@ export function WindowFrame({ title, icon, onClose, headerProps, style, children
   children: ReactNode;
 }) {
   return (
-    <section className="ui-window" style={style} aria-label={title}>
+    <section className={cx("ui-window", focused && "ui-window--focused")} style={style} aria-label={title}>
       <header {...headerProps}>
-        <span className="title">{icon} {title}</span>
+        <span className="title">{typeof icon === "string" ? <Icon name={icon} size={18} /> : icon} {title}</span>
         <IconButton label={`Close ${title}`} onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>✕</IconButton>
       </header>
       <div className="body">{children}</div>

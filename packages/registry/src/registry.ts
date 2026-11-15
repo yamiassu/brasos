@@ -30,7 +30,7 @@ export function createRegistry(o: RegistryOptions) {
     builtinIds()
       .map((id) => [id, manifest(id)] as const)
       .filter(([, m]) => allow(m))
-      .map(([id, m]) => ({ id, kind: "builtin", name: m.name, icon: m.brasos?.icon ?? "🧩", permissions: m.brasos?.permissions ?? [] }));
+      .map(([id, m]) => ({ id, kind: "builtin", name: m.name, icon: m.brasos?.icon ?? "app", permissions: m.brasos?.permissions ?? [] }));
   const installed = (): AppInfo[] =>
     pwaDir && existsSync(pwaDir)
       ? readdirSync(pwaDir)
@@ -54,7 +54,7 @@ export function createRegistry(o: RegistryOptions) {
     const id = "pwa-" + createHash("sha256").update(start.origin + String(m.scope ?? "")).digest("hex").slice(0, 12);
     // permissions are granted by the OS or the user, never self-declared by a remote manifest
     // shortcut: manifest icons are ignored; every PWA gets the same icon
-    const app: AppInfo = { id, kind: "pwa", name, icon: "🌐", start_url: start.href, permissions: [] };
+    const app: AppInfo = { id, kind: "pwa", name, icon: "globe", start_url: start.href, permissions: [] };
     mkdirSync(pwaDir, { recursive: true });
     writeFileSync(join(pwaDir, id + ".json"), JSON.stringify(app));
     return app;

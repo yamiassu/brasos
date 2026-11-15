@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppInfo, FsEntry } from "@brasos/sdk";
-import { Badge, Button, Dialog, Dock, WindowFrame } from "@brasos/ui";
+import { Badge, Button, Dialog, Dock, Icon, WindowFrame } from "@brasos/ui";
 import { connectAgent, type ShellApi } from "./agent";
 import { Desktop } from "./desktop";
 import { Boundary, Frame, type Win } from "./windows";
@@ -128,6 +128,7 @@ export function Shell() {
               <WindowFrame
                 title={w.app.name}
                 icon={w.app.icon}
+                focused={w.z === topZ}
                 style={pos}
                 onClose={() => close(w.key)}
                 headerProps={{
@@ -151,11 +152,11 @@ export function Shell() {
       <Dock>
         {apps.map((a) => (
           <Button key={a.id} onClick={() => open(a)}>
-            {a.icon} {a.name}
+            <Icon name={a.icon} size={18} /> {a.name}
           </Button>
         ))}
-        {canRestart && <Button onClick={() => openPath("/BrasOS")}>✏️ Edit interface</Button>}
-        {canRestart && <Button onClick={() => setConfirmRestart(true)}>↻ Restart interface</Button>}
+        {canRestart && <Button onClick={() => openPath("/BrasOS")}><Icon name="edit" size={18} /> Edit interface</Button>}
+        {canRestart && <Button onClick={() => setConfirmRestart(true)}><Icon name="restart" size={18} /> Restart interface</Button>}
         {note && <Badge>{note}</Badge>}
         {/* nobody should mistake a dev image for a hardened one */}
         {packages && !packages.includes("hardened") && <Badge>DEV · hardened package off · not secure</Badge>}

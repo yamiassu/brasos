@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Badge, Breadcrumb, Button, Dialog, Dock, IconButton, IconTile, List, Menu, splitPath, TextField, Toolbar, WindowFrame } from "../src";
+import { Icon, iconNames, Badge, Breadcrumb, Button, Dialog, Dock, IconButton, IconTile, List, Menu, splitPath, TextField, Toolbar, WindowFrame } from "../src";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
 
@@ -45,10 +45,10 @@ test("List is a listbox of options with the selection exposed", () => {
 });
 
 test("IconTile is a focusable button with an accessible name; the glyph is decorative", () => {
-  const m = html(<IconTile icon="📁" label="Documents" selected />);
+  const m = html(<IconTile icon="folder" label="Documents" selected />);
   expect(m).toContain('aria-label="Documents"');
   expect(m).toContain('aria-selected="true"');
-  expect(m).toContain('<span class="glyph" aria-hidden="true">📁</span>');
+  expect(m).toContain('<span class="glyph" aria-hidden="true"><svg class="ui-icon"');
 });
 
 test("Menu and Dialog expose their roles", () => {
@@ -62,7 +62,8 @@ test("Menu and Dialog expose their roles", () => {
 });
 
 test("WindowFrame, Dock and Badge: chrome with a labelled close button, a dock nav and a status", () => {
-  const w = html(<WindowFrame title="Files" icon="📁" onClose={() => {}}>body</WindowFrame>);
+  const w = html(<WindowFrame title="Files" icon="files" focused onClose={() => {}}>body</WindowFrame>);
+  expect(w).toContain("ui-window ui-window--focused");
   expect(w).toContain('aria-label="Files"');
   expect(w).toContain('aria-label="Close Files"');
   expect(w).toContain('<div class="body">body</div>');
@@ -74,4 +75,9 @@ test("every class the components use is defined in ui.css (no unstyled component
   const css = await Bun.file(new URL("../src/ui.css", import.meta.url)).text();
   const src = await Bun.file(new URL("../src/components.tsx", import.meta.url)).text();
   for (const cls of new Set([...src.matchAll(/"(ui-[a-z-]+)/g)].map((m) => m[1]))) expect(css).toContain("." + cls);
+});
+
+test("Icon: every named icon draws; an unknown name (an emoji from an older manifest) is shown as text", () => {
+  for (const n of iconNames) expect(html(<Icon name={n} />)).toContain("<svg");
+  expect(html(<Icon name="🧩" />)).toContain("ui-icon-text");
 });

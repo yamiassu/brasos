@@ -1,1 +1,1 @@
-{ "name": "Browser", "short_name": "Browser", "start_url": "/", "display": "standalone", "brasos": { "icon": "🌐", "permissions": ["web.open", "apps.install"] } }
+{ "name": "Browser", "short_name": "Browser", "start_url": "/", "display": "standalone", "brasos": { "icon": "browser", "permissions": ["web.open", "apps.install"] } }

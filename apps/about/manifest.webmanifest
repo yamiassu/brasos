@@ -1,1 +1,1 @@
-{ "name": "About", "short_name": "About", "start_url": "/", "display": "standalone", "brasos": { "icon": "ℹ️", "hardened": true } }
+{ "name": "About", "short_name": "About", "start_url": "/", "display": "standalone", "brasos": { "icon": "about", "hardened": true } }

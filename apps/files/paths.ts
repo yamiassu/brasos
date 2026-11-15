@@ -23,7 +23,7 @@ export const isText = (name: string) => TEXT.test(name);
 export const isImage = (name: string) => IMAGE.test(name);
 export const imageMime = (name: string) => ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" })[name.split(".").pop()!.toLowerCase()] ?? "application/octet-stream";
 
-export const iconFor = (e: FsEntry) => (e.kind === "dir" ? "📁" : e.kind === "link" ? "🔗" : isText(e.name) ? "📝" : isImage(e.name) ? "🖼️" : "📄");
+export const iconFor = (e: FsEntry) => (e.kind === "dir" ? "folder" : e.kind === "link" ? "link" : isText(e.name) ? "text" : isImage(e.name) ? "image" : "file");
 
 /** the starting place from a window hash such as "#/Documents/notes.txt": the folder to show and the file to select */
 export function startFromHash(hash: string): { dir: string; select?: string } {

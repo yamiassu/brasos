@@ -1,25 +1,23 @@
 /* @brasos/ui: design tokens and the basic components. Everything is driven by the variables below, so the whole OS can be
    restyled by overriding them (put overrides in packages/shell/src/user.css, which loads last).
 
-   Identity ("Aurora"): a dark night-forest base; edges that glow like neon; light gradients; vivid colors taken from
-   living things that make their own light: bioluminescent mint (plankton), aurora violet, firefly amber, coral.
+   Identity ("Aurora"): a dark ember-night base; edges that glow like neon; light gradients; vivid colors taken from
+   living things that make their own light: amber (fireflies, embers) and coral (reef).
    See docs/guide/06-ui-kit.md. */
 :root {
-  /* night: near-black with a green-teal cast, like a forest after dark */
-  --bg: #050a0b;
-  --panel: #0a1315;
-  --panel-2: #0f1c1f;
-  --text: #e3f4ee;
-  --muted: #7d9f9a;
+  /* night: near-black with a warm cast, like a forest at dusk lit by embers */
+  --bg: #0b0807;
+  --panel: #140e0c;
+  --panel-2: #1d1411;
+  --text: #f6ece4;
+  --muted: #a58f82;
 
   /* light: each color is a living thing */
-  --accent: #38f2c0;   /* bioluminescent plankton: the main glow */
-  --accent-2: #8f7bff; /* aurora violet: the second end of every gradient */
-  --firefly: #ffc15e;  /* warm light: warnings, the dev marker */
-  --coral: #ff6b9a;    /* reef: danger */
-  --danger: var(--coral);
-  --warn: var(--firefly);
-  --on-accent: #03110d; /* text on a filled glow */
+  --accent: #ffae42;   /* amber: fireflies and embers, the main glow */
+  --accent-2: #ff5d7a; /* coral: the second end of every gradient */
+  --danger: #ff3d4d;   /* alarm red, kept apart from the coral so danger never looks decorative */
+  --warn: #ffe08a;     /* pale gold: notices, the dev marker */
+  --on-accent: #1a0d02; /* text on a filled glow */
 
   /* edges and glow */
   --border: color-mix(in srgb, var(--accent) 22%, transparent);
@@ -106,8 +104,15 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 .ui-window {
   position: absolute; width: 640px; height: 420px; min-width: 240px; min-height: 120px; display: flex; flex-direction: column;
   resize: both; overflow: hidden; border-radius: var(--radius); border: 1px solid transparent; box-shadow: var(--shadow), var(--glow-soft);
+  /* unfocused: a dim rim; the focused window (below) glows */
+  --rim: 40%;
   background: linear-gradient(var(--panel), var(--panel)) padding-box,
-              linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent-2) 70%, transparent) 55%, color-mix(in srgb, var(--accent) 25%, transparent)) border-box;
+              linear-gradient(135deg, color-mix(in srgb, var(--accent) var(--rim), transparent), color-mix(in srgb, var(--accent-2) var(--rim), transparent) 60%, color-mix(in srgb, var(--accent) 12%, transparent)) border-box;
+  box-shadow: var(--shadow);
+}
+.ui-window--focused {
+  --rim: 100%;
+  box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 28px color-mix(in srgb, var(--accent) 38%, transparent), 0 0 70px color-mix(in srgb, var(--accent-2) 22%, transparent);
 }
 .ui-window > header { display: flex; align-items: center; gap: var(--gap); padding: 6px 10px; cursor: grab; user-select: none; touch-action: none; background: var(--sheen), var(--panel-2); border-bottom: 1px solid var(--border); }
 .ui-window > header .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -120,4 +125,7 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
   background: var(--sheen), var(--panel); border-top: 1px solid transparent;
   border-image: linear-gradient(90deg, transparent, var(--accent), var(--accent-2), transparent) 1; box-shadow: 0 -6px 30px color-mix(in srgb, var(--accent) 8%, transparent);
 }
-.ui-badge { margin-left: auto; color: var(--firefly); font-size: 12px; text-shadow: 0 0 10px color-mix(in srgb, var(--firefly) 55%, transparent); }
+.ui-badge { margin-left: auto; color: var(--warn); font-size: 12px; text-shadow: 0 0 10px color-mix(in srgb, var(--warn) 45%, transparent); }
+
+/* icons: line SVG whose strokes glow */
+.ui-icon { display: inline-block; vertical-align: middle; flex: none; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 45%, transparent)); }

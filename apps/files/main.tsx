@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { os, type FsEntry } from "@brasos/sdk";
-import { Breadcrumb, Button, Dialog, IconButton, List, TextField, Toolbar } from "@brasos/ui";
+import { Breadcrumb, Button, Dialog, Icon, IconButton, List, TextField, Toolbar } from "@brasos/ui";
 import "@brasos/ui/ui.css";
 import "./files.css";
 import { baseName, formatSize, iconFor, imageMime, isImage, isText, join, parent, startFromHash, validName } from "./paths";
@@ -119,7 +119,7 @@ function Files() {
           onOpen={open}
           render={(e) => (
             <>
-              <span aria-hidden="true">{iconFor(e)}</span>
+              <Icon name={iconFor(e)} size={18} />
               <span className="name">{e.name}</span>
               <span className="meta">{e.kind === "dir" ? "" : formatSize(e.size)}</span>
               <span className="meta date">{new Date(e.mtime).toLocaleDateString()}</span>
