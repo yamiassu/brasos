@@ -53,6 +53,19 @@ impl XdgShellHandler for Smallvil {
         surface.send_pending_configure();
     }
 
+    // The shell is Chromium: when it identifies itself it takes the keyboard, whichever window mapped first (a native app is
+    // often faster). A click or the shell's `focus` command moves focus from there.
+    fn app_id_changed(&mut self, surface: ToplevelSurface) {
+        let shell = smithay::wayland::compositor::with_states(surface.wl_surface(), |s| {
+            s.data_map.get::<XdgToplevelSurfaceData>().and_then(|d| d.lock().unwrap().app_id.clone()).is_some_and(|id| id.starts_with("chromium"))
+        });
+        if shell {
+            if let Some(kb) = self.seat.get_keyboard() {
+                kb.set_focus(self, Some(surface.wl_surface().clone()), smithay::utils::SERIAL_COUNTER.next_serial());
+            }
+        }
+    }
+
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
         let gone = self.space.elements().find(|w| w.toplevel() == Some(&surface)).cloned();
         if let Some(w) = gone {
