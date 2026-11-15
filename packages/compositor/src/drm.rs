@@ -12,11 +12,15 @@ use smithay::{
         },
         drm::{DrmDevice, DrmDeviceFd, DrmEvent, compositor::{DrmCompositor, FrameFlags}},
         libinput::{LibinputInputBackend, LibinputSessionInterface},
-        renderer::{ImportDma, pixman::PixmanRenderer},
+        renderer::{
+            ImportDma,
+            element::{Kind, memory::{MemoryRenderBuffer, MemoryRenderBufferRenderElement}, render_elements, surface::WaylandSurfaceRenderElement},
+            pixman::PixmanRenderer,
+        },
         session::{Event as SessionEvent, Session, libseat::LibSeatSession},
         udev::{all_gpus, primary_gpu},
     },
-    desktop::{Window, space::space_render_elements},
+    desktop::{Window, space::{SpaceRenderElements, space_render_elements}},
     output::{Mode as WlMode, Output, PhysicalProperties, Subpixel},
     reexports::{
         calloop::{EventLoop, timer::{TimeoutAction, Timer}},
@@ -24,10 +28,32 @@ use smithay::{
         input::Libinput,
         rustix::fs::OFlags,
     },
-    utils::DeviceFd,
+    utils::{DeviceFd, Transform},
 };
 
 use crate::Smallvil;
+
+render_elements! {
+    Elem<=PixmanRenderer>;
+    Space=SpaceRenderElements<PixmanRenderer, WaylandSurfaceRenderElement<PixmanRenderer>>,
+    Cursor=MemoryRenderBufferRenderElement<PixmanRenderer>,
+}
+
+/// the pointer: a small arrow, drawn in software (no cursor plane on the dumb-buffer path)
+fn arrow() -> MemoryRenderBuffer {
+    const ART: [&str; 16] = [
+        "X...........", "XX..........", "X#X.........", "X##X........", "X###X.......", "X####X......", "X#####X.....", "X######X....",
+        "X#######X...", "X########X..", "X#####XXXXX.", "X##X##X.....", "X#X.X##X....", "XX..X##X....", "X....X##X...", ".....XXX....",
+    ];
+    let mut px = vec![0u8; 12 * 16 * 4];
+    for (y, row) in ART.iter().enumerate() {
+        for (x, c) in row.bytes().enumerate() {
+            let v = match c { b'X' => 0u8, b'#' => 255, _ => continue };
+            px[(y * 12 + x) * 4..][..4].copy_from_slice(&[v, v, v, 255]); // B, G, R, A (premultiplied, opaque)
+        }
+    }
+    MemoryRenderBuffer::from_slice(&px, Fourcc::Argb8888, (12, 16), 1, Transform::Normal, None)
+}
 
 type Comp = DrmCompositor<DumbAllocator, DrmDeviceFd, (), DrmDeviceFd>;
 
@@ -36,6 +62,7 @@ struct Backend {
     compositor: Comp,
     renderer: PixmanRenderer,
     output: Output,
+    cursor: MemoryRenderBuffer,
     queued: bool,
 }
 
@@ -45,10 +72,14 @@ fn render(be: &mut Backend, state: &mut Smallvil) {
     if be.queued {
         return;
     }
-    let elements = match space_render_elements::<_, Window, _>(&mut be.renderer, [&state.space], &be.output, 1.0) {
-        Ok(e) => e,
-        Err(_) => return,
-    };
+    let Ok(space) = space_render_elements::<_, Window, _>(&mut be.renderer, [&state.space], &be.output, 1.0) else { return };
+    let at = state.seat.get_pointer().map(|p| p.current_location()).unwrap_or_default();
+    let mut elements: Vec<Elem> = Vec::with_capacity(space.len() + 1);
+    // front to back: the pointer is on top
+    if let Ok(c) = MemoryRenderBufferRenderElement::from_buffer(&mut be.renderer, (at.x, at.y), &be.cursor, None, None, None, Kind::Cursor) {
+        elements.push(Elem::Cursor(c));
+    }
+    elements.extend(space.into_iter().map(Elem::Space));
     match be.compositor.render_frame(&mut be.renderer, &elements, [0.07, 0.07, 0.07, 1.0], FrameFlags::DEFAULT) {
         Ok(r) if !r.is_empty => {
             if be.compositor.queue_frame(()).is_ok() {
@@ -125,7 +156,7 @@ pub fn init(event_loop: &mut EventLoop<Smallvil>, state: &mut Smallvil) -> Resul
         None::<GbmDevice<DrmDeviceFd>>,
     )?;
 
-    let be: Shared = Rc::new(RefCell::new(Backend { drm, compositor, renderer, output, queued: false }));
+    let be: Shared = Rc::new(RefCell::new(Backend { drm, compositor, renderer, output, cursor: arrow(), queued: false }));
     let handle = event_loop.handle();
 
     // a frame reached the screen: free its buffer and draw the next
