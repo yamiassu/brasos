@@ -7,9 +7,17 @@ An app is a [Web App Manifest](https://www.w3.org/TR/appmanifest/) (the standard
 ```json
 {
   "name": "Files", "short_name": "Files", "start_url": "/", "display": "standalone",
-  "brasos": { "icon": "📁", "permissions": ["fs.read", "fs.write"], "hardened": false }
+  "brasos": {
+    "icon": "📁",
+    "permissions": [{ "id": "fs.read", "reason": "Show your files" }, "fs.write"],
+    "window": { "frame": true },
+    "hardened": false
+  }
 }
 ```
+
+- `permissions`: what the app can do, each an id or `{ id, reason }`. A built-in app holds what it lists. For an app installed from the web this is only a **request**: when you install it, BrasOS shows each permission in plain words with the app's reason and you choose what to allow.
+- `window.frame: false`: BrasOS draws no title bar; the app draws its own and controls its window through `os.window` (it needs `window.control`, and an installed web app needs `window.frameless`, which you also approve at install). Right-clicking the app's button on the taskbar always closes its windows.
 
 ## Everything isolated by origin
 
@@ -26,8 +34,10 @@ Anything powerful (files, the terminal, the web, installing apps) is a **capabil
 | `web.open` | Open websites through the gateway |
 | `apps.install` | Install PWAs |
 | `docs.read` | Read these guides |
+| `db.own`, `db.shared` | Use the BrasOS database privately, or share data with other apps and hear their changes |
+| `window.control`, `window.frameless` | Control its own window; draw its own frame |
 
-Websites and installed PWAs never receive permissions, whatever their manifest claims.
+A website you simply browse to has no permissions. A web app you **install** has only what you allowed in the install prompt, and never anything outside a short list (files, the BrasOS database, its own window, opening apps); it can't restart the system, run commands or install other apps.
 
 ## Packages and profiles
 

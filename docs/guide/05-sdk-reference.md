@@ -16,7 +16,7 @@ As a plain script on any page inside BrasOS: `<script src="/__brasos/sdk.js"></s
 | `await os.info()` | none | `{ os: null, packages: [] }` |
 | `await os.apps.list()` | `apps.read` | `[]` |
 | `await os.apps.open(id)` | `apps.open` (checked by the shell) | `false` |
-| `await os.apps.install(manifestUrl)` | `apps.install` | rejects `UnsupportedError` |
+| `await os.apps.install(manifestUrl)` | `apps.install` (to ask; **you are always asked** and choose the permissions) | rejects `UnsupportedError` |
 | `await os.apps.uninstall(id)` | `apps.uninstall` | rejects `UnsupportedError` |
 | `await os.fs.list(path)` | `fs.read` | an in-memory file tree |
 | `await os.fs.stat(path)` | `fs.read` | an in-memory file tree |
@@ -26,12 +26,33 @@ As a plain script on any page inside BrasOS: `<script src="/__brasos/sdk.js"></s
 | `await os.fs.move(from, to)` | `fs.write` | an in-memory file tree |
 | `await os.fs.remove(path)` | `fs.write` | an in-memory file tree |
 | `await os.docs.list()` / `os.docs.page(slug)` | `docs.read` | rejects `UnsupportedError`, unless the page supplies the guides (Storybook does) |
+| `os.db.collection(name, { space? })` → `put(doc, id?)`, `get(id)`, `list({ where, order, limit })`, `delete(id)` | `db.own` (`db.shared` for `space: "shared"`) | an in-memory store with the same events |
+| `collection.watch(fn)` → unsubscribe | same | the in-memory store's events |
+| `os.window.close()`, `.focus()`, `.setTitle(t)`, `.moveBy(dx, dy)`, `.resize(w, h)` | `window.control` | `false` |
 | `await os.web.open(url)` | `web.open` | `{ url, site }` with the URL unchanged |
 | `os.tools.register(tool)` | none | does nothing without WebMCP |
 
 The polyfill file tree starts with `/Desktop`, `/Documents` and `/Downloads` and follows the same rules as the real one (virtual paths, `..` collapses, delete goes to `/.trash`); it lives in memory and is gone on reload. A page can supply its own through `globalThis.__brasosPolyfill` (`{ fs, docs, standalone }`), which is how Storybook runs the apps.
 
 A call the app has no permission for rejects with an `Error` whose message contains the HTTP status (`403`).
+
+## The database
+
+Documents are JSON, grouped in collections, and every change is an event, so apps can react to each other without polling:
+
+```ts
+const notes = os.db.collection("notes");              // private to this app
+await notes.put({ title: "Buy milk", done: false });  // → { id, rev }
+const open = await notes.list({ where: { done: false }, order: { field: "title" } });
+const stop = notes.watch((e) => console.log(e.op, e.id, e.doc)); // put and delete, from any window or app
+const chat = os.db.collection("chat", { space: "shared" });      // shared between apps that hold db.shared
+```
+
+The other side of a change gets it within milliseconds. Documents are capped at 256 KB and each app at 32 MB. See the database slice's README for the rules.
+
+## Your own window
+
+An app with `window.control` can move, resize, retitle and close its window (`os.window`). With `"window": { "frame": false }` in its manifest BrasOS draws no title bar, so the app draws one and uses `os.window.moveBy` from its own pointer events to drag.
 
 ## Files
 

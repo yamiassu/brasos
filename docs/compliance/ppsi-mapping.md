@@ -40,6 +40,7 @@ Source: *Guia do Framework de Privacidade e Segurança da Informação, PPSI 2.0
 | R23 | AI agent access is explicit, authenticated and attributable: token-authenticated, never reachable from a web page, limited to an allow-list of capabilities, every call audited without its arguments, off in the hardened package | 5.4, 6.1, 6.8, 8.2, 8.5 | Partial | `packages/agent`: bearer token, refuses browser origins, allow-list, audited, denied by hardened. Not done: the privilege tier decision (R2), per-agent identities and revocation, rate limits, auditing what an agent *read* (only the call is recorded) |
 | R24 | User data access is confined and every change is recorded: no access outside the user's home, deletion recoverable | 3.3, 3.5, 3.14, 6.8 | Partial | `packages/files`: confined home (symlink-safe), writes audited (`fs.change`), delete goes to a trash. Not done: per-app scoped folders (today `fs.*` is the whole home), retention and secure wipe, classification labels, encryption at rest |
 | R25 | First-boot account provisioning with a strong password policy, hashed storage, rate-limited and audited login, and an unattended preseed for fleets (the screen lock is not access control; central identity and MFA remain R20) | 5.2, 5.4, 6.1, 6.2 | Partial | |
+| R26 | Least privilege for web apps: a manifest only requests, the user grants per permission in a shell-owned prompt, grants are limited to a fixed list, recorded and audited; per-app database namespaces with no SQL access | 3.3, 6.8 | Partial | |
 
 ## What agencies will ask us for as a supplier
 
