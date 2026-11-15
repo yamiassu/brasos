@@ -59,7 +59,7 @@ export function createNative({ socket, apps: appsFile, audit }: { socket?: strin
       const p = ctx.url.pathname;
       if (ctx.target.kind !== "shell" || !p.startsWith("/os/native")) return;
       if (req.method === "GET" && p === "/os/native") {
-        const g = ctx.gate("native.read", { sameOrigin: true });
+        const g = ctx.gate("native.read");
         if (!g.ok) return g.res;
         if (!socket) return json({ available: false, windows: [] });
         try {
@@ -69,7 +69,7 @@ export function createNative({ socket, apps: appsFile, audit }: { socket?: strin
         }
       }
       if (req.method === "GET" && p === "/os/native/apps") {
-        const g = ctx.gate("native.read", { sameOrigin: true });
+        const g = ctx.gate("native.read");
         return g.ok ? json({ apps: socket ? apps : [] }) : g.res;
       }
       if (req.method === "POST" && p === "/os/native/launch") {

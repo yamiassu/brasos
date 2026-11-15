@@ -80,3 +80,12 @@ test("native apps launch by id only, from the image's list", async () => {
   expect((await hard.at("localhost", "/os/native/launch", { method: "POST", headers: { origin: hard.origin("localhost") }, body: '{"id":"foot"}' })).status).toBe(403);
   hard.stop();
 });
+
+test("the shell's own page can read (a same-origin GET carries Sec-Fetch-Site, not Origin)", async () => {
+  const c = fakeCompositor([{ id: 2, title: "t", app: "a", focused: false }]);
+  const h = await testHost({ nativeSocket: c.path });
+  const r = await h.at("localhost", "/os/native", { headers: { "sec-fetch-site": "same-origin" } });
+  expect((await r.json()).windows.length).toBe(1);
+  expect((await h.at("localhost", "/os/native", { headers: { "sec-fetch-site": "cross-site" } })).status).toBe(403);
+  h.stop();
+});
