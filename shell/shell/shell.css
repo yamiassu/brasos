@@ -1,0 +1,41 @@
+:root {
+  --bg: #0b0d12;
+  --panel: #151922;
+  --text: #e6e8ee;
+  --accent: #5b8cff;
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 14px system-ui, sans-serif; overflow: hidden; }
+
+.desktop { position: absolute; inset: 0 0 44px 0; }
+
+.window {
+  position: absolute; width: 640px; height: 420px; min-width: 240px; min-height: 120px;
+  display: flex; flex-direction: column; resize: both; overflow: hidden;
+  background: var(--panel); border-radius: var(--radius); border: 1px solid #ffffff1a;
+  box-shadow: 0 10px 40px #0008;
+}
+.window > header {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: grab; user-select: none;
+  touch-action: none; background: #ffffff0a;
+}
+.window > header span { flex: 1; }
+.window button, .dock button, .notice button {
+  background: #ffffff14; color: inherit; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+.window button:hover, .dock button:hover, .notice button:hover { background: var(--accent); }
+.body { position: relative; flex: 1; min-height: 0; }
+.body iframe { width: 100%; height: 100%; border: 0; background: var(--bg); }
+.shield { position: absolute; inset: 0; }
+.notice {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px; background: #000a; text-align: center;
+}
+.notice.window { inset: auto; width: 320px; height: auto; }
+
+.dock {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 44px; display: flex; align-items: center;
+  gap: 8px; padding: 0 12px; background: var(--panel); border-top: 1px solid #ffffff1a;
+}
