@@ -55,7 +55,17 @@ Not yet measured (open work): window open time and frame time in Chromium, per-a
 
 ## Security posture (requirement: government-grade)
 
-**Current status: NOT hardened. What exists today is a development profile.** Do not describe it as secure or compliant anywhere. No compliance standard has been chosen yet (jurisdiction and threat model are open decisions), so nothing here is certified or audited.
+**Current status: NOT hardened. What exists today is a development profile.** Do not describe it as secure or compliant anywhere. Target jurisdiction: **Brazil** (federal/state government computers). Nothing here is certified, audited or mapped yet; the threat model is still an open decision.
+
+### Brazilian regime (from web search, Nov 2026; confirm with the customer's security officer and legal before relying on any of it)
+
+- **PPSI** (Programa de Privacidade e Segurança da Informação, SGD/MGI): original Portaria SGD/MGI nº 852/2023, now **PPSI 2.0 via Portaria SGD/MGI nº 9.511 of 28 Oct 2025**, for federal bodies in SISP. It is a controls-and-measures framework (v1: 18 security controls / 153 measures; published numbers for 2.0 conflict between sources, so read the current official guide). This is the most likely thing to map our hardened profile against.
+- **GSI/PR** norms: PNSI (cited as Decreto nº 12.572/2025 in one source, Decreto 9.637/2018 in older ones: confirm which is current), IN GSI/PR nº 1/2020 (each body must have a security policy, POSIN), nº 3/2021 (mandatory security-management processes), nº 5/2021 (minimum requirements for cloud).
+- **ICP-Brasil** (ITI): if the OS signs or handles digital certificates, DOC-ICP-10 and the Manuais de Condutas Técnicas (MCT 5 authentication software, MCT 7 cryptographic modules) apply and require homologation.
+- **LGPD** (Lei 13.709/2018) for personal data, and a separate regime for classified information. Not researched here.
+- No mandatory national OS certification scheme was found. Common Criteria and NIST SP 800 appear as international references. Whether the customer demands a certification is a question for them, not an assumption for us.
+
+Next step: map the hardened-profile requirements below to the PPSI controls, so each is traceable to a norm.
 
 Dev-only conveniences that a hardened profile must not have: user `brasos` with a default password and passwordless sudo; Claude Code with full privilege; `bun install` from the network at boot; a user-editable shell that runs unreviewed code; Chromium kiosk with a shell that has a full-access PTY.
 
