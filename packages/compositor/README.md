@@ -13,11 +13,11 @@ Roadmap item 1, first step: a Wayland compositor built on [smithay](https://gith
 
 ## Not done (in order)
 
-1. **Own the display**: replace cage with the DRM/KMS backend (`backend_drm`, `backend_libinput`, `backend_session_libseat`, `backend_gbm`; see smithay's `anvil` for the udev backend). Then `brasos-comp` is the session.
-2. **Native windows in the shell, the rest**: taskbar buttons exist, but the shell does not yet draw native window frames or place them (the compositor still tiles), and native apps have no launcher entry, manifest or permission story.
-4. **Foreign apps**: XWayland for X11 apps, Flatpak plus XDG desktop portals for packaging and permissions, and a manifest (`brasos` block) for a native app so the registry lists it.
-5. **Security**: a native app is a full user process, not an isolated origin. Needs its own sandbox (Flatpak/bubblewrap, Landlock) and capability gate before it can ship anywhere near the hardened package. Wayland clients can also be denied protocols (screencopy, virtual input) per client.
-6. A benchmark (frame time, input latency, spawn-to-first-frame) once the DRM backend exists; the winit stand-in would measure the wrong thing.
+1. **Own the display**: replace cage with the DRM/KMS backend (`backend_drm`, `backend_libinput`, `backend_session_libseat`, `backend_gbm`; see smithay's `anvil` udev backend, ~1700 lines to adapt). Then `brasos-comp` is the session and the extra compositing hop goes away.
+2. **Native windows in the shell, the rest**: taskbar buttons work (verified in the VM through `/os/native`), but the shell does not draw native window frames or place them (the compositor still tiles), and on a 640x480 screen the half-width shell hides the taskbar's right side.
+3. **Foreign apps**: XWayland for X11 apps, Flatpak plus XDG desktop portals for packaging and permissions, and a manifest (`brasos` block) for a native app so the registry and launcher list it.
+4. **Security**: a native app is a full user process, not an isolated origin. Needs its own sandbox (Flatpak/bubblewrap, Landlock) and capability gate before it can ship anywhere near the hardened package. Wayland clients can also be denied protocols (screencopy, virtual input) per client.
+5. A benchmark (frame time, input latency, spawn-to-first-frame) once the DRM backend exists; the winit stand-in would measure the wrong thing.
 
 ## Build
 
