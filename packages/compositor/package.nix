@@ -6,7 +6,7 @@ rustPlatform.buildRustPackage {
   src = ./.;
   cargoLock = {
     lockFile = ./Cargo.lock;
-    outputHashes."smithay-0.7.0" = lib.fakeHash;
+    outputHashes."smithay-0.7.0" = "sha256-NG49dc+dCPGRoxeaEUkQ/8smI4JWqnCZVzEAWWvanlc=";
   };
   nativeBuildInputs = [ pkg-config makeWrapper ];
   buildInputs = [ wayland libxkbcommon libGL mesa libx11 libxcursor libxi libxrandr ];
