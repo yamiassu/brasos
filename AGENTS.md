@@ -14,6 +14,7 @@ The repo is organized by what BrasOS does, not by technical layer. Each slice ow
 | `packages/docs/` | The OS's guides: markdown in `docs/guide/`, rendered by Bun's built-in renderer | `/os/docs*` routes |
 | `packages/setup/` | First boot: the initial account and preferences, the lock screen's login, unattended preseed | Allowed in hardened (`setup.write`, `setup.login`); read its README |
 | `packages/compositor/` | Spike: a smithay compositor (inside cage for now) that tiles Chromium beside native Wayland apps | Dev only (`brasos.compositor.enable`); read its README for what is missing |
+| `packages/native/` | Native (non-PWA) windows in the shell: list, focus, close through the compositor's control socket | Gated `native.read`/`native.control` (shell only, denied by hardened); read its README |
 | `packages/system/` | Restart the interface: `POST /os/system/restart` and the `system_restart` agent tool, gated by `system.restart` | Only where a supervisor can restart the host (`BRASOS_RESTART_CMD`) |
 | `packages/agent/` | The agent interface: an MCP endpoint, token auth, and a relay to the shell's UI tools | Denied entirely by the hardened package |
 | `packages/ui/` | `@brasos/ui`: the basic components (button, field, toolbar, breadcrumb, list, icon tile, menu, dialog, window frame, taskbar, search field, tray) and the design tokens | Used by the shell and apps |
@@ -56,6 +57,8 @@ Modules import each other through the aliases in `tsconfig.json` (`@brasos/audit
 12. **Dev only:** the live OS copy is user-editable at `/var/lib/brasos/state/home/BrasOS` (so `/BrasOS` in Files, writable through `fs.write`); restarting it is the `system.restart` capability (shell, agents, apps that declare it; denied by hardened, and only available when `BRASOS_RESTART_CMD` is set); if it fails 3 times in 60 s, systemd starts the pristine copy (`brasos-shell-safe`), and `brasos-reset-shell` re-seeds. Claude Code has full privilege by design (user `brasos`: default password, passwordless sudo). The hardened package has no terminal, no agent, no sudo, no usable login and an immutable shell.
 
 13. **First boot.** Until `<state>/setup.json` exists the shell shows the installer. The account is stored as an argon2id hash only (mode 0600, atomic write), the password never reaches the audit trail or an error message, `setup.write`/`setup.login` belong to the shell alone (apps and agents never get them), setup completes once, login is throttled and audited, and the lock screen is **not** access control (say so wherever it is described). A preseed accepts a hash, never a password.
+
+14. **Native windows.** A native app's windows belong to the compositor; the shell reaches them only through `packages/native` (`native.read`, `native.control`, both shell-only; no app, agent or hardened profile holds them), over a 0600 Unix socket, with the window id validated and every focus/close audited (never titles). A native app is a full user process with no sandbox yet: it must not ship in hardened.
 
 ## Commands
 
