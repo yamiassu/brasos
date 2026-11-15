@@ -30,12 +30,13 @@ Every component sets its roles and labels itself, so an interface built from the
 
 ## Visual identity: Aurora
 
-BrasOS is dark, and it glows. The base is an ember-night (near-black with a warm cast); edges light up like neon; surfaces catch a little light from above; the colors are those of living things that make their own light.
+BrasOS is dark, neutral and quiet. The surface is grey; color is rare, so that it stands out when it appears. Where attention is, edges light up like neon, and the color is that of living things that make their own light (amber, with coral as its partner).
 
-- **Neon edges.** Windows and dialogs have a gradient rim (amber to coral) drawn behind a solid panel, plus a soft glow. The **focused window glows brighter** than the rest (`WindowFrame` takes `focused`). Buttons light their edge on hover; focus is a glow, not a hard outline.
+- **Color is a signal.** It appears only on: the **focused window** (a gradient rim and glow; `WindowFrame` takes `focused`; the others stay grey), keyboard focus, the selected row, the primary button, and dialogs. Danger and notices have their own colors. Everything else, including every icon at rest, is grey.
+- **Neon edges.** The focused window and dialogs have a gradient rim (amber to coral) drawn behind a solid panel, plus a glow.
 - **Light gradients.** `--sheen` is a faint light falling on a surface (toolbars, title bars, menus); `--aurora` is the amber-to-coral gradient for primary actions and rims. The desktop is night with a few soft aurora glows.
-- **Colors from nature.** Amber (`--accent`) is fireflies and embers, coral (`--accent-2`) is reef. Danger is a separate alarm red (`--danger`) and notices are pale gold (`--warn`), so neither looks decorative. Use the glow sparingly: one bright thing per area, so it stays meaningful.
-- **Icons.** `Icon` draws the OS's line icons (`about`, `browser`, `docs`, `files`, `folder`, `terminal`, `text`, `image`, `link`, `edit`, `restart`, `app`, ...) as inline SVG: amber strokes with a coral detail, glowing. An app names its icon in the manifest (`"brasos": { "icon": "files" }`); any other text, such as an emoji, is shown as is.
+- **Colors from nature.** Amber (`--accent`) is fireflies and embers, coral (`--accent-2`) is reef. Danger is a separate alarm red (`--danger`) and notices are pale gold (`--warn`), so neither looks decorative. Keep it rare: one bright thing per area, so it stays meaningful.
+- **Icons.** `Icon` draws the OS's line icons (`about`, `browser`, `docs`, `files`, `folder`, `terminal`, `text`, `image`, `link`, `edit`, `restart`, `app`, ...) as inline SVG: grey strokes with a dimmer detail; hover or selection lights them amber and coral. An app names its icon in the manifest (`"brasos": { "icon": "files" }`); any other text, such as an emoji, is shown as is.
 - **Cost.** Everything is gradients, shadows and borders: no images, no animation. The one blur is behind dialogs.
 
 ## Tokens
@@ -48,11 +49,12 @@ Everything is styled with CSS variables, so the whole OS can be restyled by chan
 | `--text`, `--muted`, `--on-accent` | Text, and text on a filled glow |
 | `--accent`, `--accent-2` | The living colors (amber and coral) |
 | `--danger`, `--warn` | Alarm red and pale gold |
-| `--border`, `--border-strong`, `--hover`, `--selected` | Lines and fills, all tinted by `--accent` |
-| `--glow`, `--glow-soft`, `--aurora`, `--sheen` | Neon shadow, a quieter one, the gradient, the light on surfaces |
+| `--icon`, `--icon-2` | Icons at rest (main stroke and detail) |
+| `--border`, `--border-strong`, `--hover`, `--selected` | Lines and fills: neutral |
+| `--glow`, `--aurora`, `--sheen` | Neon shadow, the gradient, the light on surfaces |
 | `--radius`, `--radius-sm`, `--gap` | Shape and spacing |
 | `--font`, `--shadow` | Type and elevation |
 
-Change `--accent` and `--accent-2` and every edge, glow and gradient follows. A different mood is a few lines in `user.css`, for example a cool one: `:root { --accent: #38f2c0; --accent-2: #8f7bff; }`.
+Change `--accent` and `--accent-2` and every glow and gradient follows. A different mood is a few lines in `user.css`, for example a cool one: `:root { --accent: #38f2c0; --accent-2: #8f7bff; }`.
 
 See [Customizing](09-customizing.md) for where to override them.

@@ -1,8 +1,8 @@
-// The icon set: line icons in the Aurora style (glowing strokes, a second color for the detail). Plain inline SVG, no images.
+// The icon set: line icons in the Aurora style (grey strokes with a dimmer detail; hover or selection lights them). Plain inline SVG, no images.
 // `Icon` takes a name from this set; anything else (an emoji from an older manifest, a PWA's text) is shown as text.
 import type { ReactNode } from "react";
 
-// `d` strokes in the main color (--accent); `hi` strokes in the second (--accent-2); `danger` in --danger.
+// `d` is the main stroke (--icon), `hi` the detail (--icon-2); `danger` draws in --danger.
 const SET: Record<string, { d: string; hi?: string; danger?: boolean }> = {
   about: { d: "M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", hi: "M12 11v5M12 8v.01" },
   browser: { d: "M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM3.5 12h17", hi: "M12 3c-3 3-3 15 0 18c3-3 3-15 0-18z" },
@@ -28,8 +28,8 @@ export function Icon({ name, size = 24 }: { name: string; size?: number }): Reac
   if (!i) return <span className="ui-icon-text">{name}</span>;
   return (
     <svg className="ui-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={i.d} stroke={i.danger ? "var(--danger)" : "var(--accent)"} />
-      {i.hi && <path d={i.hi} stroke="var(--accent-2)" />}
+      <path d={i.d} className={i.danger ? "d" : "m"} />
+      {i.hi && <path d={i.hi} className="h" />}
     </svg>
   );
 }

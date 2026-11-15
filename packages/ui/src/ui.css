@@ -1,39 +1,42 @@
 /* @brasos/ui: design tokens and the basic components. Everything is driven by the variables below, so the whole OS can be
    restyled by overriding them (put overrides in packages/shell/src/user.css, which loads last).
 
-   Identity ("Aurora"): a dark ember-night base; edges that glow like neon; light gradients; vivid colors taken from
-   living things that make their own light: amber (fireflies, embers) and coral (reef).
+   Identity ("Aurora"): a neutral, dark, quiet surface; edges that glow like neon only where attention is; light gradients;
+   and a rare, vivid color from living things that make their own light (amber, with coral as its partner).
+   Color is a signal, so it is scarce: the focused window, the keyboard focus, the selected item, the primary action.
+   Everything else is grey.
    See docs/guide/06-ui-kit.md. */
 :root {
-  /* night: near-black with a warm cast, like a forest at dusk lit by embers */
-  --bg: #0b0807;
-  --panel: #140e0c;
-  --panel-2: #1d1411;
-  --text: #f6ece4;
-  --muted: #a58f82;
+  /* neutral night */
+  --bg: #0c0c0d;
+  --panel: #131314;
+  --panel-2: #1a1a1c;
+  --text: #ececee;
+  --muted: #8b8b92;
+  --icon: #c9c9cf;   /* line icons at rest */
+  --icon-2: #7c7c84; /* the detail stroke of an icon at rest */
 
-  /* light: each color is a living thing */
-  --accent: #ffae42;   /* amber: fireflies and embers, the main glow */
-  --accent-2: #ff5d7a; /* coral: the second end of every gradient */
+  /* the rare colors */
+  --accent: #ffae42;   /* amber: fireflies and embers */
+  --accent-2: #ff5d7a; /* coral: the partner in a gradient */
   --danger: #ff3d4d;   /* alarm red, kept apart from the coral so danger never looks decorative */
   --warn: #ffe08a;     /* pale gold: notices, the dev marker */
-  --on-accent: #1a0d02; /* text on a filled glow */
+  --on-accent: #1a0d02; /* text on a filled accent */
 
-  /* edges and glow */
-  --border: color-mix(in srgb, var(--accent) 22%, transparent);
-  --border-strong: color-mix(in srgb, var(--accent) 55%, transparent);
-  --hover: color-mix(in srgb, var(--accent) 12%, transparent);
-  --selected: color-mix(in srgb, var(--accent) 22%, transparent);
-  --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
-  --glow-soft: 0 0 14px color-mix(in srgb, var(--accent) 16%, transparent);
+  /* edges and fills are neutral; the glow is the only place --accent leaks in */
+  --border: #ffffff14;
+  --border-strong: #ffffff30;
+  --hover: #ffffff0d;
+  --selected: #ffffff1a;
+  --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 25%, transparent);
   --aurora: linear-gradient(135deg, var(--accent), var(--accent-2));
-  --sheen: linear-gradient(180deg, #ffffff0d, #ffffff00 40%); /* light falling on a surface */
+  --sheen: linear-gradient(180deg, #ffffff0a, #ffffff00 40%); /* light falling on a surface */
 
   --radius: 12px;
   --radius-sm: 7px;
   --gap: 8px;
   --font: system-ui, sans-serif;
-  --shadow: 0 14px 50px #000a, 0 0 30px color-mix(in srgb, var(--accent-2) 10%, transparent);
+  --shadow: 0 14px 50px #000a;
   color-scheme: dark;
 }
 
@@ -41,17 +44,17 @@
 html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px var(--font); }
 ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
 
-/* buttons: a quiet tinted face; on hover the edge lights up */
+/* buttons: neutral; on hover the edge brightens */
 .ui-btn {
   background: var(--sheen), var(--hover); color: inherit; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 12px;
-  font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: box-shadow .15s, border-color .15s, background .15s;
+  font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: border-color .15s, background .15s;
 }
-.ui-btn:hover:not(:disabled) { border-color: var(--border-strong); box-shadow: var(--glow-soft); background: var(--sheen), var(--selected); }
+.ui-btn:hover:not(:disabled) { border-color: var(--border-strong); background: var(--sheen), var(--selected); }
 .ui-btn:focus-visible, .ui-tile:focus-visible, .ui-item:focus-visible, .ui-menu button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ui-btn:disabled { opacity: 0.4; cursor: default; }
 .ui-btn--primary { background: var(--aurora); color: var(--on-accent); border-color: transparent; font-weight: 600; }
 .ui-btn--primary:hover:not(:disabled) { background: var(--aurora); box-shadow: var(--glow); }
-.ui-btn--danger:hover:not(:disabled) { border-color: var(--danger); box-shadow: 0 0 14px color-mix(in srgb, var(--danger) 35%, transparent); background: color-mix(in srgb, var(--danger) 18%, transparent); }
+.ui-btn--danger:hover:not(:disabled) { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 18%, transparent); }
 .ui-btn--ghost { background: transparent; border-color: transparent; }
 .ui-iconbtn { padding: 4px 8px; }
 
@@ -69,63 +72,65 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 .ui-crumbs { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; overflow: hidden; }
 .ui-crumbs .sep { color: var(--muted); }
 
-/* list */
+/* list: the selected row gets the one accent mark */
 .ui-list { display: flex; flex-direction: column; overflow: auto; outline: none; }
 .ui-item { display: flex; align-items: center; gap: var(--gap); padding: 5px 10px; cursor: default; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; }
 .ui-item:hover { background: var(--hover); }
 .ui-item[aria-selected="true"] { background: var(--selected); box-shadow: inset 2px 0 0 var(--accent); }
 
-/* icon tiles (desktop, file grids) */
+/* icon tiles (desktop, file grids): grey icons; hover or selection lights the icon */
 .ui-tile {
   display: flex; flex-direction: column; align-items: center; gap: 4px; width: 88px; padding: 8px 4px; border: 1px solid transparent;
   background: transparent; color: inherit; font: inherit; border-radius: var(--radius-sm); cursor: default; text-align: center;
 }
-.ui-tile .glyph { font-size: 32px; line-height: 1; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 35%, transparent)); }
+.ui-tile .glyph { font-size: 32px; line-height: 1; }
 .ui-tile .label { font-size: 12px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 1px 6px #000; }
 .ui-tile:hover { background: var(--hover); }
-.ui-tile[aria-selected="true"] { background: var(--selected); border-color: var(--border-strong); box-shadow: var(--glow-soft); }
+.ui-tile[aria-selected="true"] { background: var(--selected); border-color: var(--border-strong); }
 
-/* menu and dialog: glass over the night */
+/* menu and dialog */
 .ui-backdrop { position: fixed; inset: 0; z-index: 1000; }
-.ui-backdrop--dim { background: #02060799; backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; }
-.ui-menu { position: fixed; z-index: 1001; min-width: 160px; background: var(--sheen), var(--panel-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 4px; box-shadow: var(--shadow), var(--glow-soft); display: flex; flex-direction: column; }
+.ui-backdrop--dim { background: #000000a0; backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; }
+.ui-menu { position: fixed; z-index: 1001; min-width: 160px; background: var(--sheen), var(--panel-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 4px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
 .ui-menu button { background: transparent; color: inherit; border: 0; border-radius: 4px; padding: 6px 10px; text-align: left; font: inherit; cursor: pointer; }
 .ui-menu button:hover { background: var(--selected); }
 .ui-menu button.danger:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); }
 .ui-dialog {
-  /* the neon edge: a gradient border drawn behind a solid panel */
+  /* a dialog asks for attention, so it gets the neon edge: a gradient border behind a solid panel */
   background: linear-gradient(var(--panel), var(--panel)) padding-box, var(--aurora) border-box; border: 1px solid transparent;
-  border-radius: var(--radius); box-shadow: var(--shadow), var(--glow-soft); padding: 16px; min-width: 280px; max-width: 80vw; display: flex; flex-direction: column; gap: 12px;
+  border-radius: var(--radius); box-shadow: var(--shadow), var(--glow); padding: 16px; min-width: 280px; max-width: 80vw; display: flex; flex-direction: column; gap: 12px;
 }
 .ui-dialog h2 { margin: 0; font-size: 15px; }
 .ui-dialog .actions { display: flex; justify-content: flex-end; gap: var(--gap); }
 
-/* window and dock (used by the shell): a panel with a gradient neon rim */
+/* window and dock (used by the shell): a grey panel; only the focused window glows */
 .ui-window {
   position: absolute; width: 640px; height: 420px; min-width: 240px; min-height: 120px; display: flex; flex-direction: column;
-  resize: both; overflow: hidden; border-radius: var(--radius); border: 1px solid transparent; box-shadow: var(--shadow), var(--glow-soft);
-  /* unfocused: a dim rim; the focused window (below) glows */
-  --rim: 40%;
-  background: linear-gradient(var(--panel), var(--panel)) padding-box,
-              linear-gradient(135deg, color-mix(in srgb, var(--accent) var(--rim), transparent), color-mix(in srgb, var(--accent-2) var(--rim), transparent) 60%, color-mix(in srgb, var(--accent) 12%, transparent)) border-box;
-  box-shadow: var(--shadow);
+  resize: both; overflow: hidden; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow);
 }
 .ui-window--focused {
-  --rim: 100%;
-  box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 28px color-mix(in srgb, var(--accent) 38%, transparent), 0 0 70px color-mix(in srgb, var(--accent-2) 22%, transparent);
+  /* the neon rim, drawn behind the panel */
+  border-color: transparent;
+  background: linear-gradient(var(--panel), var(--panel)) padding-box,
+              linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent-2) 70%, transparent) 55%, color-mix(in srgb, var(--accent) 20%, transparent)) border-box;
+  box-shadow: var(--shadow), 0 0 22px color-mix(in srgb, var(--accent) 30%, transparent), 0 0 60px color-mix(in srgb, var(--accent-2) 14%, transparent);
 }
 .ui-window > header { display: flex; align-items: center; gap: var(--gap); padding: 6px 10px; cursor: grab; user-select: none; touch-action: none; background: var(--sheen), var(--panel-2); border-bottom: 1px solid var(--border); }
 .ui-window > header .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ui-window .body { position: relative; flex: 1; min-height: 0; }
 .ui-window .body iframe { width: 100%; height: 100%; border: 0; background: Canvas; color-scheme: light dark; }
 .ui-window .shield { position: absolute; inset: 0; }
-.ui-notice { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--gap); background: #020607cc; backdrop-filter: blur(2px); text-align: center; }
+.ui-notice { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--gap); background: #000000cc; backdrop-filter: blur(2px); text-align: center; }
 .ui-dock {
   position: absolute; left: 0; right: 0; bottom: 0; height: 44px; display: flex; align-items: center; gap: var(--gap); padding: 0 12px;
-  background: var(--sheen), var(--panel); border-top: 1px solid transparent;
-  border-image: linear-gradient(90deg, transparent, var(--accent), var(--accent-2), transparent) 1; box-shadow: 0 -6px 30px color-mix(in srgb, var(--accent) 8%, transparent);
+  background: var(--sheen), var(--panel); border-top: 1px solid var(--border);
 }
-.ui-badge { margin-left: auto; color: var(--warn); font-size: 12px; text-shadow: 0 0 10px color-mix(in srgb, var(--warn) 45%, transparent); }
+.ui-badge { margin-left: auto; color: var(--warn); font-size: 12px; }
 
-/* icons: line SVG whose strokes glow */
-.ui-icon { display: inline-block; vertical-align: middle; flex: none; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 45%, transparent)); }
+/* icons: grey line SVG; the detail stroke is dimmer. Hover or selection lights them. */
+.ui-icon { display: inline-block; vertical-align: middle; flex: none; }
+.ui-icon .m { stroke: var(--icon); }
+.ui-icon .h { stroke: var(--icon-2); }
+.ui-icon .d { stroke: var(--danger); }
+.ui-tile:hover .ui-icon .m, .ui-tile[aria-selected="true"] .ui-icon .m, .ui-btn:hover .ui-icon .m, .ui-item[aria-selected="true"] .ui-icon .m { stroke: var(--accent); }
+.ui-tile:hover .ui-icon .h, .ui-tile[aria-selected="true"] .ui-icon .h, .ui-btn:hover .ui-icon .h, .ui-item[aria-selected="true"] .ui-icon .h { stroke: var(--accent-2); }

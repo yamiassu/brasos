@@ -12,11 +12,10 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
   grid-auto-columns: 96px; gap: 4px; align-content: start; justify-content: start;
 }
 
-/* the desktop: ember-night with soft glow (soft radial glows; no animation, so it costs nothing per frame) */
+/* the desktop: neutral night with a faint pool of light; the rare color is saved for what is focused */
 #root {
   background:
-    radial-gradient(60% 50% at 15% 0%, color-mix(in srgb, var(--accent-2) 30%, transparent), transparent 70%),
-    radial-gradient(55% 45% at 90% 100%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 70%),
-    radial-gradient(40% 35% at 70% 20%, color-mix(in srgb, var(--accent-2) 9%, transparent), transparent 70%),
+    radial-gradient(70% 55% at 20% 0%, #ffffff0a, transparent 70%),
+    radial-gradient(60% 45% at 90% 100%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 70%),
     var(--bg);
 }

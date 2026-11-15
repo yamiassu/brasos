@@ -3,7 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 
-const term = new Terminal({ cursorBlink: true, fontSize: 14, theme: { background: "#0b0807" } });
+const term = new Terminal({ cursorBlink: true, fontSize: 14, theme: { background: "#0c0c0d" } });
 const fit = new FitAddon();
 term.loadAddon(fit);
 term.open(document.getElementById("t")!);
