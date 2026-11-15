@@ -26,7 +26,7 @@ const site = Bun.serve({
       case "/redir":
         return new Response(null, { status: 302, headers: { location: "https://elsewhere.example.com/landing" } });
       case "/echo":
-        return Response.json({ method: req.method, body: await req.text(), cookie: req.headers.get("cookie"), origin: req.headers.get("origin") });
+        return Response.json({ method: req.method, body: await req.text(), cookie: req.headers.get("cookie"), origin: req.headers.get("origin"), fetchSite: req.headers.get("sec-fetch-site"), custom: req.headers.get("x-tsr-serverfn"), auth: req.headers.get("authorization"), fwd: req.headers.get("x-forwarded-for") });
       case "/manifest.webmanifest":
         return Response.json({ name: "Notes App", start_url: "/app/", icons: [{ src: "/i.png" }] });
       case "/evil-manifest.webmanifest":
@@ -198,4 +198,13 @@ test("the Browser app cannot install by itself (the shell prompts), and other ap
   expect(e.some((x) => x.event === "web.site" && x.outcome === "allow")).toBe(true);
   expect(e.some((x) => x.event === "apps.install")).toBe(true);
   expect(strict.events().some((x) => x.event === "web.open" && x.outcome === "deny")).toBe(true);
+});
+
+test("a page talking to itself is same-origin to the real site; its own x- headers pass, forwarding headers do not", async () => {
+  const echo = async (headers: Record<string, string>) => (await h.at(new URL(await siteUrl("/echo")).hostname, "/echo", { headers })).json();
+  const mine = await echo({ "sec-fetch-site": "same-origin", "x-tsr-serverfn": "true", authorization: "Bearer t", "x-forwarded-for": "1.2.3.4" });
+  expect(mine).toMatchObject({ fetchSite: "same-origin", custom: "true", auth: "Bearer t", fwd: null });
+  expect((await echo({ "sec-fetch-site": "same-site" })).fetchSite).toBe("cross-site"); // another gateway site: not our origin
+  expect((await echo({ "sec-fetch-site": "cross-site" })).fetchSite).toBe("cross-site");
+  expect((await echo({})).fetchSite).toBe(null);
 });

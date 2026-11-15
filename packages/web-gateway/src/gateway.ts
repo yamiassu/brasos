@@ -130,6 +130,18 @@ export function createGateway(opts: GatewayOptions = {}) {
       const v = req.headers.get(h);
       if (v) headers.set(h, v);
     }
+    // A page on its gateway origin talking to itself is, to the real site, a same-origin request, and sites (server functions,
+    // CSRF guards) refuse requests that do not say so. The browser sets Sec-Fetch-* where a page can't forge it, so it is
+    // translated, not copied: same-origin stays, a request from another gateway site (or any other site) is cross-site.
+    const fetchSite = req.headers.get("sec-fetch-site");
+    if (fetchSite) headers.set("sec-fetch-site", fetchSite === "same-origin" || fetchSite === "none" ? fetchSite : "cross-site");
+    for (const h of ["sec-fetch-mode", "sec-fetch-dest", "sec-fetch-user"]) {
+      const v = req.headers.get(h);
+      if (v) headers.set(h, v);
+    }
+    // the app's own request headers (framework markers, CSRF tokens, bearer tokens) go to the app's own site; forwarding
+    // identifiers are never sent, so the real site can't see BrasOS or the local address
+    for (const [k, v] of req.headers) if ((k.startsWith("x-") && !/^x-(forwarded|real-ip)|brasos/.test(k)) || k === "authorization") headers.set(k, v);
     headers.set("referer", origin + "/"); // shortcut: the real Referer path is not forwarded
     if (req.method === "POST") headers.set("origin", origin);
 
