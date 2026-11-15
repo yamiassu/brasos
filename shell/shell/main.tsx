@@ -76,6 +76,17 @@ function Shell() {
 
   useEffect(() => {
     fetch("/api/apps").then((r) => r.json()).then(setApps);
+    // Server restarted or failed over to the safe shell: reload so the UI isn't left dead.
+    let down = false;
+    const t = setInterval(async () => {
+      try {
+        await fetch("/api/apps", { cache: "no-store" });
+        if (down) location.reload();
+      } catch {
+        down = true;
+      }
+    }, 3000);
+    return () => clearInterval(t);
   }, []);
 
   const open = (app: AppInfo) => {
