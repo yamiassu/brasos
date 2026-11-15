@@ -9,28 +9,28 @@ Source: *Guia do Framework de Privacidade e Segurança da Informação, PPSI 2.0
 - PPSI 2.0 adopts CIS Controls v8.1 in full for security: controls **1–18**, 153 measures. **Control 0** is governance; **19–25** are privacy (LGPD).
 - Measures are questions an *agency* answers about its own practices ("does the órgão do X?"). **An OS cannot be PPSI-compliant; it can make "yes" achievable and provide evidence.** So each row below is a product requirement that supports specific measures.
 - Measures carry implementation groups GI1 < GI2 < GI3 (the agency's group depends on its size and risk). Plan: satisfy the GI1 and GI2 technical measures first; GI3 is a stretch.
-- Status: **Conflict** = the current dev profile does the opposite. **Partial** = something exists. **None** = not started.
+- Status describes the **hardened** profile. **Partial** = something exists. **None** = not started. The dev profile intentionally violates several of these (default password, passwordless root, boot-time fetching) and says so in its badge and in `nixos/profiles/dev.nix`.
 
 ## Requirements
 
 | ID | Requirement for the hardened profile | PPSI measures | Status | Today |
 |---|---|---|---|---|
-| R1 | No default credentials or accounts; admin duties on dedicated admin accounts; no passwordless root; MFA for administration | 4.7, 5.1, 5.4, 6.5 | **Conflict** | `brasos` has a default password and `NOPASSWD` sudo |
-| R2 | An AI agent runs with a scoped privilege tier, never ambient root; every command it runs is attributable | 5.4, 6.1, 6.2, 6.8, 8.8 | **Conflict** | Claude Code runs as `brasos` with full sudo (by design, dev only). Tier is an open decision |
+| R1 | No default credentials or accounts; admin duties on dedicated admin accounts; no passwordless root; MFA for administration | 4.7, 5.1, 5.4, 6.5 | Partial | Hardened image: locked `nologin` user, no sudo, no usable login. Dev profile keeps a default password and `NOPASSWD` sudo by design. Admin provisioning and MFA not built |
+| R2 | An AI agent runs with a scoped privilege tier, never ambient root; every command it runs is attributable | 5.4, 6.1, 6.2, 6.8, 8.8 | Partial | Hardened image has no agent and no terminal at all (omission, not a privilege tier). Dev: Claude Code with full sudo. The tier decision is open |
 | R3 | Capabilities are default-deny, gated server-side per app, with a negative test for each | 6.7, 6.8, 3.3, 16.10 | Partial | `/pty` gated by app id + Origin; tested in `smoke.ts` |
 | R4 | Tamper-resistant audit trail of privileged actions (app launch, capability grant/deny, terminal sessions, admin changes), synced clock, retention, central export | 8.1–8.5, 8.8–8.10, 3.14 | None | journald only; no app-level events |
-| R5 | Secure baseline as code: minimal services, session lock, host firewall, no needless daemons | 4.1, 4.3, 4.4, 4.5, 4.6, 4.8 | Partial | Declarative NixOS config. NixOS enables its firewall by default (unverified in our image); no screen lock |
+| R5 | Secure baseline as code: minimal services, session lock, host firewall, no needless daemons | 4.1, 4.3, 4.4, 4.5, 4.6, 4.8 | Partial | Declarative NixOS config. Hardened: firewall set explicitly, kernel sysctls, no default packages, no sudo. No screen lock; no CIS-style baseline check |
 | R6 | SBOM generated from the exact image; allowlist of software and libraries; a published support lifecycle so agencies run only supported versions | 2.1, 2.2, 2.5, 2.6, 16.4, 16.5 | None | Nix closure exists; nothing exports it |
-| R7 | Reproducible, pinned build; nothing fetched at runtime | 16.4, 16.5, 2.6 | **Conflict** | `bun install` runs from the network at boot |
+| R7 | Reproducible, pinned build; nothing fetched at runtime | 16.4, 16.5, 2.6 | Partial | Hardened: dependencies fetched at build time, pinned by hash, bundled inside the Nix sandbox; nothing runs at boot. Dev still runs `bun install` at boot. The hash must be refreshed when `bun.lock` changes |
 | R8 | Update management with signed updates and rollback | 7.1–7.4, 7.7, 2.2 | Partial | NixOS rollback exists; no signing or update channel |
 | R9 | Vulnerability management of our own closure and dependencies; severity triage; public reporting channel | 7.1, 7.2, 7.5, 7.7, 16.2, 16.6 | None | |
 | R10 | Disk encryption at rest; TLS for any traffic leaving loopback; removable media encrypted. The guide points to FIPS 140-3 for crypto modules | 3.6, 3.9, 3.10, 3.11 | None | |
 | R11 | Secure boot and measured boot (TPM) | no direct measure; supports 4.1, 4.6 | None | |
-| R12 | App isolation by OS mechanisms (namespaces, seccomp, Landlock, MAC), not only by browser origin | 4.1, 10.5, 13.7, 16.10 | Partial | Origin-per-app iframes only |
+| R12 | App isolation by OS mechanisms (namespaces, seccomp, Landlock, MAC), not only by browser origin | 4.1, 10.5, 13.7, 16.10 | Partial | Origin-per-app iframes. Hardened shell service: throwaway user, read-only filesystem, no capabilities, syscall filter. Apps themselves have no OS-level isolation yet |
 | R13 | Endpoint protection decision: ship, integrate or document (antimalware, host intrusion detection) | 10.1, 10.2, 10.5, 10.7, 13.2 | None | Open decision |
-| R14 | No listeners beyond loopback unless declared and filtered; secure protocols only | 4.4, 4.5, 12.6, 13.4 | Partial | Server binds `127.0.0.1` (contract 3) |
+| R14 | No listeners beyond loopback unless declared and filtered; secure protocols only | 4.4, 4.5, 12.6, 13.4 | Partial | Server binds `127.0.0.1` (contract 3); hardened service also has a systemd loopback-only IP policy; kiosk browser can only reach localhost |
 | R15 | Secure development lifecycle for BrasOS itself: threat model, code-level checks, root-cause analysis of vulnerabilities, reuse of validated modules, pentest readiness | 16.1, 16.3, 16.10–16.14, 18.1, 18.4 | Partial | `AGENTS.md` rules only; no threat model, no static analysis |
-| R16 | Dev and hardened builds are separate profiles; prod never contains dev conveniences | 16.8 | None | Single dev profile |
+| R16 | Dev and hardened builds are separate profiles; prod never contains dev conveniences | 16.8 | Partial | Separate `brasos-dev` and `brasos-hardened` systems; apps opt in per profile; smoke tests cover both; dev shows a warning badge. Not yet enforced in CI |
 | R17 | Data protection hooks: per-app storage separation, classification labels, retention, secure wipe | 3.2, 3.4, 3.5, 3.7, 23.7, 25.7 | None | |
 | R18 | System and user-data recovery | 11.1–11.5 | Partial | Rollback only; no backup |
 | R19 | Security events exportable to the agency's SIEM/ETIR | 13.1, 8.9 | None | |

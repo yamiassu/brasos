@@ -7,9 +7,9 @@
 
 The pointer is not reachable this way; use Tab/Enter to navigate the shell.
 """
-import socket, struct, sys, time, zlib
+import os, socket, struct, sys, time, zlib
 
-SOCK = ".vm/mon.sock"
+SOCK = os.path.join(os.environ.get("BRASOS_VM_DIR", ".vm"), "mon.sock")
 PLAIN = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", ";": "semicolon", "'": "apostrophe", "=": "equal",
          ",": "comma", "\\": "backslash", "\n": "ret"}
 SHIFT = {">": "dot", "(": "9", ")": "0", "_": "minus", "&": "7", "|": "backslash", "$": "4", ":": "semicolon",

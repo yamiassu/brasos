@@ -72,10 +72,12 @@ function Shell() {
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [wins, setWins] = useState<Win[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [profile, setProfile] = useState("");
   const seq = useRef(1);
 
   useEffect(() => {
     fetch("/api/apps").then((r) => r.json()).then(setApps);
+    fetch("/api/profile").then((r) => r.json()).then((p) => setProfile(p.profile));
     // Server restarted or failed over to the safe shell: reload so the UI isn't left dead.
     let down = false;
     const t = setInterval(async () => {
@@ -150,6 +152,8 @@ function Shell() {
             {a.icon} {a.name}
           </button>
         ))}
+        {/* nobody should mistake a dev image for a hardened one */}
+        {profile === "dev" && <span className="badge">DEV PROFILE · not secure</span>}
       </nav>
     </>
   );

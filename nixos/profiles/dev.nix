@@ -1,26 +1,17 @@
+# DEVELOPMENT PROFILE. Convenient and deliberately NOT secure (see AGENTS.md, docs/compliance/ppsi-mapping.md):
+# default password, passwordless root, an AI agent with full privilege, dependencies fetched at boot, a user-editable shell.
 { pkgs, shellSrc, ... }:
-let
-  port = "7000";
-  # wait for the shell server (first boot runs `bun install`), then launch the UI
-  ui = pkgs.writeShellScript "brasos-ui" ''
-    until ${pkgs.curl}/bin/curl -sf http://localhost:${port}/ >/dev/null; do sleep 0.5; done
-    exec ${pkgs.chromium}/bin/chromium --kiosk --ozone-platform=wayland --site-per-process \
-      --no-first-run --user-data-dir=/home/brasos/.config/brasos-chromium http://localhost:${port}/
-  '';
-in {
-  system.stateVersion = "25.11";
+{
   nixpkgs.config.allowUnfree = true; # claude-code
-  networking.hostName = "brasos";
+  networking.networkmanager.enable = true;
 
-  # Full privilege for Claude Code: passwordless root for the main user. Fine inside a dev VM; revisit before bare metal.
   users.users.brasos = {
-    isNormalUser = true;
     initialPassword = "brasos";
-    extraGroups = [ "wheel" "video" "input" "networkmanager" ];
+    extraGroups = [ "wheel" "networkmanager" ];
   };
+  # Full privilege for Claude Code.
   security.sudo.wheelNeedsPassword = false;
   nix.settings.trusted-users = [ "brasos" ];
-  networking.networkmanager.enable = true;
 
   environment.systemPackages = (with pkgs; [ bun claude-code git curl vim chromium ]) ++ [
     (pkgs.writeShellScriptBin "brasos-reset-shell" ''
@@ -30,8 +21,6 @@ in {
       sudo systemctl start brasos-shell
     '')
   ];
-
-  fonts.packages = with pkgs; [ dejavu_fonts noto-fonts-color-emoji ];
 
   # The live shell (/var/lib/brasos/shell) is user-editable. If it keeps failing, systemd starts the
   # pristine copy from the Nix store on the same port. `brasos-reset-shell` re-seeds the live copy.
@@ -72,30 +61,5 @@ in {
       bun install
       exec bun server.ts
     '';
-  };
-
-  services.cage = {
-    enable = true;
-    user = "brasos";
-    program = "${ui}";
-    environment = {
-      WLR_NO_HARDWARE_CURSORS = "1"; # VM cursor quirk
-      WLR_RENDERER_ALLOW_SOFTWARE = "1"; # no GPU in the VM yet
-    };
-  };
-  systemd.services."cage-tty1" = {
-    after = [ "brasos-shell.service" ];
-    wants = [ "brasos-shell.service" ];
-  };
-  hardware.graphics.enable = true;
-
-  virtualisation.vmVariant.virtualisation = {
-    memorySize = 4096;
-    cores = 4;
-    # virtiofs (the default store share) fails under WSL2; bake the store into a disk image instead
-    mountHostNixStore = false;
-    useNixStoreImage = true;
-    # no GL: QEMU's GL display crashes under WSLg. On native Linux use "-device virtio-vga-gl" "-display gtk,gl=on".
-    qemu.options = [ "-device virtio-vga" "-display gtk" ];
   };
 }

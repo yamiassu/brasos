@@ -35,6 +35,7 @@ body { background: var(--bg); color: var(--text); font: 14px system-ui, sans-ser
 }
 .notice.window { inset: auto; width: 320px; height: auto; }
 
+.badge { margin-left: auto; color: #ffb454; font-size: 12px; }
 .dock {
   position: absolute; left: 0; right: 0; bottom: 0; height: 44px; display: flex; align-items: center;
   gap: 8px; padding: 0 12px; background: var(--panel); border-top: 1px solid #ffffff1a;

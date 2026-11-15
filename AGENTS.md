@@ -11,7 +11,9 @@ A Linux-based OS whose entire UI is React/TypeScript. Linux kernel + NixOS users
 | `shell/apps/<id>/` | One app: `manifest.json`, `index.html`, `main.ts(x)` | Must `import "../sdk"` |
 | `shell/apps/sdk.ts` | What every app imports (heartbeat reply today; the app SDK will grow here) | |
 | `shell/scripts/smoke.ts` | Contract tests (`bun run test`) | |
-| `nixos/configuration.nix`, `flake.nix` | The OS image | `flake.lock` pins nixpkgs: commit it |
+| `nixos/base.nix` | Shared by every profile: kiosk session, fonts, VM settings | |
+| `nixos/profiles/dev.nix`, `nixos/profiles/hardened.nix` | The two profiles (see "Profiles") | Hardened pins a dependency hash: update it when `shell/bun.lock` changes |
+| `flake.nix` | One system per profile: `brasos-dev`, `brasos-hardened` | `flake.lock` pins nixpkgs: commit it |
 | `scripts/vm/` | Build, boot and drive the VM | |
 
 ## Contracts (do not break without updating this file and the smoke test)
@@ -21,8 +23,9 @@ A Linux-based OS whose entire UI is React/TypeScript. Linux kernel + NixOS users
 3. **The server binds to `127.0.0.1` and rejects any Host that is not `localhost` or `*.localhost`.** The PTY is full user access; do not widen this.
 4. **Heartbeat.** The shell sends `"ping"` via `postMessage`; apps (via `sdk.ts`) answer `"pong"`. No pong for 8 s = the shell shows "isn't responding" with Restart/Close. A hung app must never affect the shell.
 5. **Window chrome is wrapped in an error boundary;** a throwing window must not take down the shell.
-6. **The live shell is user-editable** at `/var/lib/brasos/shell` in the VM (seeded from the repo on first boot). If it fails 3 times in 60 s, systemd starts the pristine copy (`brasos-shell-safe`). `brasos-reset-shell` re-seeds. Keep that fallback working when you touch the services.
-7. **Claude Code has full privilege by design** (user `brasos` has passwordless sudo). Fine for the VM; revisit before bare metal.
+6. **Dev profile only: the live shell is user-editable** at `/var/lib/brasos/shell` in the VM (seeded from the repo on first boot). If it fails 3 times in 60 s, systemd starts the pristine copy (`brasos-shell-safe`). `brasos-reset-shell` re-seeds. Keep that fallback working when you touch the services. The hardened shell is immutable and runs from the Nix store.
+7. **Dev profile only: Claude Code has full privilege by design** (user `brasos` has passwordless sudo, default password). The hardened profile has no terminal, no agent, no sudo and no usable login.
+8. **Apps opt in to the hardened profile** with `"profiles": ["dev", "hardened"]` in `manifest.json`; the default is dev only. In hardened, the server never builds at runtime, never serves a non-opted-in app and never exposes `/pty`. `smoke.ts` tests both profiles: a new app or capability needs a hardened-profile check too.
 
 ## Commands
 
@@ -30,8 +33,8 @@ A Linux-based OS whose entire UI is React/TypeScript. Linux kernel + NixOS users
 cd shell && bun install && bun run dev      # shell at http://localhost:7000 (works on Windows/macOS/Linux)
 cd shell && bun run test                    # contract tests, ~5 s
 cd shell && bun run bench [--out f.json] [--compare baseline.json]   # benchmarks; --compare exits 1 on >25% p50 regression
-scripts/vm/build.sh                         # build the NixOS VM (Linux/WSL, clone inside WSL's own fs)
-scripts/vm/run.sh                           # boot it from a clean disk; keep it running
+scripts/vm/build.sh                         # build the NixOS VM (Linux/WSL, clone inside WSL's own fs); PROFILE=hardened for the other one
+scripts/vm/run.sh                           # boot it from a clean disk; keep it running (PROFILE=dev|hardened)
 scripts/vm/ctl.py shot out.png              # screenshot the VM (from repo root)
 scripts/vm/ctl.py key tab tab ret           # Tab to the Terminal dock button + Enter
 scripts/vm/ctl.py type "whoami"             # type into the focused terminal
@@ -42,7 +45,7 @@ WSL2 specifics (already handled in the config, listed so you don't re-debug): QE
 ## Definition of done
 
 - `bun run test` passes.
-- Touching `nixos/` or `flake.nix`: `scripts/vm/build.sh` succeeds, and for anything user-visible, boot it and look (`ctl.py shot`).
+- Touching `nixos/` or `flake.nix`: `scripts/vm/build.sh` succeeds for **both** profiles, and for anything user-visible, boot it and look (`ctl.py shot`).
 - Touching UI: open it in a browser at `http://localhost:7000` and use the feature; type checks passing is not evidence it works.
 - Anything new that runs code (a component, service, app, capability) ships with a benchmark (see below).
 - A new contract, capability or convention gets written here in the same commit.
@@ -53,9 +56,14 @@ WSL2 specifics (already handled in the config, listed so you don't re-debug): QE
 
 Not yet measured (open work): window open time and frame time in Chromium, per-app RSS and cold start, boot time to shell-ready in the VM (`systemd-analyze`), input-to-photon latency, build time. VM-level benches belong in `scripts/vm/` and should use `ctl.py`.
 
+## Profiles
+
+- **dev** (`brasos-dev`): everything convenient and deliberately insecure; the dock shows "DEV PROFILE · not secure" so nobody mistakes it.
+- **hardened** (`brasos-hardened`): work in progress toward the requirements below. Today it has: no credentials and no sudo (locked `nologin` user), no terminal or dev apps, dependencies fetched at build time and pinned by hash (nothing fetched at boot), the shell bundled at build time and run from the immutable store, a sandboxed shell service (throwaway user, read-only filesystem, no capabilities, syscall filter, loopback-only), a kiosk browser policy (only the local shell, no devtools, extensions or sync), kernel sysctl hardening, no default packages. It has been booted in the VM; it has not been audited or penetration-tested, and it still lacks audit logging, encryption, secure boot, signed updates and an admin/MFA story.
+
 ## Security posture (requirement: government-grade)
 
-**Current status: NOT hardened. What exists today is a development profile.** Do not describe it as secure or compliant anywhere. Target jurisdiction: **Brazil** (federal/state government computers). Nothing here is certified, audited or mapped yet; the threat model is still an open decision.
+**Current status: the hardened profile is a start, not a finished or certified system. The dev profile is not secure.** Do not describe either as secure or compliant anywhere. Target jurisdiction: **Brazil** (federal/state government computers). Nothing here is certified, audited or mapped yet; the threat model is still an open decision.
 
 ### Brazilian regime (from web search, Nov 2026; confirm with the customer's security officer and legal before relying on any of it)
 
