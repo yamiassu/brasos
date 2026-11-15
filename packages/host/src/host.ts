@@ -24,8 +24,8 @@ export type HostOptions = {
   buildOnly?: boolean;
   stateDir?: string;
   audit?: Sink[];
-  /** tests only: lets the web gateway reach loopback upstreams */
-  gateway?: { allowPrivate?: boolean };
+  /** gateway tuning; allowPrivate is tests only (lets it reach loopback upstreams) */
+  gateway?: { allowPrivate?: boolean; maxSites?: number };
 };
 
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
@@ -47,7 +47,7 @@ export async function startHost(o: HostOptions) {
   const policies = resolvePolicies(o.packages ?? []);
   const audit = createAudit(o.audit ?? []);
 
-  const gateway = createGateway({ stateDir: o.stateDir, allowPrivate: o.gateway?.allowPrivate });
+  const gateway = createGateway({ stateDir: o.stateDir, ...o.gateway });
   const registry = createRegistry({
     appsDir: join(root, "apps"),
     stateDir: o.stateDir,

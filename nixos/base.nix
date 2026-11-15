@@ -17,7 +17,8 @@ in {
     extraGroups = [ "video" "input" ];
   };
 
-  fonts.packages = with pkgs; [ dejavu_fonts noto-fonts-color-emoji ];
+  # a browser needs more than Latin: CJK is the common gap (Arabic and Cyrillic render with DejaVu)
+  fonts.packages = with pkgs; [ dejavu_fonts noto-fonts-color-emoji noto-fonts-cjk-sans ];
   hardware.graphics.enable = true;
 
   services.cage = {

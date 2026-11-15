@@ -1,6 +1,6 @@
 # Audit trail
 
-Implements PPSI-mapping requirement **R4** (`docs/compliance/ppsi-mapping.md`). Code: `shell/audit.ts`, verifier `shell/scripts/audit-verify.ts`.
+Implements PPSI-mapping requirement **R4** (`docs/compliance/ppsi-mapping.md`). Code: `packages/audit/src/audit.ts`, verifier `packages/audit/src/verify.ts`.
 
 ## What is recorded
 
@@ -15,20 +15,24 @@ Under systemd the stdout lands in the journal; `BRASOS_AUDIT_FILE=<path>` adds a
 
 | Event | Outcome | Meaning | Throttle |
 |---|---|---|---|
-| `server.start` | info | Process started: profile, port, apps served | none |
+| `server.start` | info | Process started: enabled packages, port, apps served | none |
 | `request.rejected` | deny | Host header not `localhost`/`*.localhost` | 1 per 10 s |
-| `app.unknown` | deny | Request to the origin of an app that isn't in this profile | 1 per 10 s |
+| `app.unknown` | deny | Request to the origin of an app that isn't available (not installed, or filtered out by a package) | 1 per 10 s |
 | `app.load` | allow | An app's index document was loaded (a window opened) | 1 per second per app |
-| `capability.pty` | allow / deny | Terminal capability requested: actor app and origin | denials 1 per second per app |
+| `capability.<name>` | allow / deny | Every decision of the host's gate: `pty`, `apps.read`, `apps.install`, `apps.uninstall`, `web.open`. Actor is the caller (`shell`, an app id, `site`, `unknown`) and its origin | denials 1 per second per capability and caller |
 | `pty.session` | info | Terminal session open/close, pid, duration | none |
+| `web.open` | allow / deny | A site was opened (host name) or refused (reason) | 1 per second |
+| `web.site` | allow | First request to a site (per minute): host name | 1 per minute per site |
+| `web.blocked`, `web.error` | deny | The gateway refused an upstream address, or the upstream failed | 1 per 5 s |
+| `apps.install` | info | A PWA was installed: id, name, start URL | none |
 
 Throttled events are counted and the next recorded event carries `suppressed: N`, so a flood can't fill the journal silently. Allows of privileged capabilities are never throttled.
 
 ## Verifying
 
 ```bash
-journalctl -u brasos-shell -o cat | grep '^AUDIT' | bun shell/scripts/audit-verify.ts
-bun shell/scripts/audit-verify.ts exported.log
+journalctl -u brasos-shell -o cat | grep '^AUDIT' | bun packages/audit/src/verify.ts
+bun packages/audit/src/verify.ts exported.log
 ```
 
 Exit 0 and `OK: N events, M instance(s)` if intact. It fails on an edited record, a deleted or reordered one, a broken link, or an empty trail. Each process lifetime is its own chain (`instance`), so a restart starts a new chain at `seq` 1.
@@ -36,7 +40,7 @@ Exit 0 and `OK: N events, M instance(s)` if intact. It fails on an edited record
 ## What this does and does not give you
 
 - **Tamper-evident, not tamper-proof.** The hash chain has no secret key: anyone who can rewrite the whole log can recompute a consistent chain. The protection comes from where the lines live: the systemd journal is not writable by the service (a throwaway user in the hardened profile). Anchor the last hash off the machine to detect tail truncation.
-- **Journal config** (`nixos/base.nix`): persistent storage and no rate limiting, because a dropped line would be a silent gap. Gaps inside a run are also caught by the `seq` check.
+- **Journal config** (`packages/audit/module.nix`): persistent storage and no rate limiting, because a dropped line would be a silent gap. Gaps inside a run are also caught by the `seq` check.
 - **Fails closed for the action it guards:** if a sink throws, the request that was being audited errors out rather than proceeding unrecorded.
 - **Clock:** timestamps come from the system clock. NixOS runs `systemd-timesyncd` by default; that is not verified in our image.
 
@@ -46,4 +50,4 @@ Shell UI actions (window open/close happen in the browser), commands typed in th
 
 ## Adding an event
 
-Call `audit(event, outcome, actor, detail, limit?)` for every privileged decision, allow and deny. Keep `actor`/`detail` bounded (truncate anything attacker-controlled; throttle keys must come from a bounded set). Add the event to the table above and a check in `shell/scripts/smoke.ts`.
+Privileged routes call `ctx.gate(cap)`, which audits its decision. For anything else, call `audit(event, outcome, actor, detail, limit?)` for every privileged decision, allow and deny. Keep `actor`/`detail` bounded (truncate anything attacker-controlled; throttle keys must come from a bounded set). Add the event to the table above and a check in the slice's tests.

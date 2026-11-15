@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <title>Browser</title>
     <style>
+      /* match the framed page's schemes: a page declaring `color-scheme: light dark` would otherwise render as a blank canvas */
+      :root { color-scheme: light dark; }
       html, body { margin: 0; height: 100%; background: #0b0d12; color: #e6e8ee; font: 14px system-ui, sans-serif; }
       body { display: flex; flex-direction: column; }
       form { display: flex; gap: 6px; padding: 6px; background: #151922; }
@@ -11,7 +13,7 @@
       button { background: #ffffff14; color: inherit; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
       button:hover:not(:disabled) { background: #5b8cff; }
       button:disabled { opacity: 0.4; cursor: default; }
-      iframe { flex: 1; border: 0; background: #fff; }
+      iframe { flex: 1; border: 0; background: Canvas; color-scheme: light dark; }
       #status { padding: 3px 10px; font-size: 12px; color: #9aa3b5; background: #151922; min-height: 16px; }
     </style>
   </head>

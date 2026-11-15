@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun packages/host/src/main.ts",
+    "dev": "BRASOS_STATE_DIR=.state bun packages/host/src/main.ts",
     "test": "bun test",
     "bench": "bun tools/bench.ts"
   },

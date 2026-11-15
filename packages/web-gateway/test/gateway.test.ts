@@ -160,6 +160,18 @@ test("SSRF: an already-registered site cannot be steered to a private address by
   expect(r.status).toBe(400); // refused at open time; nothing was registered to proxy to
 });
 
+test("the number of distinct sites is capped, and known sites keep working at the cap", async () => {
+  const capped = await testHost({ gateway: { allowPrivate: true, maxSites: 2 } });
+  try {
+    expect((await open(capped, "https://a.example.com/")).status).toBe(200);
+    expect((await open(capped, "https://b.example.com/")).status).toBe(200);
+    expect((await open(capped, "https://c.example.com/")).status).toBe(400); // table is full
+    expect((await open(capped, "https://a.example.com/x")).status).toBe(200); // already registered
+  } finally {
+    capped.stop();
+  }
+});
+
 test("installing a PWA from a site: stored with no permissions, listed, and openable by the shell", async () => {
   const bad = await post(h, "browser.localhost", "/os/apps/install", { manifestUrl: upstream + "/evil-manifest.webmanifest" });
   expect(bad.status).toBe(400);

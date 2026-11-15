@@ -25,6 +25,8 @@ export type GatewayOptions = {
   stateDir?: string;
   /** tests only: lets the gateway reach loopback upstreams */
   allowPrivate?: boolean;
+  /** cap on distinct sites per process: every absolute link in a page registers one, so a hostile page could otherwise grow the table forever */
+  maxSites?: number;
 };
 
 const capped = (body: ReadableStream<Uint8Array> | null, max = MAX_BODY) =>
@@ -66,6 +68,7 @@ export function createGateway(opts: GatewayOptions = {}) {
   }
   const register = (u: URL) => {
     const id = idOf(u.origin);
+    if (!sites.has(id) && sites.size >= (opts.maxSites ?? 10_000)) throw new Error("too many sites open");
     sites.set(id, u.origin);
     return id;
   };
@@ -183,15 +186,17 @@ export function createGateway(opts: GatewayOptions = {}) {
         const g = ctx.gate("web.open");
         if (!g.ok) return g.res;
         let u: URL;
+        let url: string;
         try {
           u = parseSite(String((await req.json().catch(() => null))?.url));
           await assertPublicHost(u.hostname, opts.allowPrivate);
+          url = toGateway(u, ctx.url.port); // registers the site (and enforces the cap)
         } catch (e) {
           ctx.audit("web.open", "deny", {}, { reason: (e as Error).message.slice(0, 100) }, { key: "web.open-deny", ms: 1000 });
           return json({ error: (e as Error).message }, e instanceof BlockedError ? 403 : 400);
         }
         ctx.audit("web.open", "allow", { site: u.hostname.slice(0, 100) }, {}, { key: "web.open", ms: 1000 });
-        return json({ url: toGateway(u, ctx.url.port), site: u.origin });
+        return json({ url, site: u.origin });
       }
     },
   };
