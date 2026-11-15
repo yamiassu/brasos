@@ -1,0 +1,16 @@
+[package]
+name = "brasos-comp"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+bitflags = "2.2.1"
+
+# Pinned to a commit: the crates.io release lags the API this is built on. Spike: nested (winit) backend only.
+[dependencies.smithay]
+git = "https://github.com/Smithay/smithay"
+rev = "fd8e3f50f9556aa6c0485989d1d49ff2c5eefae1"
+default-features = false
+features = ["backend_winit", "wayland_frontend", "desktop"]

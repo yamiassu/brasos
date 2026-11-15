@@ -1,5 +1,5 @@
 # Shared by every profile: kiosk session, fonts, VM settings. Profile files add (or deliberately omit) everything else.
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 let
   port = "7000";
   # wait for the shell server, then launch the UI
@@ -9,6 +9,10 @@ let
       --no-first-run --user-data-dir=/home/brasos/.config/brasos-chromium http://localhost:${port}/
   '';
 in {
+  # the command that shows the shell (Chromium, kiosk); a compositor module can launch it among other clients
+  options.brasos.uiCommand = lib.mkOption { type = lib.types.str; default = "${ui}"; internal = true; };
+
+  config = {
   system.stateVersion = "25.11";
   networking.hostName = "brasos";
 
@@ -44,5 +48,6 @@ in {
     useNixStoreImage = true;
     # no GL: QEMU's GL display crashes under WSLg. On native Linux use "-device virtio-vga-gl" "-display gtk,gl=on".
     qemu.options = [ "-device virtio-vga" "-display gtk" ];
+  };
   };
 }

@@ -16,7 +16,7 @@
                 && !(builtins.elem (baseNameOf p) [ "node_modules" "dist" "test" "bench.ts" "bench.tsx" ]));
       };
       # One system per profile: the same modules, with the hardened package off (dev) or on.
-      mk = hardened: lib.nixosSystem {
+      mk = hardened: extra: lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./nixos/base.nix
@@ -24,13 +24,16 @@
           ./packages/audit/module.nix
           ./packages/hardened/module.nix
           ./packages/devtools/module.nix
+          ./packages/compositor/module.nix
           { brasos.src = src; brasos.hardened.enable = hardened; }
-        ];
+        ] ++ extra;
       };
     in {
       nixosConfigurations = {
-        brasos-dev = mk false;
-        brasos-hardened = mk true;
+        brasos-dev = mk false [ ];
+        brasos-hardened = mk true [ ];
+        # spike: the native-app compositor instead of bare cage (see packages/compositor)
+        brasos-dev-comp = mk false [ { brasos.compositor.enable = true; } ];
       };
     };
 }
