@@ -17,6 +17,15 @@ const STRIPPED = new Set([
   "cross-origin-embedder-policy", "cross-origin-resource-policy", "strict-transport-security", "alt-svc", "report-to", "nel",
   "link", "content-length", "content-encoding", "transfer-encoding", "connection",
 ]);
+// Sites build absolute URLs to their own origin in script (an API base, an asset CDN path). From the gateway origin that is a
+// cross-origin request the real site rejects, so requests to the real origin made by fetch, XHR, EventSource and sendBeacon are
+// pointed back at the gateway origin. Other origins are left alone (they are cross-origin on the web too).
+const SELF_ORIGIN_SHIM = `(function(){var R=window.__BRASOS_SITE__,L=location.origin;if(!R)return;
+function m(u){try{var x=new URL(u,location.href);return x.origin===R?L+x.pathname+x.search+x.hash:u}catch(e){return u}}
+var F=window.fetch;if(F)window.fetch=function(i,o){if(typeof i==="string"||i instanceof URL)i=m(String(i));else if(i&&i.url){var n=m(i.url);if(n!==i.url)i=new Request(n,i)}return F.call(this,i,o)};
+var Q=window.XMLHttpRequest,X=Q&&Q.prototype.open;if(X)Q.prototype.open=function(){arguments[1]=m(String(arguments[1]));return X.apply(this,arguments)};
+var E=window.EventSource;if(E)window.EventSource=function(u,o){return new E(m(String(u)),o)};window.EventSource&&(window.EventSource.prototype=E.prototype);
+var B=navigator.sendBeacon;if(B)navigator.sendBeacon=function(u,d){return B.call(navigator,m(String(u)),d)}})();`;
 const ABSOLUTE = /^\s*(https?:)?\/\//i;
 const TS_PATH = /\.(m|c)?ts$/;
 
@@ -102,6 +111,7 @@ export function createGateway(opts: GatewayOptions = {}) {
   function rewriteHtml(res: Response, upstream: URL, port: string): Response {
     const inject =
       `<script>window.__BRASOS_SITE__=${JSON.stringify(upstream.origin).replace(/</g, "\\u003c")}</script>` +
+      `<script>${SELF_ORIGIN_SHIM}</script>` +
       `<script src="/__brasos/sdk.js"></script>`;
     return new HTMLRewriter()
       .on("html", { element: (el) => void el.prepend(inject, { html: true }) })

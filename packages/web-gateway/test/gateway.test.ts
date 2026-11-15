@@ -68,6 +68,7 @@ test("pages load framed-friendly, with the SDK injected and hostile headers gone
   expect(r.headers.get("content-security-policy")).toBeNull();
   const html = await r.text();
   expect(html).toContain("/__brasos/sdk.js");
+  expect(html).toContain("window.fetch"); // the self-origin shim
   expect(html).toContain(`window.__BRASOS_SITE__="${upstream}"`);
   expect(html).not.toContain('http-equiv="Content-Security-Policy"');
 });
@@ -207,4 +208,18 @@ test("a page talking to itself is same-origin to the real site; its own x- heade
   expect((await echo({ "sec-fetch-site": "same-site" })).fetchSite).toBe("cross-site"); // another gateway site: not our origin
   expect((await echo({ "sec-fetch-site": "cross-site" })).fetchSite).toBe("cross-site");
   expect((await echo({})).fetchSite).toBe(null);
+});
+
+test("the injected shim points requests to the real origin back at the gateway origin, and nothing else", async () => {
+  const html = await (await h.at(new URL(await siteUrl("/")).hostname, "/")).text();
+  const code = html.match(/<script>(\(function\(\)\{var R=[\s\S]*?)<\/script>/)![1];
+  const calls: string[] = [];
+  const win: any = { __BRASOS_SITE__: "https://real.example.com", fetch: (i: any) => (calls.push(String(i?.url ?? i)), Promise.resolve()), XMLHttpRequest: function () {} };
+  win.XMLHttpRequest.prototype.open = function (_m: string, u: string) { calls.push("xhr " + u); };
+  new Function("window", "location", "navigator", "URL", "Request", code)(win, { origin: "http://abc.web.localhost:7000", href: "http://abc.web.localhost:7000/p" }, {}, URL, Request);
+  await win.fetch("https://real.example.com/api/x?y=1");
+  await win.fetch("/relative");
+  await win.fetch("https://other.example.com/cdn.js");
+  win.XMLHttpRequest.prototype.open("GET", "https://real.example.com/z");
+  expect(calls).toEqual(["http://abc.web.localhost:7000/api/x?y=1", "/relative", "https://other.example.com/cdn.js", "xhr http://abc.web.localhost:7000/z"]);
 });
