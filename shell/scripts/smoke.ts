@@ -1,5 +1,8 @@
 // `bun run test`: boots the shell server once per profile on a spare port and checks the contracts other code relies on.
+import { readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { verifyAudit } from "./audit-verify";
 
 const root = join(import.meta.dir, "..");
 let failed = 0;
@@ -11,9 +14,11 @@ const check = (name: string, ok: boolean, detail = "") => {
 async function run(profile: "dev" | "hardened") {
   console.log(`-- profile: ${profile}`);
   const PORT = 7100 + Math.floor(Math.random() * 800);
+  const auditPath = join(tmpdir(), `brasos-audit-${PORT}.log`);
+  rmSync(auditPath, { force: true });
   const server = Bun.spawn(["bun", "server.ts"], {
     cwd: root,
-    env: { ...process.env, PORT: String(PORT), BRASOS_PROFILE: profile },
+    env: { ...process.env, PORT: String(PORT), BRASOS_PROFILE: profile, BRASOS_AUDIT_FILE: auditPath },
     stdout: "pipe",
     stderr: "inherit",
   });
@@ -29,6 +34,7 @@ async function run(profile: "dev" | "hardened") {
       log += new TextDecoder().decode(value);
     }
     check("server starts", log.includes("BrasOS shell on"), log);
+    (async () => { while (!(await reader.read()).done); })(); // keep draining so the server never blocks on a full pipe
 
     const apps: { id: string }[] = await (await at("localhost", "/api/apps")).json();
     const ids = apps.map((a) => a.id);
@@ -68,6 +74,26 @@ async function run(profile: "dev" | "hardened") {
       check("only opted-in apps are listed", ids.join() === "about", ids.join());
       check("dev app origins are gone", (await at("terminal.localhost")).status === 404);
       check("PTY refused even from the terminal origin", (await pty(termOrigin, term)) === "REJECTED");
+    }
+
+    // Audit trail: the decisions above must be on record and the chain must verify.
+    await Bun.sleep(300); // let the last WebSocket close event land
+    const trail = readFileSync(auditPath, "utf8");
+    const events = trail.split("\n").filter(Boolean).map((l) => JSON.parse(l.slice(6)));
+    const has = (event: string, outcome: string) => events.some((e) => e.event === event && e.outcome === outcome);
+    check("audit chain verifies", verifyAudit(trail).ok, JSON.stringify(verifyAudit(trail)));
+    check("audit: server.start recorded", has("server.start", "info"));
+    check("audit: foreign Host denial recorded", has("request.rejected", "deny"));
+    check("audit: app load recorded", has("app.load", "allow"));
+    check("audit: PTY denial recorded", has("capability.pty", "deny"));
+    if (profile === "dev") {
+      check("audit: PTY grant and session recorded", has("capability.pty", "allow") && has("pty.session", "info"));
+      // tampering must be detected
+      const lines = trail.split("\n").filter(Boolean);
+      const edited = lines.map((l, i) => (i === 1 ? l.replace('"outcome":"', '"outcome":"x') : l));
+      check("audit: altered record is detected", !verifyAudit(edited.join("\n")).ok);
+      check("audit: deleted record is detected", !verifyAudit(lines.filter((_, i) => i !== 2).join("\n")).ok);
+      check("audit: reordered records are detected", !verifyAudit([lines[1], lines[0], ...lines.slice(2)].join("\n")).ok);
     }
   } finally {
     server.kill();

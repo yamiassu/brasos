@@ -2,6 +2,7 @@
 // Boots the server on a spare port and measures it. Every component should add a bench here
 // (see AGENTS.md "Benchmarking"). Numbers are only comparable on the same machine/platform.
 import { join } from "node:path";
+import { createAudit } from "../audit";
 
 type Result = { name: string; unit: string; samples: number[] };
 const arg = (f: string) => {
@@ -39,6 +40,11 @@ try {
     log += new TextDecoder().decode(value);
   }
   record("server.start_to_ready", "ms", [performance.now() - t0]); // includes bun startup + full app build
+  (async () => { while (!(await reader.read()).done); })(); // drain so the server never blocks on a full pipe
+
+  // cost of recording one audit event (hash + serialize), sink excluded
+  const audit = createAudit([() => {}]);
+  record("audit.emit", "ms", await repeat(2000, async () => audit("bench", "info", { app: "x" }, { n: 1 })));
 
   const get = (host: string, path = "/") => fetch(`http://${host}:${PORT}${path}`).then((r) => r.arrayBuffer());
   await get("localhost"); // warm up

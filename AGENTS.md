@@ -11,6 +11,7 @@ A Linux-based OS whose entire UI is React/TypeScript. Linux kernel + NixOS users
 | `shell/apps/<id>/` | One app: `manifest.json`, `index.html`, `main.ts(x)` | Must `import "../sdk"` |
 | `shell/apps/sdk.ts` | What every app imports (heartbeat reply today; the app SDK will grow here) | |
 | `shell/scripts/smoke.ts` | Contract tests (`bun run test`) | |
+| `shell/audit.ts`, `shell/scripts/audit-verify.ts` | Tamper-evident audit trail and its verifier | See `docs/audit.md` |
 | `nixos/base.nix` | Shared by every profile: kiosk session, fonts, VM settings | |
 | `nixos/profiles/dev.nix`, `nixos/profiles/hardened.nix` | The two profiles (see "Profiles") | Hardened pins a dependency hash: update it when `shell/bun.lock` changes |
 | `flake.nix` | One system per profile: `brasos-dev`, `brasos-hardened` | `flake.lock` pins nixpkgs: commit it |
@@ -26,6 +27,7 @@ A Linux-based OS whose entire UI is React/TypeScript. Linux kernel + NixOS users
 6. **Dev profile only: the live shell is user-editable** at `/var/lib/brasos/shell` in the VM (seeded from the repo on first boot). If it fails 3 times in 60 s, systemd starts the pristine copy (`brasos-shell-safe`). `brasos-reset-shell` re-seeds. Keep that fallback working when you touch the services. The hardened shell is immutable and runs from the Nix store.
 7. **Dev profile only: Claude Code has full privilege by design** (user `brasos` has passwordless sudo, default password). The hardened profile has no terminal, no agent, no sudo and no usable login.
 8. **Apps opt in to the hardened profile** with `"profiles": ["dev", "hardened"]` in `manifest.json`; the default is dev only. In hardened, the server never builds at runtime, never serves a non-opted-in app and never exposes `/pty`. `smoke.ts` tests both profiles: a new app or capability needs a hardened-profile check too.
+9. **Every privileged decision, allow and deny, is audited** through `audit()` in `shell/audit.ts` (hash-chained, see `docs/audit.md`). Never record security decisions with `console.log`. A new capability ships with audit events and a smoke check for both outcomes.
 
 ## Commands
 
@@ -52,7 +54,7 @@ WSL2 specifics (already handled in the config, listed so you don't re-debug): QE
 
 ## Benchmarking (requirement: every part is measurable)
 
-`shell/scripts/bench.ts` is the harness: each bench records `{name, unit, samples[]}`, the runner prints n/p50/p95/max, writes JSON with `--out`, and fails on regressions with `--compare`. Naming: `<component>.<metric>`. Today: `server.start_to_ready`, `http.*`, `pty.keystroke_echo`. Add benches next to the code they measure; measure latency distributions (p95/max), not just averages. Numbers are comparable only on the same machine and platform, so keep baselines per platform and don't commit one from a laptop as "truth".
+`shell/scripts/bench.ts` is the harness: each bench records `{name, unit, samples[]}`, the runner prints n/p50/p95/max, writes JSON with `--out`, and fails on regressions with `--compare`. Naming: `<component>.<metric>`. Today: `server.start_to_ready`, `audit.emit`, `http.*`, `pty.keystroke_echo`. Add benches next to the code they measure; measure latency distributions (p95/max), not just averages. Numbers are comparable only on the same machine and platform, so keep baselines per platform and don't commit one from a laptop as "truth".
 
 Not yet measured (open work): window open time and frame time in Chromium, per-app RSS and cold start, boot time to shell-ready in the VM (`systemd-analyze`), input-to-photon latency, build time. VM-level benches belong in `scripts/vm/` and should use `ctl.py`.
 
@@ -81,7 +83,7 @@ Rules for all work, starting now:
 - Default deny. Every privileged capability is gated server-side by app id + Origin and covered by a negative test in `smoke.ts` (refusal must be tested, not just success).
 - No new network listeners beyond loopback; no runtime fetching of code or dependencies in anything meant for the hardened profile. Dependencies must be pinned and reviewable (Nix closure, lockfiles). Treat each new dependency as supply-chain risk and justify it.
 - No secrets, keys or credentials in the repo or the image.
-- Privileged actions must be loggable (an audit trail is planned): route them through one place, not scattered call sites.
+- Every privileged action is recorded through the audit trail (contract 9); don't add side channels.
 - Prefer separation by process and by OS mechanisms (users, namespaces, Landlock, seccomp, MAC) over in-process checks.
 
 Hardened-profile work (open): a NixOS profile switch (dev vs hardened), reproducible builds + SBOM, secure/measured boot (TPM), full-disk encryption, signed updates with rollback, mandatory access control for services, audit logging, removal of the dev conveniences above, and a decision on what privilege an AI agent (Claude Code) gets on such a system.
