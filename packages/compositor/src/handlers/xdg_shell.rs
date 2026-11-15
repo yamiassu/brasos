@@ -37,6 +37,22 @@ impl XdgShellHandler for Smallvil {
         self.retile();
     }
 
+    // A client that asks for fullscreen (Chromium's kiosk mode) gets the fullscreen state, so it hides its own chrome, but keeps
+    // its tile: the shell and a native app share the screen, so "fullscreen" means "no window decorations", not "cover the rest".
+    fn fullscreen_request(&mut self, surface: ToplevelSurface, _output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>) {
+        surface.with_pending_state(|s| {
+            s.states.set(xdg_toplevel::State::Fullscreen);
+        });
+        self.retile();
+    }
+
+    fn unfullscreen_request(&mut self, surface: ToplevelSurface) {
+        surface.with_pending_state(|s| {
+            s.states.unset(xdg_toplevel::State::Fullscreen);
+        });
+        surface.send_pending_configure();
+    }
+
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
         let gone = self.space.elements().find(|w| w.toplevel() == Some(&surface)).cloned();
         if let Some(w) = gone {

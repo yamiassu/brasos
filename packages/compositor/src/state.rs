@@ -40,6 +40,7 @@ pub struct Smallvil {
     pub popups: PopupManager,
 
     pub seat: Seat<Self>,
+    pub ctl: Option<crate::ctl::Ctl>,
 }
 
 impl Smallvil {
@@ -104,6 +105,7 @@ impl Smallvil {
             data_device_state,
             popups,
             seat,
+            ctl: None,
         }
     }
 

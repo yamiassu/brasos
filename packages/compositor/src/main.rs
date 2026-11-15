@@ -2,6 +2,7 @@
 
 mod handlers;
 
+mod ctl;
 mod grabs;
 mod input;
 mod state;
@@ -18,6 +19,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let display: Display<Smallvil> = Display::new()?;
 
     let mut state = Smallvil::new(&mut event_loop, display);
+
+    // the shell asks for native windows here (packages/native); without it the compositor still works
+    if let Ok(path) = std::env::var("BRASOS_COMP_SOCKET") {
+        match ctl::init(&mut event_loop, &path) {
+            Ok(c) => state.ctl = Some(c),
+            Err(e) => eprintln!("brasos-comp: control socket {path}: {e}"),
+        }
+    }
 
     // Open a Wayland/X11 window for our nested compositor
     crate::winit::init_winit(&mut event_loop, &mut state)?;
