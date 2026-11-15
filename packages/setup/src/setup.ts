@@ -52,7 +52,7 @@ export function validateSetup(b: any): SetupInput {
   return { display, username: b.username, password: pw, prefs: validatePrefs(b.prefs) };
 }
 
-export function createSetup({ stateDir, audit, preseed }: { stateDir?: string; audit: AuditFn; preseed?: string }) {
+export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: string; audit: AuditFn; preseed?: string; devSkip?: boolean }) {
   const file = stateDir ? join(stateDir, "setup.json") : undefined;
   const write = (s: Stored) => {
     if (!file) throw new SetupError("setup is not available", 503);
@@ -85,11 +85,24 @@ export function createSetup({ stateDir, audit, preseed }: { stateDir?: string; a
     }
   }
 
+  // development only: no installer and no lock screen. A throwaway account with a random password nobody knows (so it can't be
+  // logged into), default preferences, and the state says `devSkip` so the shell neither asks nor offers to lock. The host
+  // passes this only when no package (hardened included) is enabled.
+  if (file && devSkip && !read()) {
+    write({
+      done: true,
+      at: Date.now(),
+      account: { username: "dev", display: "Developer", hash: Bun.password.hashSync(crypto.randomUUID() + crypto.randomUUID(), { algorithm: "argon2id" }) },
+      prefs: { language: "en-US", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", keyboard: "us", clock24: true, palette: "amber", deviceName: "brasos" },
+    });
+    audit("setup.dev_skip", "info", {}, {});
+  }
+
   let busy = false; // one completion at a time: hashing is async, so two requests could race
   const fails: number[] = [];
   const publicState = () => {
     const s = read();
-    return s ? { available: true, done: true, user: { username: s.account.username, display: s.account.display }, prefs: s.prefs } : { available: !!file, done: false };
+    return s ? { available: true, done: true, user: { username: s.account.username, display: s.account.display }, prefs: s.prefs, ...(devSkip ? { devSkip: true } : {}) } : { available: !!file, done: false };
   };
 
   const slice: Slice = {

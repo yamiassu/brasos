@@ -8,9 +8,10 @@ let
 
   # The native apps this image offers. The shell lists them and asks for one by id; the command line lives only in the file the
   # compositor reads, and the compositor runs it inside bubblewrap (see src/ctl.rs).
+  us = builtins.fromJSON ''"\u001f"''; # the argv separator (Nix strings have no \x escape)
   appsJson = pkgs.writeText "brasos-native-apps.json" (builtins.toJSON (lib.mapAttrsToList (id: a: { inherit id; inherit (a) name icon; }) cfg.apps));
   appsTsv = pkgs.writeText "brasos-native-apps.tsv"
-    (lib.concatStrings (lib.mapAttrsToList (id: a: "${id}\t${if a.network then "1" else "0"}\t${lib.concatStringsSep "\x1f" a.command}\n") cfg.apps));
+    (lib.concatStrings (lib.mapAttrsToList (id: a: "${id}\t${if a.network then "1" else "0"}\t${lib.concatStringsSep us a.command}\n") cfg.apps));
 
   session = pkgs.writeShellScript "brasos-session" ''
     export BRASOS_COMP_SOCKET=${socket}

@@ -13,4 +13,11 @@
     default = null;
     description = "A first-boot provisioning file ({ account: { username, display, passwordHash }, prefs: {...} }); null shows the installer.";
   };
+
+  # Development only: no installer and no lock screen (a throwaway account, default preferences). Refused with the hardened package.
+  options.brasos.setup.devSkip = lib.mkOption {
+    type = lib.types.bool;
+    default = false;
+    description = "Skip the first-boot installer and the lock screen (dev profile only).";
+  };
 }

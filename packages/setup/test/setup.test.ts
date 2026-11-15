@@ -105,3 +105,16 @@ test("a preseed file provisions the account without the installer (hash only, ne
   expect(h2.events().some((e) => e.event === "setup.preseed" && e.outcome === "deny")).toBe(true);
   h2.stop();
 });
+
+test("dev skip: no installer, no lock screen, an account nobody can log into; ignored with any package", async () => {
+  const h = await testHost({ setupDevSkip: true });
+  const s = await state(h);
+  expect(s).toMatchObject({ available: true, done: true, devSkip: true, user: { username: "dev" } });
+  expect((await post(h, "/os/login", { username: "dev", password: "dev" })).status).toBe(401);
+  expect((await post(h, "/os/setup/complete", good)).status).toBe(409);
+  expect(h.events().some((e) => e.event === "setup.dev_skip")).toBe(true);
+  h.stop();
+  const hard = await testHost({ packages: ["hardened"], setupDevSkip: true });
+  expect(await state(hard)).toEqual({ available: true, done: false }); // still asks for the first account
+  hard.stop();
+});

@@ -49,6 +49,7 @@ in {
   options.brasos.hardened.enable = lib.mkEnableOption "the hardened package (locked-down OS image and default-deny server policy)";
 
   config = lib.mkIf cfg.enable {
+    assertions = [{ assertion = !config.brasos.setup.devSkip; message = "brasos.setup.devSkip (no installer, no lock screen) is a development flag; it cannot be set with the hardened package"; }];
     # R1/R2: nobody can log in or escalate on this image. Admin accounts (with MFA) are provisioned at deployment: still open.
     users.mutableUsers = false;
     users.allowNoPasswordLogin = true;

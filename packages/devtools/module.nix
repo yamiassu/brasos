@@ -16,7 +16,8 @@ let
   env = {
     BRASOS_STATE_DIR = "/var/lib/brasos/state";
     BRASOS_RESTART_CMD = "${restartCmd}";
-  } // lib.optionalAttrs (config.brasos.setup.preseed != null) { BRASOS_SETUP_PRESEED = "${config.brasos.setup.preseed}"; };
+  } // lib.optionalAttrs (config.brasos.setup.preseed != null) { BRASOS_SETUP_PRESEED = "${config.brasos.setup.preseed}"; }
+    // lib.optionalAttrs config.brasos.setup.devSkip { BRASOS_SETUP_DEV_SKIP = "1"; };
   script = dir: ''
     d=${if dir == "os" then live else "/var/lib/brasos/safe"}
     ${lib.optionalString (dir == "os") ''if [ ! -d "$d" ]; then mkdir -p "$(dirname "$d")" && cp -r ${src} "$d" && chmod -R u+w "$d"; fi''}
