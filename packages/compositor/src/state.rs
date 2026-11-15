@@ -41,6 +41,8 @@ pub struct Smallvil {
 
     pub seat: Seat<Self>,
     pub ctl: Option<crate::ctl::Ctl>,
+    /// an app the shell just launched: its first window takes the keyboard
+    pub focus_next: bool,
 }
 
 impl Smallvil {
@@ -106,6 +108,7 @@ impl Smallvil {
             popups,
             seat,
             ctl: None,
+            focus_next: false,
         }
     }
 

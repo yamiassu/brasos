@@ -33,8 +33,14 @@ impl XdgShellHandler for Smallvil {
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let window = Window::new_wayland_window(surface);
+        let new = window.clone();
         self.space.map_element(window, (0, 0), false);
         self.retile();
+        if std::mem::take(&mut self.focus_next) {
+            if let (Some(kb), Some(t)) = (self.seat.get_keyboard(), new.toplevel()) {
+                kb.set_focus(self, Some(t.wl_surface().clone()), smithay::utils::SERIAL_COUNTER.next_serial());
+            }
+        }
     }
 
     // A client that asks for fullscreen (Chromium's kiosk mode) gets the fullscreen state, so it hides its own chrome, but keeps

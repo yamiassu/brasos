@@ -182,6 +182,7 @@ impl Smallvil {
                 Cmd::Launch(app) => {
                     if let Some(a) = ctl.apps.iter().find(|a| a.id == app) {
                         spawn_sandboxed(a, &self.socket_name.to_string_lossy());
+                        self.focus_next = true;
                     }
                     continue;
                 }
