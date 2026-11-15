@@ -149,7 +149,7 @@ export function Setup({ onSubmit }: { onSubmit(form: SetupForm): Promise<string 
         <div className="setup-actions">
           {step > 0 && <Button onClick={() => (setError(""), setStep(step - 1))}>Back</Button>}
           <span className="grow" />
-          <Button variant="primary" type="submit" disabled={busy} autoFocus={step === 0 || step === 3 || step === 5}>
+          <Button key={step} variant="primary" type="submit" disabled={busy} autoFocus={step === 0 || step === 3 || step === 5}>
             {step === STEPS.length - 1 ? (busy ? "Setting up…" : "Finish") : "Continue"}
           </Button>
         </div>
