@@ -1,0 +1,13 @@
+html, body, #root { height: 100%; margin: 0; }
+.files { height: 100%; display: flex; flex-direction: column; }
+.files .split { flex: 1; display: flex; min-height: 0; }
+.files .ui-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files .ui-item .meta { color: var(--muted); font-size: 12px; min-width: 56px; text-align: right; }
+.files .ui-item .date { min-width: 76px; }
+.files .preview { width: 42%; min-width: 180px; border-left: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow: auto; background: var(--panel); }
+.files .preview h3 { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.files .preview pre, .files .preview textarea { flex: 1; margin: 0; min-height: 120px; font: 12px ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; overflow: auto; }
+.files .preview img { max-width: 100%; border-radius: var(--radius-sm); }
+.files .preview .note { color: var(--muted); font-size: 12px; margin: 0; }
+.files .preview .actions { display: flex; gap: var(--gap); }
+.files .status { padding: 3px 10px; font-size: 12px; color: var(--muted); background: var(--panel); border-top: 1px solid var(--border); min-height: 18px; }

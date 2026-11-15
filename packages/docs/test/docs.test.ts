@@ -48,7 +48,10 @@ test("the real guides render (every page has content and no leftover web links)"
   const real = await testHost();
   const get = (p: string) => real.at("localhost", p, { headers: { origin: real.origin("docs.localhost") } });
   try {
-    for (const p of await (await get("/os/docs")).json()) {
+    const list = await (await get("/os/docs")).json();
+    expect(list.length).toBeGreaterThanOrEqual(9); // the guides exist (this test used to pass with none)
+    expect(list[0].title).toContain("Welcome");
+    for (const p of list) {
       const page = await (await get(`/os/docs/${p.slug}`)).json();
       expect(page.html.length).toBeGreaterThan(0);
       expect(page.html).not.toMatch(/<a href="https?:/);
@@ -56,4 +59,18 @@ test("the real guides render (every page has content and no leftover web links)"
   } finally {
     real.stop();
   }
+});
+
+test("every link between the real guides points at a page that exists", async () => {
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const dir = join(import.meta.dir, "../../../docs/guide");
+  const slugs = new Set(readdirSync(dir).map((f) => f.replace(/^\d+-/, "").replace(/\.md$/, "")));
+  let links = 0;
+  for (const f of readdirSync(dir)) {
+    for (const m of readFileSync(join(dir, f), "utf8").matchAll(/\]\((?:\.\/)?(?:\d+-)?([a-z0-9-]+)\.md[^)]*\)/g)) {
+      links++;
+      expect(slugs.has(m[1])).toBe(true);
+    }
+  }
+  expect(links).toBeGreaterThan(10);
 });

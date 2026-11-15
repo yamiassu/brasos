@@ -9,7 +9,11 @@ The repo is organized by what BrasOS does, not by technical layer. Each slice ow
 | Path | What | Notes |
 |---|---|---|
 | `packages/host/` | Composition root: serves every origin, the **one capability gate**, static serving, build. Knows no feature itself | Security boundary. Read "Contracts" before changing. `module.nix` defines `brasos.src` |
-| `packages/shell/` | React desktop: windows, dock, `shell.css` (tokens), `user.css` (user overrides) | Windows host apps as iframes |
+| `packages/shell/` | React desktop: windows, dock, desktop icons, the agent client. Layout in `shell.css`, user overrides in `user.css` | Windows host apps as iframes; built on `@brasos/ui` |
+| `packages/files/` | The user's files: a filesystem confined to one home folder, as routes and agent tools | Read its README before touching it |
+| `packages/docs/` | The OS's guides: markdown in `docs/guide/`, rendered by Bun's built-in renderer | `/os/docs*` routes |
+| `packages/agent/` | The agent interface: an MCP endpoint, token auth, and a relay to the shell's UI tools | Denied entirely by the hardened package |
+| `packages/ui/` | `@brasos/ui`: the basic components (button, field, toolbar, breadcrumb, list, icon tile, menu, dialog, window frame, dock) and the design tokens | Used by the shell and apps |
 | `packages/registry/` | The app list: built-in apps and installed PWAs, both described by a Web App Manifest | `/os/apps*` routes |
 | `packages/web-gateway/` | Loads websites through the host: per-site origins, SSRF-safe fetching, TypeScript served as JavaScript | Read its README before touching it |
 | `packages/sdk/` | `@brasos/sdk`: talk to BrasOS from a page; polyfills outside BrasOS. Every app imports it | Also built as `/__brasos/sdk.js` and injected into websites |
@@ -17,7 +21,8 @@ The repo is organized by what BrasOS does, not by technical layer. Each slice ow
 | `packages/hardened/` | The hardened package: server policy (`src/`) and NixOS module (`module.nix`, option `brasos.hardened.enable`) | Hardened pins a dependency hash: update it when `bun.lock` changes |
 | `packages/devtools/` | Dev conveniences as a NixOS module (`brasos.devtools.enable`, on unless hardened is) | Insecure by design |
 | `apps/<id>/` | One app: `manifest.webmanifest`, `index.html`, `main.ts`, optional `server.ts` (its server-side slice) | `import "@brasos/sdk"` |
-| `apps/terminal/`, `apps/browser/`, `apps/about/`, `apps/crash-test/` | The built-in apps | `terminal` and `browser` hold capabilities |
+| `apps/terminal/`, `apps/browser/`, `apps/files/`, `apps/docs/`, `apps/about/`, `apps/crash-test/` | The built-in apps | `terminal`, `browser` and `files` hold capabilities; `docs` and `about` ship in hardened |
+| `docs/guide/` | The user and developer guides shown in the Docs app (numbered markdown files) | Keep them true: a test checks every cross-link |
 | `nixos/base.nix` | OS image pieces every system shares: kiosk session, fonts, VM settings | |
 | `flake.nix` | One system per profile: `brasos-dev`, `brasos-hardened` | `flake.lock` pins nixpkgs: commit it |
 | `tools/bench.ts` | Benchmark runner: discovers every slice's `bench.ts` | |
@@ -42,16 +47,19 @@ Modules import each other through the aliases in `tsconfig.json` (`@brasos/audit
 7. **All web access goes through the gateway.** The only code that fetches a user-supplied URL is `gateway.fetchPublic`, which refuses loopback/private/link-local/metadata addresses, bounds time and size, and re-checks redirects. Don't `fetch()` such URLs anywhere else.
 8. **Packages are enabled by name** (`BRASOS_PACKAGES=hardened`; NixOS `brasos.hardened.enable`). A package's policy can only restrict (every enabled policy must allow). An unknown name is an error, never ignored.
 9. **Every privileged decision is audited** through `audit()` in `packages/audit` (hash-chained, see `docs/audit.md`). Never record security decisions with `console.log`. A new capability ships with audit events and tests for both outcomes.
-10. **Dev only:** the live OS copy is user-editable at `/var/lib/brasos/os`; if it fails 3 times in 60 s, systemd starts the pristine copy (`brasos-shell-safe`), and `brasos-reset-shell` re-seeds. Claude Code has full privilege by design (user `brasos`: default password, passwordless sudo). The hardened package has no terminal, no agent, no sudo, no usable login and an immutable shell.
+10. **Files stay inside the home.** Every path is virtual and absolute (`/Desktop/x`); `..` collapses at the root, symlinks that lead outside are refused (also for existing files being overwritten), deleting moves to `/.trash`. The `fs.read`/`fs.write` capabilities cover the whole home (scoping per app is future work).
+11. **Agents are authenticated and never browsers.** `/mcp` needs the bearer token from `agent.token` in the state dir, refuses any request with an `Origin` header, requires the `agent.call` capability, checks every tool's capability against the agent's allow-list and the enabled packages, audits calls, and **never writes tool arguments to the trail**. The hardened package denies `agent.call`, `ui.host`, `ui.control` and `fs.*`.
+12. **Dev only:** the live OS copy is user-editable at `/var/lib/brasos/os`; if it fails 3 times in 60 s, systemd starts the pristine copy (`brasos-shell-safe`), and `brasos-reset-shell` re-seeds. Claude Code has full privilege by design (user `brasos`: default password, passwordless sudo). The hardened package has no terminal, no agent, no sudo, no usable login and an immutable shell.
 
 ## Commands
 
 ```bash
 bun install && bun run dev                  # OS shell at http://localhost:7000 (works on Windows/macOS/Linux)
-bun test                                    # every slice's tests, ~2 s
+bun test                                    # every slice's tests, ~3 s
 bun run bench [--out f.json] [--compare baseline.json]   # benchmarks; --compare exits 1 on >25% p50 regression
 BRASOS_PACKAGES=hardened bun run dev        # run the server with the hardened policy
 journalctl -u brasos-shell -o cat | grep '^AUDIT' | bun packages/audit/src/verify.ts   # verify the audit trail
+cat .state/agent.token                      # the MCP bearer token for local dev (the dev image: /var/lib/brasos/state/agent.token)
 scripts/vm/build.sh                         # build the NixOS VM (Linux/WSL, clone inside WSL's own fs); PROFILE=hardened for the other one
 scripts/vm/run.sh                           # boot it from a clean disk; keep it running (PROFILE=dev|hardened)
 scripts/vm/ctl.py shot out.png              # screenshot the VM (from repo root)
@@ -71,7 +79,7 @@ WSL2 specifics (already handled in the config, listed so you don't re-debug): QE
 
 ## Benchmarking (requirement: every part is measurable)
 
-`tools/bench.ts` starts a host and runs every slice's `bench.ts` (default export of type `Bench`, see `tools/bench-types.ts`). Each bench records `{name, unit, samples[]}`; the runner prints n/p50/p95/max, writes JSON with `--out`, and fails on regressions with `--compare`. Naming: `<component>.<metric>`. Today: `host.*`, `registry.list`, `gateway.*`, `audit.emit`, `terminal.keystroke_echo`. Measure latency distributions (p95/max), not just averages. Numbers are comparable only on the same machine and platform, so keep baselines per platform and don't commit one from a laptop as "truth".
+`tools/bench.ts` starts a host and runs every slice's `bench.ts` (default export of type `Bench`, see `tools/bench-types.ts`). Each bench records `{name, unit, samples[]}`; the runner prints n/p50/p95/max, writes JSON with `--out`, and fails on regressions with `--compare`. Naming: `<component>.<metric>`. Today: `host.*`, `registry.list`, `gateway.*`, `files.*`, `docs.*`, `agent.*`, `ui.render_*`, `audit.emit`, `terminal.keystroke_echo`. Measure latency distributions (p95/max), not just averages. Numbers are comparable only on the same machine and platform, so keep baselines per platform and don't commit one from a laptop as "truth".
 
 Not yet measured (open work): window open time and frame time in Chromium, per-app RSS and cold start, boot time to shell-ready in the VM (`systemd-analyze`), input-to-photon latency, build time. VM-level benches belong in `scripts/vm/` and should use `ctl.py`.
 
@@ -94,7 +102,7 @@ A profile is a flake output; the packages decide what it contains.
 - **LGPD** (Lei 13.709/2018) for personal data, and a separate regime for classified information. Not researched here.
 - No mandatory national OS certification scheme was found. Common Criteria and NIST SP 800 appear as international references. Whether the customer demands a certification is a question for them, not an assumption for us.
 
-The hardened-package requirements are mapped to PPSI measures in [`docs/compliance/ppsi-mapping.md`](docs/compliance/ppsi-mapping.md) (R1–R22, with status and open questions). Keep it current: a change that adds, removes or satisfies a requirement updates its row in the same commit. The guide is CC BY-NC-ND: cite measure numbers and use our own words, never paste its text.
+The hardened-package requirements are mapped to PPSI measures in [`docs/compliance/ppsi-mapping.md`](docs/compliance/ppsi-mapping.md) (R1–R24, with status and open questions). Keep it current: a change that adds, removes or satisfies a requirement updates its row in the same commit. The guide is CC BY-NC-ND: cite measure numbers and use our own words, never paste its text.
 
 Dev-only conveniences that the hardened package must not have: user `brasos` with a default password and passwordless sudo; Claude Code with full privilege; `bun install` from the network at boot; a user-editable OS copy that runs unreviewed code; a terminal with full-access PTY; the web gateway (an outbound-network chokepoint that needs its own allowlist policy first).
 
@@ -117,7 +125,8 @@ Hardened-package work (open): reproducible builds + SBOM, secure/measured boot (
 ## Roadmap (independent areas agents can pick up)
 
 1. **Compositor + native Linux apps:** replace `cage` with a Rust smithay compositor (XWayland), Chromium as one client, native app windows composed beside it; Flatpak + XDG portals for foreign apps. Largest item.
-2. **SDK and capability broker:** more of `@brasos/sdk` (files, notifications, storage) backed by gated host routes; user-granted permissions for installed PWAs (today they get none).
+2. **SDK and capability broker:** notifications and storage next to the existing files API; per-app scoped folders instead of the whole home; user-granted permissions for installed PWAs (today they get none); an OPFS-backed polyfill for `os.fs` outside BrasOS.
+   **App-level agent tools:** apps registering their own tools (e.g. `browser_navigate`) through the shell, relayed to MCP; today only the shell's UI tools and the slices' host tools are exposed.
 3. **Web gateway:** a per-package allowlist policy so it can run in hardened; WebSocket pass-through; `srcset`/CSS URL rewriting; `.tsx` support (needs an import map); pinning the resolved IP against DNS rebinding.
 4. **Window manager:** minimize/maximize, snapping, per-window focus handling, keyboard navigation (the pointer can't be driven in tests, so keyboard parity matters).
 5. **Customization:** theme tokens, user component overrides with hot reload, per-user layers (system → user → app), error-safe reload.
@@ -132,3 +141,5 @@ Hardened-package work (open): reproducible builds + SBOM, secure/measured boot (
 - Apps are rebuilt only when the server restarts.
 - A PWA installed through the gateway runs on a gateway origin, not its real one: OAuth redirects, WebAuthn, push notifications and anything that checks the real origin won't work. Restarting a hung PWA window reuses its origin (and so its process).
 - Safe-mode fallback is tested only by reasoning plus one partial VM run.
+- WebMCP is a draft whose API has moved (`navigator.modelContext` to `document.modelContext`); the SDK adapter is best-effort and unverified against a real WebMCP browser. MCP over HTTP is the dependable path.
+- The Files app previews text and small images only; there is no copy/paste, drag and drop, or opening a file in another app.

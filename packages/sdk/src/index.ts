@@ -86,6 +86,11 @@ export function createOS(env: Env) {
       /** moves to the trash (recoverable) */
       remove: (path: string) => (inside ? call<{ path: string }>("/os/fs/delete", { path }).then(changed("fs-changed")) : needsBrasOS("fs")),
     },
+    /** The OS's own guides (markdown rendered to HTML on the host). Polyfill: rejects with UnsupportedError. */
+    docs: {
+      list: () => (inside ? call<{ slug: string; title: string }[]>("/os/docs") : needsBrasOS("docs")),
+      page: (slug: string) => (inside ? call<{ slug: string; title: string; html: string }>("/os/docs/" + encodeURIComponent(slug)) : needsBrasOS("docs")),
+    },
     tools: {
       /**
        * Offer an action to AI agents through WebMCP, if the browser has it. Works anywhere (polyfill: does nothing when

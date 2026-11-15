@@ -32,9 +32,18 @@ The code is organized by what BrasOS does. The host is a thin composition root; 
 
 A slice contributes `{ name, handle?(req, ctx), ws? }`. Built-in slices are listed in `packages/host/src/host.ts`; an app adds its own with `apps/<id>/server.ts` exporting `createSlice({ audit })`, loaded only if the registry (and so every enabled package's policy) admits the app.
 
+## The agent interface
+
+An AI agent drives the OS with typed tools instead of screenshots. Two kinds of tool, one list:
+
+- **Host tools** (`fs_*`) are declared by slices (`Slice.tools`) and run on the server.
+- **UI tools** (`ui_snapshot`, `windows_*`, `apps_open`) live in the shell page. The shell opens a WebSocket (`/os/agent/ui`) and registers them; the host relays calls to it and relays the answers back. They are also offered to the browser's own agent through WebMCP when it exists.
+
+The agent talks standard MCP over `POST /mcp`. It authenticates with a bearer token from the state dir; any request with a browser `Origin` is refused; each tool call is checked against the agent's capabilities and the enabled packages' policies and is audited (without its arguments). The hardened package denies it all.
+
 ## How an app runs
 
-1. The shell fetches `/os/apps` and lists apps in the dock.
+1. The shell fetches `/os/apps`, lists the apps in the dock, and shows an icon for each on the desktop (followed by the `/Desktop` folder's files).
 2. Opening one creates a window with an `<iframe>` on the app's own origin. Because the origin differs from the shell's, Chromium's site isolation puts it in a separate process: a crash or hang there can't take the shell down.
 3. The host derives the target from the `Host` header. A restarted window uses `<app>--<n>.localhost`, a fresh origin and therefore a fresh process.
 4. The shell pings each window with `postMessage`; `@brasos/sdk` answers `pong`. No pong for 8 seconds shows "isn't responding" with Restart or Close.

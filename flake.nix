@@ -6,14 +6,14 @@
     let
       lib = nixpkgs.lib;
       root = toString ./.;
-      # Only what the OS runs goes into the image source, so editing docs or tests doesn't rebuild it.
+      # Only what the OS runs goes into the image source (the in-OS guides in docs/ included), so editing tests or benches doesn't rebuild it.
       src = lib.cleanSourceWith {
         src = ./.;
         filter = p: t:
           let top = builtins.head (lib.splitString "/" (lib.removePrefix (root + "/") (toString p)));
           in toString p == root
-            || (builtins.elem top [ "packages" "apps" "package.json" "bun.lock" "tsconfig.json" ]
-                && !(builtins.elem (baseNameOf p) [ "node_modules" "dist" "test" "bench.ts" ]));
+            || (builtins.elem top [ "packages" "apps" "docs" "package.json" "bun.lock" "tsconfig.json" ]
+                && !(builtins.elem (baseNameOf p) [ "node_modules" "dist" "test" "bench.ts" "bench.tsx" ]));
       };
       # One system per profile: the same modules, with the hardened package off (dev) or on.
       mk = hardened: lib.nixosSystem {

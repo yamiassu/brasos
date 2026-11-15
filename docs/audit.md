@@ -20,11 +20,16 @@ Under systemd the stdout lands in the journal; `BRASOS_AUDIT_FILE=<path>` adds a
 | `app.unknown` | deny | Request to the origin of an app that isn't available (not installed, or filtered out by a package) | 1 per 10 s |
 | `app.load` | allow | An app's index document was loaded (a window opened) | 1 per second per app |
 | `capability.<name>` | allow / deny | Every decision of the host's gate: `pty`, `apps.read`, `apps.install`, `apps.uninstall`, `web.open`. Actor is the caller (`shell`, an app id, `site`, `unknown`) and its origin | denials 1 per second per capability and caller |
+| `fs.change` | info | A file change: the operation (`write`, `mkdir`, `move`, `delete`), the path, and which app did it. Reads are covered by the throttled `capability.fs.read` allows | none |
+| `agent.auth` | deny | An agent request refused: bad or missing token, or a browser `Origin` | 1 per 5 s |
+| `agent.tool` | info | An agent tool call: the tool name, success, duration. **Never its arguments** | none |
 | `pty.session` | info | Terminal session open/close, pid, duration | none |
 | `web.open` | allow / deny | A site was opened (host name) or refused (reason) | 1 per second |
 | `web.site` | allow | First request to a site (per minute): host name | 1 per minute per site |
 | `web.blocked`, `web.error` | deny | The gateway refused an upstream address, or the upstream failed | 1 per 5 s |
 | `apps.install` | info | A PWA was installed: id, name, start URL | none |
+
+Capabilities that only read (`apps.read`, `fs.read`, `docs.read`, `ui.host`) throttle their *allow* events to one per second per caller, with a `suppressed` count; their *denials* are throttled the same way, and every write-like capability is audited each time.
 
 Throttled events are counted and the next recorded event carries `suppressed: N`, so a flood can't fill the journal silently. Allows of privileged capabilities are never throttled.
 

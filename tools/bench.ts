@@ -27,7 +27,7 @@ const host = await testHost({ gateway: { allowPrivate: true } });
 const results: Result[] = [{ name: "host.start_to_ready", unit: "ms", samples: [performance.now() - t0] }]; // includes the full app build
 
 try {
-  for (const pattern of ["packages/*/bench.ts", "apps/*/bench.ts"]) {
+  for (const pattern of ["packages/*/bench.{ts,tsx}", "apps/*/bench.{ts,tsx}"]) {
     for await (const file of new Glob(pattern).scan({ cwd: root })) {
       const bench: Bench = (await import(join(root, file))).default;
       results.push(...(await bench({ host, repeat, sleep })));

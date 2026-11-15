@@ -12,6 +12,7 @@ Reports are handled on a best-effort basis; there is no response-time commitment
 
 - The **hardened** package (`packages/hardened/`) and the behavior the contracts in [AGENTS.md](AGENTS.md) promise: origin isolation between apps, the host's capability gate, loopback-only listening, the audit trail's integrity, the build pipeline.
 - The host (`packages/host/`) and the web gateway (`packages/web-gateway/`) in either profile: a flaw that lets one app or web page reach a capability it should not have (for example the terminal), a way to make the gateway reach private or loopback addresses (SSRF), or to escape a site's origin.
+- The agent interface (`packages/agent/`): any way to use `/mcp` or the shell relay without the token, from a web page, or in the hardened package; and the files slice (`packages/files/`): any way to read or write outside the user's home.
 
 ## What is not a vulnerability
 

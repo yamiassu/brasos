@@ -1,5 +1,5 @@
 // Entry point. Configuration comes from the environment: PORT, BRASOS_PACKAGES (e.g. "hardened"), BRASOS_DIST,
-// BRASOS_PREBUILT, BRASOS_STATE_DIR, BRASOS_AUDIT_FILE, BRASOS_WEB_ALLOW_PRIVATE (tests/dev only), and --build-only.
+// BRASOS_PREBUILT, BRASOS_STATE_DIR, BRASOS_HOME, BRASOS_AUDIT_FILE, BRASOS_WEB_ALLOW_PRIVATE (tests/dev only), and --build-only.
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { startHost } from "./host";
@@ -16,6 +16,7 @@ const host = await startHost({
   prebuilt: !!env.BRASOS_PREBUILT,
   buildOnly,
   stateDir: env.BRASOS_STATE_DIR,
+  home: env.BRASOS_HOME,
   gateway: { allowPrivate: env.BRASOS_WEB_ALLOW_PRIVATE === "1" },
   // stdout goes to the journal under systemd; BRASOS_AUDIT_FILE adds a file copy
   audit: [(l) => console.log(l), ...(auditFile ? [(l: string) => appendFileSync(auditFile, l + "\n")] : [])],
