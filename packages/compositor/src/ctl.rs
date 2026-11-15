@@ -157,9 +157,13 @@ impl Smallvil {
         let mut cmds = vec![];
         ctl.clients.retain_mut(|(s, buf)| {
             let mut chunk = [0u8; 256];
+            let mut open = true; // a one-shot sender writes its line and hangs up: parse what it sent, then drop it
             loop {
                 match s.read(&mut chunk) {
-                    Ok(0) => return false,
+                    Ok(0) => {
+                        open = false;
+                        break;
+                    }
                     Ok(n) => buf.extend_from_slice(&chunk[..n]),
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
                     Err(_) => return false,
@@ -174,7 +178,7 @@ impl Smallvil {
                     cmds.push(c);
                 }
             }
-            true
+            open
         });
         for c in cmds {
             let close = matches!(c, Cmd::Close(_));
