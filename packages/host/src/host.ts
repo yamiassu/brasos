@@ -10,6 +10,7 @@ import { createFiles } from "@brasos/files";
 import { createRegistry } from "@brasos/registry";
 import { createSetup } from "@brasos/setup";
 import { createSystem } from "@brasos/system";
+import { createNative } from "@brasos/native";
 import { createGateway, readText } from "@brasos/web-gateway";
 import { build } from "./build";
 import { resolvePolicies } from "./packages";
@@ -37,12 +38,14 @@ export type HostOptions = {
   restart?: () => void;
   /** a JSON file that provisions the first-boot account and preferences without the installer (see packages/setup) */
   setupPreseed?: string;
+  /** the compositor's control socket: where native windows are listed and driven (see packages/native); without it there are none */
+  nativeSocket?: string;
   /** gateway tuning; allowPrivate is tests only (lets it reach loopback upstreams) */
   gateway?: { allowPrivate?: boolean; maxSites?: number };
 };
 
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
-const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "setup.write", "setup.login"];
+const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "setup.write", "setup.login", "native.read", "native.control"];
 /** what an authenticated AI agent may do (on top of each tool's own check and the enabled packages' policies) */
 const AGENT_CAPS = ["agent.call", "apps.read", "fs.read", "fs.write", "docs.read", "ui.control", "system.restart"];
 
@@ -89,7 +92,7 @@ export async function startHost(o: HostOptions) {
   );
   const files = createFiles({ home: o.home ?? (o.stateDir && join(o.stateDir, "home")) });
   const docs = createDocs({ dir: o.docsDir ?? join(root, "docs/guide") });
-  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice, createSystem({ restart: o.restart, audit }).slice, createSetup({ stateDir: o.stateDir, audit, preseed: o.setupPreseed }).slice];
+  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice, createSystem({ restart: o.restart, audit }).slice, createSetup({ stateDir: o.stateDir, audit, preseed: o.setupPreseed }).slice, createNative({ socket: o.nativeSocket, audit }).slice];
   const agent = createAgent({ tools: () => slices.flatMap((s) => s.tools ?? []), stateDir: o.stateDir });
   slices.push(agent.slice, ...appSlices);
   const bySlice = new Map(slices.map((s) => [s.name, s]));

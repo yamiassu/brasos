@@ -1,5 +1,5 @@
 // Entry point. Configuration comes from the environment: PORT, BRASOS_PACKAGES (e.g. "hardened"), BRASOS_DIST,
-// BRASOS_PREBUILT, BRASOS_STATE_DIR, BRASOS_HOME, BRASOS_AUDIT_FILE, BRASOS_RESTART_CMD (the supervisor's restart command), BRASOS_SETUP_PRESEED (a first-boot provisioning file), BRASOS_WEB_ALLOW_PRIVATE (tests/dev only), and --build-only.
+// BRASOS_PREBUILT, BRASOS_STATE_DIR, BRASOS_HOME, BRASOS_AUDIT_FILE, BRASOS_RESTART_CMD (the supervisor's restart command), BRASOS_SETUP_PRESEED (a first-boot provisioning file), BRASOS_COMP_SOCKET (the compositor's control socket), BRASOS_WEB_ALLOW_PRIVATE (tests/dev only), and --build-only.
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { startHost } from "./host";

@@ -117,6 +117,19 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
   const results = search(hits, query);
   const current = picked && results.find((h) => h.key === picked.key) ? picked : results[0] ?? null;
   const run = (h: Hit) => (closeLauncher(), h.run());
+  // Native (non-PWA) windows owned by the compositor, where there is one (packages/native): listed once a second, focus on click
+  const [natives, setNatives] = useState<{ id: number; title: string; app: string; focused: boolean }[]>([]);
+  useEffect(() => {
+    let stop = false;
+    const tick = () =>
+      fetch("/os/native", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : { windows: [] }))
+        .then((r) => !stop && setNatives((old) => (JSON.stringify(old) === JSON.stringify(r.windows) ? old : r.windows)))
+        .catch(() => {});
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => (stop = true, clearInterval(t));
+  }, []);
   // Ctrl+K from anywhere in the shell (a window's iframe keeps its own keys)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -217,6 +230,11 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
           const mine = wins.filter((w) => w.app.id === a.id);
           return <TaskButton key={a.id} icon={a.icon} label={a.name} running={mine.length > 0} active={focused?.app.id === a.id} onClick={() => launch(a)} />;
         })}
+        {natives.map((n) => (
+          <span key={n.id} onContextMenu={(e) => (e.preventDefault(), post("/os/native/close", { id: n.id }))}>
+            <TaskButton icon="app" label={`${n.title || n.app || "Native app"} (right-click to close)`} running active={n.focused} onClick={() => post("/os/native/focus", { id: n.id })} />
+          </span>
+        ))}
         <Tray>
           {note && <TrayItem label={note}>{note}</TrayItem>}
           {canRestart && <TrayItem icon="edit" label="Edit the interface (opens its source in Files)" onClick={() => openPath("/BrasOS")} />}
