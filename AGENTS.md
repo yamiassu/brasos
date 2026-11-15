@@ -13,7 +13,7 @@ The repo is organized by what BrasOS does, not by technical layer. Each slice ow
 | `packages/files/` | The user's files: a filesystem confined to one home folder, as routes and agent tools | Read its README before touching it |
 | `packages/docs/` | The OS's guides: markdown in `docs/guide/`, rendered by Bun's built-in renderer | `/os/docs*` routes |
 | `packages/setup/` | First boot: the initial account and preferences, the lock screen's login, unattended preseed | Allowed in hardened (`setup.write`, `setup.login`); read its README |
-| `packages/compositor/` | Spike: a smithay compositor (inside cage for now) that tiles Chromium beside native Wayland apps | Dev only (`brasos.compositor.enable`); read its README for what is missing |
+| `packages/compositor/` | Spike: a smithay compositor (DRM/KMS or nested in cage) that tiles Chromium beside native Wayland apps | Dev only (`brasos.compositor.enable`); read its README for what is missing |
 | `packages/native/` | Native (non-PWA) windows in the shell: list, focus, close through the compositor's control socket | Gated `native.read`/`native.control` (shell only, denied by hardened); read its README |
 | `packages/system/` | Restart the interface: `POST /os/system/restart` and the `system_restart` agent tool, gated by `system.restart` | Only where a supervisor can restart the host (`BRASOS_RESTART_CMD`) |
 | `packages/agent/` | The agent interface: an MCP endpoint, token auth, and a relay to the shell's UI tools | Denied entirely by the hardened package |
