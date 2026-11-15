@@ -34,6 +34,7 @@
         brasos-hardened = mk true [ ];
         # spike: the native-app compositor instead of bare cage (see packages/compositor)
         brasos-dev-comp = mk false [ { brasos.compositor.enable = true; } ];
+        brasos-dev-drm = mk false [ { brasos.compositor.enable = true; brasos.compositor.drm = true; } ];
       };
     };
 }
