@@ -1,5 +1,5 @@
 // Entry point. Configuration comes from the environment: PORT, BRASOS_PACKAGES (e.g. "hardened"), BRASOS_DIST,
-// BRASOS_PREBUILT, BRASOS_STATE_DIR, BRASOS_HOME, BRASOS_AUDIT_FILE, BRASOS_RESTART_CMD (the supervisor's restart command), BRASOS_SETUP_PRESEED (a first-boot provisioning file), BRASOS_COMP_SOCKET (the compositor's control socket), BRASOS_WEB_ALLOW_PRIVATE (tests/dev only), and --build-only.
+// BRASOS_PREBUILT, BRASOS_STATE_DIR, BRASOS_HOME, BRASOS_AUDIT_FILE, BRASOS_RESTART_CMD (the supervisor's restart command), BRASOS_SETUP_PRESEED (a first-boot provisioning file), BRASOS_COMP_SOCKET (the compositor's control socket), BRASOS_NATIVE_APPS_JSON (its native app list), BRASOS_WEB_ALLOW_PRIVATE (tests/dev only), and --build-only.
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { startHost } from "./host";
@@ -20,6 +20,7 @@ const host = await startHost({
   restart: env.BRASOS_RESTART_CMD ? () => void Bun.spawn([env.BRASOS_RESTART_CMD!], { stdio: ["ignore", "ignore", "ignore"] }) : undefined,
   setupPreseed: env.BRASOS_SETUP_PRESEED,
   nativeSocket: env.BRASOS_COMP_SOCKET,
+  nativeApps: env.BRASOS_NATIVE_APPS_JSON,
   gateway: { allowPrivate: env.BRASOS_WEB_ALLOW_PRIVATE === "1" },
   // stdout goes to the journal under systemd; BRASOS_AUDIT_FILE adds a file copy
   audit: [(l) => console.log(l), ...(auditFile ? [(l: string) => appendFileSync(auditFile, l + "\n")] : [])],

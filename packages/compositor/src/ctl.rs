@@ -23,6 +23,7 @@ use smithay::{
 use crate::state::Smallvil;
 
 pub struct Ctl {
+    apps: Vec<App>,
     listener: UnixListener,
     clients: Vec<(UnixStream, Vec<u8>)>,
     last: String,
@@ -50,12 +51,66 @@ fn id_of(w: &Window) -> u32 {
     (h.finish() as u32).max(1)
 }
 
-/// `{"focus":3}` -> ("focus", 3); anything else is ignored
-fn parse(line: &str) -> Option<(&str, u32)> {
+enum Cmd {
+    Focus(u32),
+    Close(u32),
+    Launch(String),
+}
+
+/// `{"focus":3}`, `{"close":3}`, `{"launch":"foot"}`; anything else is ignored
+fn parse(line: &str) -> Option<Cmd> {
     let l = line.trim().strip_prefix('{')?.strip_suffix('}')?;
     let (k, v) = l.split_once(':')?;
-    let k = k.trim().trim_matches('"');
-    (k == "focus" || k == "close").then(|| v.trim().parse().ok().map(|n| (k, n)))?
+    let (k, v) = (k.trim().trim_matches('"'), v.trim());
+    match k {
+        "focus" => v.parse().ok().map(Cmd::Focus),
+        "close" => v.parse().ok().map(Cmd::Close),
+        "launch" => {
+            let id = v.trim_matches('"');
+            (!id.is_empty() && id.len() <= 40 && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')).then(|| Cmd::Launch(id.to_string()))
+        }
+        _ => None,
+    }
+}
+
+/// A native app from the image: started only by id, inside bubblewrap (no home, no network unless the image says so, no access
+/// to the control socket or the rest of /run). The list is a file the image owns (BRASOS_NATIVE_APPS): `id<TAB>net<TAB>argv`,
+/// argv separated by 0x1f. The host never sends a command line, only an id.
+pub struct App {
+    id: String,
+    net: bool,
+    argv: Vec<String>,
+}
+
+pub fn load_apps() -> Vec<App> {
+    let Ok(text) = std::env::var("BRASOS_NATIVE_APPS").map(std::fs::read_to_string).unwrap_or(Ok(String::new())) else { return vec![] };
+    text.lines()
+        .filter_map(|l| {
+            let mut f = l.splitn(3, '	');
+            let (id, net, argv) = (f.next()?, f.next()?, f.next()?);
+            let argv: Vec<String> = argv.split('').map(String::from).collect();
+            (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: net == "1", argv })
+        })
+        .collect()
+}
+
+fn spawn_sandboxed(app: &App, wayland_display: &str) {
+    let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/run/user/1000".into());
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/brasos".into());
+    let sock = format!("{xdg}/{wayland_display}");
+    let mut c = std::process::Command::new(std::env::var("BRASOS_BWRAP").unwrap_or_else(|_| "bwrap".into()));
+    c.args(["--unshare-all", "--die-with-parent", "--new-session", "--clearenv"]);
+    if app.net {
+        c.arg("--share-net");
+    }
+    c.args(["--ro-bind", "/nix/store", "/nix/store", "--ro-bind", "/etc", "/etc", "--ro-bind-try", "/run/current-system", "/run/current-system"])
+        .args(["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", &home, "--dir", &xdg, "--bind", &sock, &sock])
+        .args(["--setenv", "XDG_RUNTIME_DIR", &xdg, "--setenv", "WAYLAND_DISPLAY", wayland_display, "--setenv", "HOME", &home])
+        .args(["--setenv", "PATH", "/run/current-system/sw/bin", "--setenv", "TERM", "xterm-256color", "--"])
+        .args(&app.argv);
+    if let Err(e) = c.spawn() {
+        eprintln!("brasos-comp: launch {}: {e}", app.id);
+    }
 }
 
 pub fn init(event_loop: &mut EventLoop<Smallvil>, path: &str) -> std::io::Result<Ctl> {
@@ -70,7 +125,7 @@ pub fn init(event_loop: &mut EventLoop<Smallvil>, path: &str) -> std::io::Result
             TimeoutAction::ToDuration(Duration::from_millis(100))
         })
         .expect("ctl timer");
-    Ok(Ctl { listener, clients: vec![], last: String::new() })
+    Ok(Ctl { apps: load_apps(), listener, clients: vec![], last: String::new() })
 }
 
 impl Smallvil {
@@ -115,16 +170,26 @@ impl Smallvil {
             }
             while let Some(i) = buf.iter().position(|b| *b == b'\n') {
                 let line: Vec<u8> = buf.drain(..=i).collect();
-                if let Some((k, n)) = parse(&String::from_utf8_lossy(&line)) {
-                    cmds.push((k.to_string(), n));
+                if let Some(c) = parse(&String::from_utf8_lossy(&line)) {
+                    cmds.push(c);
                 }
             }
             true
         });
-        for (k, id) in cmds {
+        for c in cmds {
+            let close = matches!(c, Cmd::Close(_));
+            let id = match c {
+                Cmd::Launch(app) => {
+                    if let Some(a) = ctl.apps.iter().find(|a| a.id == app) {
+                        spawn_sandboxed(a, &self.socket_name.to_string_lossy());
+                    }
+                    continue;
+                }
+                Cmd::Focus(id) | Cmd::Close(id) => id,
+            };
             let Some(w) = self.space.elements().find(|w| id_of(w) == id).cloned() else { continue };
             let t = w.toplevel().unwrap().clone();
-            if k == "close" {
+            if close {
                 t.send_close();
             } else {
                 self.space.raise_element(&w, true);

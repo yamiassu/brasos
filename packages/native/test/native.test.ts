@@ -59,3 +59,24 @@ test("an app, an unknown caller and the hardened package are refused; no socket 
   expect(await (await none.at("localhost", "/os/native", { headers: asShell(none) })).json()).toEqual({ available: false, windows: [] });
   none.stop();
 });
+
+test("native apps launch by id only, from the image's list", async () => {
+  const c = fakeCompositor([]);
+  const list = join(mkdtempSync(join(tmpdir(), "brasos-apps-")), "apps.json");
+  await Bun.write(list, JSON.stringify([{ id: "foot", name: "Terminal", icon: "terminal", command: ["/bin/sh", "-c", "evil"] }, { id: "BAD ID", name: "x" }]));
+  const h = await testHost({ nativeSocket: c.path, nativeApps: list });
+  const get = (path: string, from = "localhost") => h.at("localhost", path, { headers: { origin: h.origin(from) } });
+  expect(await (await get("/os/native/apps")).json()).toEqual({ apps: [{ id: "foot", name: "Terminal", icon: "terminal" }] }); // no command leaks, bad ids dropped
+  const launch = (id: unknown, from = "localhost") => h.at("localhost", "/os/native/launch", { method: "POST", headers: { origin: h.origin(from) }, body: JSON.stringify({ id }) });
+  expect((await launch("foot")).status).toBe(202);
+  expect((await launch("sh")).status).toBe(404);
+  expect((await launch('foot"}{"close":1')).status).toBe(404);
+  expect((await launch("foot", "about.localhost")).status).toBe(403);
+  await Bun.sleep(100);
+  expect(c.got).toEqual(['{"launch":"foot"}']);
+  expect(h.events().filter((e) => e.event === "native.launch").length).toBe(1);
+  h.stop();
+  const hard = await testHost({ packages: ["hardened"], nativeSocket: c.path, nativeApps: list });
+  expect((await hard.at("localhost", "/os/native/launch", { method: "POST", headers: { origin: hard.origin("localhost") }, body: '{"id":"foot"}' })).status).toBe(403);
+  hard.stop();
+});

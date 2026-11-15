@@ -108,8 +108,13 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
     if (mine.length) focus(mine.reduce((a, b) => (a.z > b.z ? a : b)).key);
     else open(app);
   };
+  const [nativeApps, setNativeApps] = useState<{ id: string; name: string; icon: string }[]>([]);
+  useEffect(() => {
+    fetch("/os/native/apps").then((r) => (r.ok ? r.json() : { apps: [] })).then((r) => setNativeApps(r.apps ?? [])).catch(() => {});
+  }, []);
   const hits: Hit[] = [
     ...apps.map((a) => ({ key: "a:" + a.id, kind: "App" as const, icon: a.icon, label: a.name, meta: "App", run: () => launch(a) })),
+    ...nativeApps.map((n) => ({ key: "n:" + n.id, kind: "App" as const, icon: n.icon, label: n.name, meta: "Native app", run: () => void post("/os/native/launch", { id: n.id }) })),
     ...wins.map((w) => ({ key: "w:" + w.key, kind: "Window" as const, icon: w.app.icon, label: w.app.name, meta: "Open window", run: () => focus(w.key) })),
     ...extra.files,
     ...extra.guides,

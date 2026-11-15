@@ -1,9 +1,11 @@
 // Native (non-PWA) windows: the compositor (packages/compositor) owns them; this slice lets the shell list, focus and close
 // them through the compositor's control socket. Gated by `native.read` / `native.control`; no app or agent holds either, and
 // the hardened package denies both. Without a socket there are no native windows (available: false).
+import { readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { json, type AuditFn, type Slice } from "@brasos/host/types";
 
+export type NativeApp = { id: string; name: string; icon: string };
 export type NativeWindow = { id: number; title: string; app: string; focused: boolean };
 
 /** read the first line the compositor sends, or give up after `ms` */
@@ -37,7 +39,20 @@ function send(path: string, line: string): Promise<void> {
   });
 }
 
-export function createNative({ socket, audit }: { socket?: string; audit: AuditFn }) {
+/** the image's list of native apps (JSON: [{id,name,icon}]); the command lines are not here: only the compositor knows them */
+function loadApps(path?: string): NativeApp[] {
+  if (!path) return [];
+  try {
+    return (JSON.parse(readFileSync(path, "utf8")) as any[])
+      .filter((a) => /^[a-z0-9-]{1,40}$/.test(a?.id))
+      .map((a) => ({ id: a.id, name: String(a.name ?? a.id).slice(0, 80), icon: String(a.icon ?? "app").slice(0, 40) }));
+  } catch {
+    return [];
+  }
+}
+
+export function createNative({ socket, apps: appsFile, audit }: { socket?: string; apps?: string; audit: AuditFn }) {
+  const apps = loadApps(appsFile);
   const slice: Slice = {
     name: "native",
     async handle(req, ctx) {
@@ -52,6 +67,21 @@ export function createNative({ socket, audit }: { socket?: string; audit: AuditF
         } catch {
           return json({ available: false, windows: [] });
         }
+      }
+      if (req.method === "GET" && p === "/os/native/apps") {
+        const g = ctx.gate("native.read", { sameOrigin: true });
+        return g.ok ? json({ apps: socket ? apps : [] }) : g.res;
+      }
+      if (req.method === "POST" && p === "/os/native/launch") {
+        const g = ctx.gate("native.control", { sameOrigin: true });
+        if (!g.ok) return g.res;
+        const id = ((await req.json().catch(() => null)) as any)?.id;
+        // only ids from the image's list: no request can name a command
+        if (typeof id !== "string" || !socket || !apps.some((a) => a.id === id)) return json({ error: "unknown native app" }, 404);
+        audit("native.launch", "info", { id });
+        await send(socket, `{"launch":"${id}"}
+`).catch(() => {});
+        return json({ ok: true }, 202);
       }
       const op = req.method === "POST" && (p === "/os/native/focus" ? "focus" : p === "/os/native/close" ? "close" : "");
       if (!op) return;

@@ -40,6 +40,8 @@ export type HostOptions = {
   setupPreseed?: string;
   /** the compositor's control socket: where native windows are listed and driven (see packages/native); without it there are none */
   nativeSocket?: string;
+  /** JSON list of the image's native apps ([{id,name,icon}]); launching is by id only (see packages/native) */
+  nativeApps?: string;
   /** gateway tuning; allowPrivate is tests only (lets it reach loopback upstreams) */
   gateway?: { allowPrivate?: boolean; maxSites?: number };
 };
@@ -92,7 +94,7 @@ export async function startHost(o: HostOptions) {
   );
   const files = createFiles({ home: o.home ?? (o.stateDir && join(o.stateDir, "home")) });
   const docs = createDocs({ dir: o.docsDir ?? join(root, "docs/guide") });
-  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice, createSystem({ restart: o.restart, audit }).slice, createSetup({ stateDir: o.stateDir, audit, preseed: o.setupPreseed }).slice, createNative({ socket: o.nativeSocket, audit }).slice];
+  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice, createSystem({ restart: o.restart, audit }).slice, createSetup({ stateDir: o.stateDir, audit, preseed: o.setupPreseed }).slice, createNative({ socket: o.nativeSocket, apps: o.nativeApps, audit }).slice];
   const agent = createAgent({ tools: () => slices.flatMap((s) => s.tools ?? []), stateDir: o.stateDir });
   slices.push(agent.slice, ...appSlices);
   const bySlice = new Map(slices.map((s) => [s.name, s]));
