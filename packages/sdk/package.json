@@ -1,0 +1,10 @@
+{
+  "name": "@brasos/sdk",
+  "version": "0.0.0",
+  "description": "Talk to BrasOS from a web page; degrades to polyfills outside BrasOS",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "sideEffects": true,
+  "license": "UNLICENSED"
+}

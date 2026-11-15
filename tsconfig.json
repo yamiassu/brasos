@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "target": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["bun"],
+    "baseUrl": ".",
+    "paths": {
+      "@brasos/audit": ["packages/audit/src/audit.ts"],
+      "@brasos/sdk": ["packages/sdk/src/index.ts"],
+      "@brasos/registry": ["packages/registry/src/index.ts"],
+      "@brasos/web-gateway": ["packages/web-gateway/src/index.ts"],
+      "@brasos/hardened": ["packages/hardened/src/index.ts"],
+      "@brasos/host/*": ["packages/host/src/*"]
+    }
+  }
+}

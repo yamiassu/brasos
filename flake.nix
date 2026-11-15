@@ -5,27 +5,32 @@
   outputs = { self, nixpkgs }:
     let
       lib = nixpkgs.lib;
-      # An app is in the hardened image only if its manifest lists "hardened" in "profiles" (default deny).
-      optedIn = p:
-        builtins.pathExists (p + "/manifest.json")
-        && builtins.elem "hardened" ((builtins.fromJSON (builtins.readFile (p + "/manifest.json"))).profiles or [ "dev" ]);
-      # dev: seed copy of the shell (the live copy in /var/lib/brasos/shell is the user's to edit)
-      # hardened: the immutable source the server and build run from
-      mkShellSrc = profile: lib.cleanSourceWith {
-        src = ./shell;
+      root = toString ./.;
+      # Only what the OS runs goes into the image source, so editing docs or tests doesn't rebuild it.
+      src = lib.cleanSourceWith {
+        src = ./.;
         filter = p: t:
-          !(builtins.elem (baseNameOf p) [ "node_modules" "dist" ])
-          && !(profile == "hardened" && t == "directory" && baseNameOf (dirOf p) == "apps" && !(optedIn p));
+          let top = builtins.head (lib.splitString "/" (lib.removePrefix (root + "/") (toString p)));
+          in toString p == root
+            || (builtins.elem top [ "packages" "apps" "package.json" "bun.lock" "tsconfig.json" ]
+                && !(builtins.elem (baseNameOf p) [ "node_modules" "dist" "test" "bench.ts" ]));
       };
-      mk = profile: lib.nixosSystem {
+      # One system per profile: the same modules, with the hardened package off (dev) or on.
+      mk = hardened: lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { shellSrc = mkShellSrc profile; };
-        modules = [ ./nixos/base.nix (./nixos/profiles + "/${profile}.nix") ];
+        modules = [
+          ./nixos/base.nix
+          ./packages/host/module.nix
+          ./packages/audit/module.nix
+          ./packages/hardened/module.nix
+          ./packages/devtools/module.nix
+          { brasos.src = src; brasos.hardened.enable = hardened; }
+        ];
       };
     in {
       nixosConfigurations = {
-        brasos-dev = mk "dev";
-        brasos-hardened = mk "hardened";
+        brasos-dev = mk false;
+        brasos-hardened = mk true;
       };
     };
 }

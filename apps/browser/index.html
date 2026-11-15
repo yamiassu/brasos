@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Browser</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0b0d12; color: #e6e8ee; font: 14px system-ui, sans-serif; }
+      body { display: flex; flex-direction: column; }
+      form { display: flex; gap: 6px; padding: 6px; background: #151922; }
+      form input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid #ffffff1a; border-radius: 6px; background: #0b0d12; color: inherit; }
+      button { background: #ffffff14; color: inherit; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+      button:hover:not(:disabled) { background: #5b8cff; }
+      button:disabled { opacity: 0.4; cursor: default; }
+      iframe { flex: 1; border: 0; background: #fff; }
+      #status { padding: 3px 10px; font-size: 12px; color: #9aa3b5; background: #151922; min-height: 16px; }
+    </style>
+  </head>
+  <body>
+    <form id="bar">
+      <button type="button" id="back" title="Back" disabled>←</button>
+      <button type="button" id="forward" title="Forward" disabled>→</button>
+      <button type="button" id="reload" title="Reload">⟳</button>
+      <input id="url" placeholder="Enter a web address" autocomplete="off" spellcheck="false" />
+      <button id="install" type="button" disabled title="Install this site as an app">Install</button>
+    </form>
+    <iframe id="frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+    <div id="status"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
