@@ -96,4 +96,4 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). Short versio
 
 ## License
 
-No license has been chosen yet, so by default all rights are reserved even though the source is visible. A `LICENSE` file will be added once the maintainers decide; until then, please open an issue before reusing the code.
+Apache License 2.0. See [LICENSE](LICENSE). The compliance mapping cites measure numbers from the official PPSI guide, which has its own license (CC BY-NC-ND 4.0) and is not included here.

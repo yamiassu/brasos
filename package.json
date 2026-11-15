@@ -1,6 +1,7 @@
 {
   "name": "brasos",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "BRASOS_STATE_DIR=.state bun packages/host/src/main.ts",

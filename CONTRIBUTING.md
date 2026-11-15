@@ -35,4 +35,4 @@ To report a vulnerability, **don't** open a public issue: see [SECURITY.md](SECU
 
 ## Licensing of contributions
 
-No license has been chosen yet (see the README). By contributing you agree your contribution can be released under whichever license the maintainers choose.
+BrasOS is licensed under the [Apache License 2.0](LICENSE). Unless you state otherwise, any contribution you submit is licensed under the same terms (section 5 of the license).
