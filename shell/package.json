@@ -2,7 +2,7 @@
   "name": "brasos-shell",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "bun server.ts", "test": "bun scripts/smoke.ts" },
+  "scripts": { "dev": "bun server.ts", "test": "bun scripts/smoke.ts", "bench": "bun scripts/bench.ts" },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",

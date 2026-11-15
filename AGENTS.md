@@ -29,6 +29,7 @@ A Linux-based OS whose entire UI is React/TypeScript. Linux kernel + NixOS users
 ```bash
 cd shell && bun install && bun run dev      # shell at http://localhost:7000 (works on Windows/macOS/Linux)
 cd shell && bun run test                    # contract tests, ~5 s
+cd shell && bun run bench [--out f.json] [--compare baseline.json]   # benchmarks; --compare exits 1 on >25% p50 regression
 scripts/vm/build.sh                         # build the NixOS VM (Linux/WSL, clone inside WSL's own fs)
 scripts/vm/run.sh                           # boot it from a clean disk; keep it running
 scripts/vm/ctl.py shot out.png              # screenshot the VM (from repo root)
@@ -43,7 +44,29 @@ WSL2 specifics (already handled in the config, listed so you don't re-debug): QE
 - `bun run test` passes.
 - Touching `nixos/` or `flake.nix`: `scripts/vm/build.sh` succeeds, and for anything user-visible, boot it and look (`ctl.py shot`).
 - Touching UI: open it in a browser at `http://localhost:7000` and use the feature; type checks passing is not evidence it works.
+- Anything new that runs code (a component, service, app, capability) ships with a benchmark (see below).
 - A new contract, capability or convention gets written here in the same commit.
+
+## Benchmarking (requirement: every part is measurable)
+
+`shell/scripts/bench.ts` is the harness: each bench records `{name, unit, samples[]}`, the runner prints n/p50/p95/max, writes JSON with `--out`, and fails on regressions with `--compare`. Naming: `<component>.<metric>`. Today: `server.start_to_ready`, `http.*`, `pty.keystroke_echo`. Add benches next to the code they measure; measure latency distributions (p95/max), not just averages. Numbers are comparable only on the same machine and platform, so keep baselines per platform and don't commit one from a laptop as "truth".
+
+Not yet measured (open work): window open time and frame time in Chromium, per-app RSS and cold start, boot time to shell-ready in the VM (`systemd-analyze`), input-to-photon latency, build time. VM-level benches belong in `scripts/vm/` and should use `ctl.py`.
+
+## Security posture (requirement: government-grade)
+
+**Current status: NOT hardened. What exists today is a development profile.** Do not describe it as secure or compliant anywhere. No compliance standard has been chosen yet (jurisdiction and threat model are open decisions), so nothing here is certified or audited.
+
+Dev-only conveniences that a hardened profile must not have: user `brasos` with a default password and passwordless sudo; Claude Code with full privilege; `bun install` from the network at boot; a user-editable shell that runs unreviewed code; Chromium kiosk with a shell that has a full-access PTY.
+
+Rules for all work, starting now:
+- Default deny. Every privileged capability is gated server-side by app id + Origin and covered by a negative test in `smoke.ts` (refusal must be tested, not just success).
+- No new network listeners beyond loopback; no runtime fetching of code or dependencies in anything meant for the hardened profile. Dependencies must be pinned and reviewable (Nix closure, lockfiles). Treat each new dependency as supply-chain risk and justify it.
+- No secrets, keys or credentials in the repo or the image.
+- Privileged actions must be loggable (an audit trail is planned): route them through one place, not scattered call sites.
+- Prefer separation by process and by OS mechanisms (users, namespaces, Landlock, seccomp, MAC) over in-process checks.
+
+Hardened-profile work (open): a NixOS profile switch (dev vs hardened), reproducible builds + SBOM, secure/measured boot (TPM), full-disk encryption, signed updates with rollback, mandatory access control for services, audit logging, removal of the dev conveniences above, and a decision on what privilege an AI agent (Claude Code) gets on such a system.
 
 ## Working in parallel
 

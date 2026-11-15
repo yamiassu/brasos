@@ -7,7 +7,8 @@ const PORT = Number(process.env.PORT ?? 7000);
 const appIds = () =>
   readdirSync(join(ROOT, "apps"), { withFileTypes: true })
     .filter((d) => d.isDirectory() && existsSync(join(ROOT, "apps", d.name, "manifest.json")))
-    .map((d) => d.name);
+    .map((d) => d.name)
+    .sort(); // stable order: the dock (and Tab navigation) must not depend on filesystem order
 
 const built = await Bun.build({
   entrypoints: ["shell", ...appIds().map((a) => `apps/${a}`)].map((d) => join(ROOT, d, "index.html")),
