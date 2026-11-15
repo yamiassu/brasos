@@ -40,7 +40,7 @@ test("path traversal never leaves the dist directory", async () => {
 });
 
 test("/os/info is public and lists enabled packages", async () => {
-  expect(await (await h.at("localhost", "/os/info", shell)).json()).toEqual({ os: "brasos", packages: [] });
+  expect(await (await h.at("localhost", "/os/info", shell)).json()).toEqual({ os: "brasos", packages: [], restart: false });
 });
 
 test("the app list comes from manifests, sorted, with permissions", async () => {

@@ -8,6 +8,7 @@ import { createAgent } from "@brasos/agent";
 import { createDocs } from "@brasos/docs";
 import { createFiles } from "@brasos/files";
 import { createRegistry } from "@brasos/registry";
+import { createSystem } from "@brasos/system";
 import { createGateway, readText } from "@brasos/web-gateway";
 import { build } from "./build";
 import { resolvePolicies } from "./packages";
@@ -31,14 +32,16 @@ export type HostOptions = {
   /** markdown guides (default: <root>/docs/guide) */
   docsDir?: string;
   audit?: Sink[];
+  /** how this system restarts itself (the supervisor's command); without it there is no restart route or tool */
+  restart?: () => void;
   /** gateway tuning; allowPrivate is tests only (lets it reach loopback upstreams) */
   gateway?: { allowPrivate?: boolean; maxSites?: number };
 };
 
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
-const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "ui.host"];
+const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "ui.host", "system.restart"];
 /** what an authenticated AI agent may do (on top of each tool's own check and the enabled packages' policies) */
-const AGENT_CAPS = ["agent.call", "apps.read", "fs.read", "fs.write", "docs.read", "ui.control"];
+const AGENT_CAPS = ["agent.call", "apps.read", "fs.read", "fs.write", "docs.read", "ui.control", "system.restart"];
 
 /** localhost = shell, <id>.localhost = app, <id>.web.localhost = website (32 hex chars), <id>--<n>.localhost = restarted app window */
 function targetOf(host: string): Target | null {
@@ -83,7 +86,7 @@ export async function startHost(o: HostOptions) {
   );
   const files = createFiles({ home: o.home ?? (o.stateDir && join(o.stateDir, "home")) });
   const docs = createDocs({ dir: o.docsDir ?? join(root, "docs/guide") });
-  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice];
+  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice, createSystem({ restart: o.restart, audit }).slice];
   const agent = createAgent({ tools: () => slices.flatMap((s) => s.tools ?? []), stateDir: o.stateDir });
   slices.push(agent.slice, ...appSlices);
   const bySlice = new Map(slices.map((s) => [s.name, s]));
@@ -164,7 +167,7 @@ export async function startHost(o: HostOptions) {
       };
 
       if (target.kind === "shell" && url.pathname === "/os/info") {
-        return cors(json({ os: "brasos", packages: policies.map((p) => p.name) }), req, url);
+        return cors(json({ os: "brasos", packages: policies.map((p) => p.name), restart: !!o.restart && policies.every((p) => p.allowCapability?.("system.restart") ?? true) }), req, url);
       }
       if (url.pathname === "/__brasos/sdk.js") {
         return new Response(Bun.file(join(dist, "__brasos/sdk.js")), { headers: { "content-type": "text/javascript; charset=utf-8" } });

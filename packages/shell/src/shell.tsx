@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppInfo, FsEntry } from "@brasos/sdk";
-import { Badge, Button, Dock, WindowFrame } from "@brasos/ui";
+import { Badge, Button, Dialog, Dock, WindowFrame } from "@brasos/ui";
 import { connectAgent, type ShellApi } from "./agent";
 import { Desktop } from "./desktop";
 import { Boundary, Frame, type Win } from "./windows";
@@ -15,6 +15,8 @@ export function Shell() {
   const [wins, setWins] = useState<Win[]>([]);
   const [dragging, setDragging] = useState(false);
   const [packages, setPackages] = useState<string[] | null>(null);
+  const [canRestart, setCanRestart] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const [note, setNote] = useState("");
   const seq = useRef(1);
 
@@ -29,7 +31,7 @@ export function Shell() {
   useEffect(() => {
     loadApps();
     loadDesktop();
-    getJson("/os/info").then((i) => setPackages(i.packages));
+    getJson("/os/info").then((i) => (setPackages(i.packages), setCanRestart(!!i.restart)));
     // files also change from outside the shell (an agent, the terminal): look again now and then. Reads are audited quietly.
     const desktopTimer = setInterval(loadDesktop, 5000);
     // Server restarted or failed over to the safe copy: reload so the UI isn't left dead.
@@ -62,6 +64,11 @@ export function Shell() {
   const openPath = (path: string) => {
     const files = apps.find((a) => a.id === "files");
     return files ? open(files, path) : (setNote("Files isn't available here"), Promise.resolve(false));
+  };
+  const restart = async () => {
+    setConfirmRestart(false);
+    const r = await post("/os/system/restart", {});
+    setNote(r.ok ? "Restarting the interface…" : "Restart refused");
   };
   const patch = (key: number, f: (w: Win) => Partial<Win>) => setWins((ws) => ws.map((w) => (w.key === key ? { ...w, ...f(w) } : w)));
   const close = (key: number) => setWins((ws) => ws.filter((w) => w.key !== key));
@@ -147,10 +154,21 @@ export function Shell() {
             {a.icon} {a.name}
           </Button>
         ))}
+        {canRestart && <Button onClick={() => openPath("/BrasOS")}>✏️ Edit interface</Button>}
+        {canRestart && <Button onClick={() => setConfirmRestart(true)}>↻ Restart interface</Button>}
         {note && <Badge>{note}</Badge>}
         {/* nobody should mistake a dev image for a hardened one */}
         {packages && !packages.includes("hardened") && <Badge>DEV · hardened package off · not secure</Badge>}
       </Dock>
+      {confirmRestart && (
+        <Dialog
+          title="Restart the interface?"
+          onClose={() => setConfirmRestart(false)}
+          actions={<><Button onClick={() => setConfirmRestart(false)}>Cancel</Button><Button autoFocus onClick={restart}>Restart</Button></>}
+        >
+          <p>The shell and every app are rebuilt from the files in /BrasOS. Open windows are closed.</p>
+        </Dialog>
+      )}
       <div className="layer">
         <Desktop apps={apps} entries={entries} onOpenApp={(a) => open(a)} onOpenPath={openPath} onRefresh={loadDesktop} />
       </div>

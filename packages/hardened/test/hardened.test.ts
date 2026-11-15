@@ -13,7 +13,7 @@ const shell = { headers: { "sec-fetch-site": "same-origin" } };
 const json = (body: unknown) => ({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
 test("the package is on, and says so", async () => {
-  expect(await (await h.at("localhost", "/os/info", shell)).json()).toEqual({ os: "brasos", packages: ["hardened"] });
+  expect(await (await h.at("localhost", "/os/info", shell)).json()).toEqual({ os: "brasos", packages: ["hardened"], restart: false });
 });
 
 test("apps are default-deny: only those that opt in are listed or served", async () => {

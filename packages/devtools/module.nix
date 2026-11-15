@@ -6,10 +6,20 @@ let
   cfg = config.brasos.devtools;
   src = config.brasos.src;
   # PWAs installed through the browser app live here, next to the editable copy of the OS
-  env.BRASOS_STATE_DIR = "/var/lib/brasos/state";
+  # The live copy of the OS sits in the user's home (/BrasOS in Files), so the interface can be edited from inside it.
+  live = "/var/lib/brasos/state/home/BrasOS";
+  restartCmd = pkgs.writeShellScript "brasos-restart" ''
+    # reset-failed clears the crash-loop counter, so a deliberate restart never trips safe mode; Conflicts= stops the safe copy.
+    /run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl reset-failed brasos-shell
+    /run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl --no-block restart brasos-shell
+  '';
+  env = {
+    BRASOS_STATE_DIR = "/var/lib/brasos/state";
+    BRASOS_RESTART_CMD = "${restartCmd}";
+  };
   script = dir: ''
-    d=/var/lib/brasos/${dir}
-    ${lib.optionalString (dir == "os") ''if [ ! -d "$d" ]; then cp -r ${src} "$d" && chmod -R u+w "$d"; fi''}
+    d=${if dir == "os" then live else "/var/lib/brasos/safe"}
+    ${lib.optionalString (dir == "os") ''if [ ! -d "$d" ]; then mkdir -p "$(dirname "$d")" && cp -r ${src} "$d" && chmod -R u+w "$d"; fi''}
     ${lib.optionalString (dir == "safe") ''rm -rf "$d" && cp -r ${src} "$d" && chmod -R u+w "$d"''}
     cd "$d"
     bun install
@@ -42,7 +52,7 @@ in {
     environment.systemPackages = (with pkgs; [ bun claude-code git curl vim chromium ]) ++ [
       (pkgs.writeShellScriptBin "brasos-reset-shell" ''
         sudo systemctl stop brasos-shell brasos-shell-safe
-        sudo rm -rf /var/lib/brasos/os
+        sudo rm -rf /var/lib/brasos/state/home/BrasOS
         sudo systemctl reset-failed brasos-shell
         sudo systemctl start brasos-shell
       '')
@@ -57,6 +67,7 @@ in {
       path = with pkgs; [ bun bash coreutils ];
       environment = env;
       unitConfig = {
+        Conflicts = [ "brasos-shell-safe.service" ];
         OnFailure = [ "brasos-shell-safe.service" ];
         StartLimitIntervalSec = 60;
         StartLimitBurst = 3;

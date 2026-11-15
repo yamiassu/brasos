@@ -18,6 +18,7 @@
       "@brasos/ui": ["packages/ui/src/index.ts"],
       "@brasos/ui/*": ["packages/ui/src/*"],
       "@brasos/files": ["packages/files/src/index.ts"],
+      "@brasos/system": ["packages/system/src/index.ts"],
       "@brasos/docs": ["packages/docs/src/index.ts"],
       "@brasos/web-gateway": ["packages/web-gateway/src/index.ts"],
       "@brasos/hardened": ["packages/hardened/src/index.ts"],

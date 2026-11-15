@@ -80,7 +80,7 @@ Apps that aren't opted in are filtered out of the source tree at the Nix level t
 
 ## Dev conveniences (dev profile only)
 
-The OS source is seeded to `/var/lib/brasos/os` on first boot and is user-editable. If it fails three times in a minute, systemd starts the pristine copy from the Nix store (`brasos-shell-safe`), and the page reloads itself when the server comes back. `brasos-reset-shell` re-seeds.
+The OS source is seeded to `/var/lib/brasos/state/home/BrasOS` (`/BrasOS` in the user's Files) on first boot and is user-editable; the dock's *Restart interface* (capability `system.restart`, `packages/system`) re-runs it through `BRASOS_RESTART_CMD`. If it fails three times in a minute, systemd starts the pristine copy from the Nix store (`brasos-shell-safe`), and the page reloads itself when the server comes back. `brasos-reset-shell` re-seeds.
 
 ## Test and benchmark harness
 

@@ -22,11 +22,16 @@ Put files and folders in `/Desktop` (use Files, or save there from an app) and t
 
 ## Change the interface itself
 
-On the dev image the operating system's own source is a normal folder you can edit, at `/var/lib/brasos/os`. Change any component, restart `brasos-shell`, and the interface follows.
+On the dev image the operating system's own source is a normal folder in your home: **BrasOS** (`/BrasOS` in Files, `/var/lib/brasos/state/home/BrasOS` on disk). The dock has two buttons for it:
+
+1. **Edit interface** opens Files there. The shell is in `packages/shell/src` (colors and sizes in `shell.css`, your overrides in `user.css`), the components in `packages/ui/src`, each app in `apps/<id>`. Open a file to edit it and save.
+2. **Restart interface** rebuilds the shell and every app from those files and starts the server again. Open windows close and the screen reloads itself in a few seconds.
+
+An AI agent can do the same through the `system_restart` tool.
 
 If you break it badly:
 
-- After three failed starts in a minute, systemd starts a pristine copy of the shell on its own, and the page reloads into it.
+- After three failed starts in a minute, systemd starts a pristine copy of the shell on its own, and the page reloads into it. Files still works there: undo your edit, then press **Restart interface** to go back to your copy.
 - `brasos-reset-shell` replaces your edited copy with a fresh one from the image.
 
 The hardened image is immutable on purpose: you customize it by building a new image, not by editing a running one.
