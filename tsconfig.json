@@ -21,6 +21,7 @@
       "@brasos/setup": ["packages/setup/src/index.ts"],
       "@brasos/system": ["packages/system/src/index.ts"],
       "@brasos/native": ["packages/native/src/index.ts"],
+      "@brasos/db": ["packages/db/src/index.ts"],
       "@brasos/docs": ["packages/docs/src/index.ts"],
       "@brasos/web-gateway": ["packages/web-gateway/src/index.ts"],
       "@brasos/hardened": ["packages/hardened/src/index.ts"],

@@ -201,7 +201,7 @@ export function createGateway(opts: GatewayOptions = {}) {
     },
   };
 
-  return { slice, fetchPublic, parseSite, register };
+  return { slice, fetchPublic, parseSite, register, /** the site id (the subdomain) a real origin gets */ idOf };
 }
 
 export type Gateway = ReturnType<typeof createGateway>;
