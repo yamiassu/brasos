@@ -13,6 +13,7 @@ The repo is organized by what BrasOS does, not by technical layer. Each slice ow
 | `packages/files/` | The user's files: a filesystem confined to one home folder, as routes and agent tools | Read its README before touching it |
 | `packages/docs/` | The OS's guides: markdown in `docs/guide/`, rendered by Bun's built-in renderer | `/os/docs*` routes |
 | `packages/setup/` | First boot: the initial account and preferences, the lock screen's login, unattended preseed | Allowed in hardened (`setup.write`, `setup.login`); read its README |
+| `packages/compositor/` | Spike: a smithay compositor (inside cage for now) that tiles Chromium beside native Wayland apps | Dev only (`brasos.compositor.enable`); read its README for what is missing |
 | `packages/system/` | Restart the interface: `POST /os/system/restart` and the `system_restart` agent tool, gated by `system.restart` | Only where a supervisor can restart the host (`BRASOS_RESTART_CMD`) |
 | `packages/agent/` | The agent interface: an MCP endpoint, token auth, and a relay to the shell's UI tools | Denied entirely by the hardened package |
 | `packages/ui/` | `@brasos/ui`: the basic components (button, field, toolbar, breadcrumb, list, icon tile, menu, dialog, window frame, taskbar, search field, tray) and the design tokens | Used by the shell and apps |
@@ -130,7 +131,7 @@ Hardened-package work (open): reproducible builds + SBOM, secure/measured boot (
 
 ## Roadmap (independent areas agents can pick up)
 
-1. **Compositor + native Linux apps:** replace `cage` with a Rust smithay compositor (XWayland), Chromium as one client, native app windows composed beside it; Flatpak + XDG portals for foreign apps. Largest item.
+1. **Compositor + native Linux apps** (spike started, see `packages/compositor`): replace `cage` with a Rust smithay compositor (XWayland), Chromium as one client, native app windows composed beside it; Flatpak + XDG portals for foreign apps. Largest item.
 2. **SDK and capability broker:** notifications and storage next to the existing files API; per-app scoped folders instead of the whole home; user-granted permissions for installed PWAs (today they get none); an OPFS-backed polyfill for `os.fs` outside BrasOS.
    **App-level agent tools:** apps registering their own tools (e.g. `browser_navigate`) through the shell, relayed to MCP; today only the shell's UI tools and the slices' host tools are exposed.
 3. **Web gateway:** a per-package allowlist policy so it can run in hardened; WebSocket pass-through; `srcset`/CSS URL rewriting; `.tsx` support (needs an import map); pinning the resolved IP against DNS rebinding.
