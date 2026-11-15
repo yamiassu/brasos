@@ -29,6 +29,12 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 .setup-body { padding: 28px 32px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
 .setup-body h1, .login-card h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
 .setup-body p { margin: 0; line-height: 1.5; }
+.install-perms { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 8px; }
+.install-perms label { display: flex; align-items: center; gap: 8px; }
+.install-perms .what { flex: 1; }
+.ui-dialog .muted { color: var(--muted); font-size: 12px; margin: 2px 0 0; }
+.install-perms .muted { margin-left: 26px; }
+.ui-dialog .setup-error { color: var(--danger); }
 .setup .muted { color: var(--muted); font-size: 12px; }
 .setup-actions { display: flex; align-items: center; gap: var(--gap); padding: 12px 32px 20px; }
 .setup-actions .grow { flex: 1; }

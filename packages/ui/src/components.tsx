@@ -159,22 +159,26 @@ export function Dialog({ title, children, actions, onClose }: { title: string; c
 }
 
 /** Window chrome (title bar and body). Dragging and focus are the shell's business: pass pointer handlers in `headerProps`. */
-export function WindowFrame({ title, icon, focused, onClose, headerProps, style, children }: {
+export function WindowFrame({ title, icon, focused, bare, onClose, headerProps, style, children }: {
   title: string;
   /** the window with the user's attention glows brighter */
   focused?: boolean;
   icon?: ReactNode;
+  /** no title bar and no border: the app draws its own frame (manifest `window.frame: false`) */
+  bare?: boolean;
   onClose(): void;
   headerProps?: HTMLAttributes<HTMLElement>;
   style?: CSSProperties;
   children: ReactNode;
 }) {
   return (
-    <section className={cx("ui-window", focused && "ui-window--focused")} style={style} aria-label={title}>
-      <header {...headerProps}>
-        <span className="title">{typeof icon === "string" ? <Icon name={icon} size={18} /> : icon} {title}</span>
-        <IconButton label={`Close ${title}`} onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>✕</IconButton>
-      </header>
+    <section className={cx("ui-window", focused && !bare && "ui-window--focused", bare && "ui-window--bare")} style={style} aria-label={title}>
+      {!bare && (
+        <header {...headerProps}>
+          <span className="title">{typeof icon === "string" ? <Icon name={icon} size={18} /> : icon} {title}</span>
+          <IconButton label={`Close ${title}`} onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>✕</IconButton>
+        </header>
+      )}
       <div className="body">{children}</div>
     </section>
   );

@@ -6,6 +6,7 @@ import { Desktop } from "./desktop";
 import { Launcher, search, type Hit } from "./launcher";
 import { Battery, Clock, Mode, Network } from "./tray";
 import { Boundary, Frame, type Win } from "./windows";
+import { InstallPrompt, type Inspection } from "./install";
 
 const post = (path: string, body: unknown) =>
   fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -25,6 +26,9 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
   const [picked, setPicked] = useState<Hit | null>(null);
   const [extra, setExtra] = useState<{ files: Hit[]; guides: Hit[] }>({ files: [], guides: [] });
   const searchBox = useRef<HTMLInputElement>(null);
+  const frames = useRef(new Map<number, HTMLIFrameElement>()); // window key -> its iframe, to tell which window a message came from
+  // an app asked to install a PWA: the shell shows what it wants and the user decides; the answer goes back to the asking window
+  const [install, setInstall] = useState<{ info: Inspection; manifestUrl: string; reply(r: unknown): void; busy?: boolean; error?: string } | null>(null);
   const seq = useRef(1);
 
   const loadApps = () => getJson("/os/apps").then(setApps).catch(() => {});
@@ -152,6 +156,32 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
       const kind = e.data?.brasos;
       if (kind === "apps-changed") loadApps(); // a refetch is harmless, so no sender check
       else if (kind === "fs-changed") loadDesktop();
+      else if (kind === "install" && typeof e.data.manifestUrl === "string" && typeof e.data.nonce === "string") {
+        const from = apps.find((a) => a.id === new URL(e.origin).hostname.replace(/\.localhost$/, "").split("--")[0]);
+        const reply = (r: unknown) => (e.source as Window | null)?.postMessage({ brasos: "install-result", nonce: e.data.nonce, ...(r as object) }, { targetOrigin: e.origin });
+        if (!from?.permissions.includes("apps.install")) return reply({ error: "this app may not ask to install apps" });
+        post("/os/apps/inspect", { manifestUrl: e.data.manifestUrl })
+          .then(async (r) => (r.ok ? r.json() : Promise.reject(new Error((await r.json().catch(() => ({}))).error ?? `inspect failed (${r.status})`))))
+          .then((info) => setInstall({ info, manifestUrl: e.data.manifestUrl, reply }))
+          .catch((err) => reply({ error: String(err.message ?? err) }));
+      }
+      // a window controlling itself (SDK os.window): which window is decided by the iframe that sent it, never by a claimed id
+      else if (kind === "window") {
+        const w = wins.find((x) => frames.current.get(x.key)?.contentWindow === e.source);
+        if (!w || !w.app.permissions.includes("window.control")) return;
+        const num = (v: unknown, lo: number, hi: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null);
+        const { op } = e.data;
+        if (op === "close") close(w.key);
+        else if (op === "focus") focus(w.key);
+        else if (op === "title" && typeof e.data.title === "string") patch(w.key, () => ({ title: e.data.title.slice(0, 80) }));
+        else if (op === "moveBy") {
+          const dx = num(e.data.dx, -4000, 4000), dy = num(e.data.dy, -4000, 4000);
+          if (dx !== null && dy !== null) patch(w.key, (c) => ({ x: c.x + dx, y: Math.max(0, c.y + dy) }));
+        } else if (op === "resize") {
+          const ww = num(e.data.w, 200, 8000), hh = num(e.data.h, 120, 8000);
+          if (ww !== null && hh !== null) patch(w.key, () => ({ w: ww, h: hh }));
+        }
+      }
       else if (kind === "open") {
         const from = apps.find((a) => a.id === new URL(e.origin).hostname.replace(/\.localhost$/, "").split("--")[0]);
         const target = apps.find((a) => a.id === e.data.id);
@@ -160,7 +190,7 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
     };
     addEventListener("message", onMsg);
     return () => removeEventListener("message", onMsg);
-  }, [apps]);
+  }, [apps, wins]);
 
   // The agent interface (see agent.ts). Tools always read the latest state through this ref.
   const live = useRef<ShellApi>(null!);
@@ -189,12 +219,13 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
     <div className="ui-root">
       <div className="layer windows">
         {wins.map((w) => {
-          const pos = { left: w.x, top: w.y, zIndex: w.z + 2 };
+          const pos = { left: w.x, top: w.y, zIndex: w.z + 2, ...(w.w ? { width: w.w } : {}), ...(w.h ? { height: w.h } : {}) };
           return (
             <Boundary key={w.key} style={pos} onClose={() => close(w.key)}>
               <WindowFrame
-                title={w.app.name}
+                title={w.title ?? w.app.name}
                 icon={w.app.icon}
+                bare={w.app.window?.frame === false}
                 focused={w.z === topZ}
                 style={pos}
                 onClose={() => close(w.key)}
@@ -208,7 +239,7 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
                   onPointerUp: () => setDragging(false),
                 }}
               >
-                <Frame win={w} palette={prefs?.palette} shield={dragging} onRestart={() => patch(w.key, (c) => ({ reload: c.reload + 1 }))} onClose={() => close(w.key)} />
+                <Frame win={w} onRef={(el) => (el ? frames.current.set(w.key, el) : frames.current.delete(w.key))} palette={prefs?.palette} shield={dragging} onRestart={() => patch(w.key, (c) => ({ reload: c.reload + 1 }))} onClose={() => close(w.key)} />
                 {/* clicks inside an iframe never reach us, so unfocused windows get a click-catcher */}
                 {w.z !== topZ && <div className="shield" onPointerDown={() => focus(w.key)} />}
               </WindowFrame>
@@ -233,7 +264,8 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
         />
         {apps.map((a) => {
           const mine = wins.filter((w) => w.app.id === a.id);
-          return <TaskButton key={a.id} icon={a.icon} label={a.name} running={mine.length > 0} active={focused?.app.id === a.id} onClick={() => launch(a)} />;
+          // right-click closes the app's windows: the way out of a window that draws its own frame (and has no close button of ours)
+          return <span key={a.id} onContextMenu={(e) => (e.preventDefault(), mine.forEach((w) => close(w.key)))}><TaskButton icon={a.icon} label={a.name} running={mine.length > 0} active={focused?.app.id === a.id} onClick={() => launch(a)} /></span>;
         })}
         {natives.map((n) => (
           <span key={n.id} onContextMenu={(e) => (e.preventDefault(), post("/os/native/close", { id: n.id }))}>
@@ -266,6 +298,23 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
         >
           <p>The shell and every app are rebuilt from the files in /BrasOS. Open windows are closed.</p>
         </Dialog>
+      )}
+      {install && (
+        <InstallPrompt
+          info={install.info}
+          busy={install.busy}
+          error={install.error}
+          onCancel={() => (install.reply({ error: "cancelled" }), setInstall(null))}
+          onInstall={async (grant) => {
+            setInstall({ ...install, busy: true });
+            const r = await post("/os/apps/install", { manifestUrl: install.manifestUrl, grant });
+            const body = await r.json().catch(() => ({}));
+            if (!r.ok) return setInstall({ ...install, error: body.error ?? `failed (${r.status})` });
+            install.reply({ app: body });
+            setInstall(null);
+            loadApps();
+          }}
+        />
       )}
       <div className="layer">
         <Desktop apps={apps} entries={entries} onOpenApp={(a) => open(a)} onOpenPath={openPath} onRefresh={loadDesktop} />

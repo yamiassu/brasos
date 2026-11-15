@@ -26,13 +26,6 @@ test("fs calls POST to the host, and mutations tell the shell to refresh", async
   expect(sent).toEqual([{ brasos: "fs-changed" }, { brasos: "fs-changed" }]);
 });
 
-test("installing still announces apps-changed", async () => {
-  const sent: unknown[] = [];
-  const os = createOS({ location: loc("browser.localhost"), fetch: recorder(200, { id: "pwa-1" }).fetch, parent: { postMessage: (m) => sent.push(m) } });
-  await os.apps.install("https://example.com/m");
-  expect(sent).toEqual([{ brasos: "apps-changed" }]);
-});
-
 test("outside BrasOS fs is an in-memory polyfill and never touches the network", async () => {
   const r = recorder();
   const os = createOS({ location: loc("example.com", ""), fetch: r.fetch });

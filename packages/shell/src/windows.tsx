@@ -3,7 +3,7 @@ import type { AppInfo } from "@brasos/sdk";
 import { Button, palettes } from "@brasos/ui";
 
 /** src is set for PWA windows (the gateway URL the host handed back); hash opens a built-in app at a place (e.g. Files at /Desktop) */
-export type Win = { key: number; app: AppInfo; x: number; y: number; z: number; reload: number; src?: string; hash?: string };
+export type Win = { key: number; app: AppInfo; x: number; y: number; z: number; reload: number; src?: string; hash?: string; w?: number; h?: number; title?: string };
 
 // Fresh origin per restart => fresh renderer process (a hung process would otherwise be reused).
 const appOrigin = (id: string, reload: number) =>
@@ -30,8 +30,8 @@ export class Boundary extends Component<{ style: CSSProperties; onClose: () => v
 }
 
 // The iframe lives in its own process; the shell detects a hung/crashed app by missing pongs.
-export function Frame({ win, palette, shield, onRestart, onClose }: { win: Win; palette?: string; shield: boolean; onRestart: () => void; onClose: () => void }) {
-  const ref = useRef<HTMLIFrameElement>(null);
+export function Frame({ win, palette, shield, onRestart, onClose, onRef }: { win: Win; palette?: string; shield: boolean; onRestart: () => void; onClose: () => void; onRef?: (el: HTMLIFrameElement | null) => void }) {
+  const ref = useRef<HTMLIFrameElement | null>(null);
   const [hung, setHung] = useState(false);
   useEffect(() => {
     const origin = new URL(frameSrc(win)).origin;
@@ -54,7 +54,7 @@ export function Frame({ win, palette, shield, onRestart, onClose }: { win: Win; 
     <>
       <iframe
         key={win.reload}
-        ref={ref}
+        ref={(el) => ((ref.current = el), onRef?.(el))}
         title={win.app.name}
         onLoad={(e) => {
           e.currentTarget.focus();

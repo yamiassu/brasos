@@ -114,6 +114,7 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 }
 .ui-window > header { display: flex; align-items: center; gap: var(--gap); padding: 6px 10px; cursor: grab; user-select: none; touch-action: none; background: var(--sheen), var(--panel-2); border-bottom: 1px solid var(--border); }
 .ui-window > header .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-window--bare { border: 0; background: transparent; box-shadow: none; border-radius: 0; }
 .ui-window .body { position: relative; flex: 1; min-height: 0; }
 .ui-window .body iframe { width: 100%; height: 100%; border: 0; background: Canvas; color-scheme: light dark; }
 .ui-window .shield { position: absolute; inset: 0; }

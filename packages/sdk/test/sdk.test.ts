@@ -20,15 +20,95 @@ test("inside BrasOS a gateway-served site also counts as inside", () => {
   expect(createOS({ location: loc("abc.web.localhost"), fetch: recorder().fetch }).available).toBe(true);
 });
 
-test("web.open and apps.install POST JSON", async () => {
+test("web.open POSTs JSON", async () => {
   const r = recorder(200, { url: "x", site: "y" });
   const os = createOS({ location: loc("browser.localhost"), fetch: r.fetch });
   await os.web.open("https://example.com/a");
-  await os.apps.install("https://example.com/m.webmanifest");
-  expect(r.calls.map((c) => [c.url, c.init?.method, c.init?.body])).toEqual([
-    ["http://localhost:7000/os/web/open", "POST", '{"url":"https://example.com/a"}'],
-    ["http://localhost:7000/os/apps/install", "POST", '{"manifestUrl":"https://example.com/m.webmanifest"}'],
+  expect(r.calls.map((c) => [c.url, c.init?.method, c.init?.body])).toEqual([["http://localhost:7000/os/web/open", "POST", '{"url":"https://example.com/a"}']]);
+});
+
+/** a framing shell: records what the app posts and lets the test answer */
+function shellOf() {
+  const sent: any[] = [];
+  const ls: ((e: { data: any; origin: string }) => void)[] = [];
+  return {
+    sent,
+    env: { parent: { postMessage: (m: unknown) => void sent.push(m) }, listen: (fn: (e: { data: any; origin: string }) => void) => (ls.push(fn), () => void ls.splice(ls.indexOf(fn), 1)) },
+    reply: (data: unknown, origin = "http://localhost:7000") => ls.slice().forEach((f) => f({ data, origin })),
+    listeners: () => ls.length,
+  };
+}
+
+test("apps.install asks the shell, which prompts the user; the answer comes back with the nonce", async () => {
+  const sh = shellOf();
+  const r = recorder();
+  const os = createOS({ location: loc("browser.localhost"), fetch: r.fetch, ...sh.env });
+  const p = os.apps.install("https://example.com/m.webmanifest");
+  const ask = sh.sent[0];
+  expect(ask).toMatchObject({ brasos: "install", manifestUrl: "https://example.com/m.webmanifest" });
+  sh.reply({ brasos: "install-result", nonce: "wrong", app: { id: "x" } }); // another request's answer: ignored
+  sh.reply({ brasos: "install-result", nonce: ask.nonce, app: { id: "pwa-1" } }, "http://evil.localhost:7000"); // not the shell: ignored
+  expect(sh.listeners()).toBe(1);
+  sh.reply({ brasos: "install-result", nonce: ask.nonce, app: { id: "pwa-1", permissions: ["db.own"] } });
+  expect(await p).toMatchObject({ id: "pwa-1" });
+  expect(sh.listeners()).toBe(0);
+  expect(r.calls.length).toBe(0); // the app never calls the host's install route itself
+  const q = os.apps.install("https://example.com/m2");
+  sh.reply({ brasos: "install-result", nonce: sh.sent[1].nonce, error: "cancelled" });
+  await expect(q).rejects.toThrow("cancelled");
+});
+
+test("os.window sends self-control messages to the shell; os.db talks to the host and watches over EventSource", async () => {
+  const sh = shellOf();
+  const r = recorder(200, { id: "a", rev: 1 });
+  const es: { url: string; fire(d: string): void; closed: boolean }[] = [];
+  const os = createOS({
+    location: loc("pwa.localhost"), fetch: r.fetch, ...sh.env,
+    eventSource: (url) => {
+      const o = { url, closed: false, fn: (_: { data: string }) => {}, fire(d: string) { o.fn({ data: d }); }, addEventListener: (_t: string, f: (e: { data: string }) => void) => void (o.fn = f), close: () => void (o.closed = true) };
+      es.push(o);
+      return o;
+    },
+  });
+  expect(await os.window.setTitle("Hi")).toBe(true);
+  await os.window.moveBy(3, -4);
+  await os.window.resize(400, 300);
+  await os.window.close();
+  expect(sh.sent).toEqual([
+    { brasos: "window", op: "title", title: "Hi" }, { brasos: "window", op: "moveBy", dx: 3, dy: -4 },
+    { brasos: "window", op: "resize", w: 400, h: 300 }, { brasos: "window", op: "close" },
   ]);
+  const notes = os.db.collection("notes");
+  await notes.put({ t: 1 }, "a");
+  await os.db.collection("chat", { space: "shared" }).list({ where: { room: "x" }, order: { field: "n", dir: "desc" } });
+  expect(r.calls.map((c) => [c.url, c.init?.body])).toEqual([
+    ["http://localhost:7000/os/db/put", '{"space":"own","col":"notes","doc":{"t":1},"id":"a"}'],
+    ["http://localhost:7000/os/db/list", '{"space":"shared","col":"chat","where":{"room":"x"},"order":{"field":"n","dir":"desc"}}'],
+  ]);
+  const seen: unknown[] = [];
+  const off = notes.watch((e) => seen.push(e));
+  expect(es[0].url).toBe("http://localhost:7000/os/db/events?space=own&col=notes");
+  es[0].fire('{"op":"put","id":"a","rev":2}');
+  es[0].fire("not json"); // a bad frame never throws into the app
+  expect(seen).toEqual([{ op: "put", id: "a", rev: 2 }]);
+  off();
+  expect(es[0].closed).toBe(true);
+});
+
+test("outside BrasOS the database is an in-memory polyfill with the same change events, and window calls are no-ops", async () => {
+  const r = recorder();
+  const os = createOS({ location: loc("example.com", ""), fetch: r.fetch });
+  const c = os.db.collection("todos");
+  const seen: unknown[] = [];
+  c.watch((e) => seen.push(e));
+  const { id } = await c.put({ t: "a", done: false });
+  await c.put({ t: "b", done: true }, "k2");
+  expect((await c.list({ where: { done: true } })).map((x) => x.id)).toEqual(["k2"]);
+  expect((await c.get(id)).doc.t).toBe("a");
+  await c.delete(id);
+  expect(seen.map((e: any) => e.op)).toEqual(["put", "put", "delete"]);
+  expect(await os.window.close()).toBe(false);
+  expect(r.calls.length).toBe(0);
 });
 
 test("a refused capability surfaces as an error with the status", async () => {

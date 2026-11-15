@@ -36,6 +36,10 @@ export type Env = {
   fetch: (input: string, init?: RequestInit) => Promise<Response>;
   /** the framing window, when there is one (used to ask the shell to open an app) */
   parent?: { postMessage(message: unknown, targetOrigin: string): void };
+  /** listen for messages from the framing shell (used to hear the answer to an install request) */
+  listen?: (fn: (e: { data: any; origin: string }) => void) => () => void;
+  /** an EventSource for the database's change stream (cross-origin, so the browser's own implementation) */
+  eventSource?: (url: string) => { addEventListener(type: string, fn: (e: { data: string }) => void): void; close(): void };
   /** the browser's WebMCP context, looked up when a tool is registered (the API is still moving, so it is optional and best-effort) */
   modelContext?: () => any;
   /** what to use outside BrasOS instead of the real thing (looked up at each call): another fs, and the guides. Storybook sets these. */
@@ -65,6 +69,40 @@ export function createOS(env: Env) {
   // outside BrasOS the fs is an in-memory tree (or the one the page supplies), so apps still run in a plain browser
   let mem: MemoryFs | undefined;
   const poly = () => env.polyfill?.()?.fs ?? (mem ??= createMemoryFs());
+  // window messages go to the framing shell, which checks the permission and which window sent them
+  const send = async (m: object) => (inside() && env.parent ? (env.parent.postMessage({ brasos: "window", ...m }, base), true) : false);
+  // outside BrasOS the database lives in memory, so an app keeps working (and reacting to itself) in a plain browser
+  const pdb = new Map<string, Map<string, { rev: number; ts: number; doc: any }>>();
+  const pwatch = new Set<(space: string, col: string, e: any) => void>();
+  const polyDb = async (space: string, col: string, op: string, b: any) => {
+    const t = pdb.get(space + "/" + col) ?? pdb.set(space + "/" + col, new Map()).get(space + "/" + col)!;
+    if (op === "put") {
+      const id = b.id ?? crypto.randomUUID();
+      const rev = (t.get(id)?.rev ?? 0) + 1;
+      t.set(id, { rev, ts: Date.now(), doc: structuredClone(b.doc) });
+      pwatch.forEach((f) => f(space, col, { op: "put", id, rev, doc: b.doc }));
+      return { id, rev };
+    }
+    if (op === "get") {
+      const x = t.get(b.id);
+      if (!x) throw new Error("BrasOS /os/db/get: 404 not found");
+      return { id: b.id, ...x };
+    }
+    if (op === "delete") {
+      const x = t.get(b.id);
+      t.delete(b.id);
+      if (x) pwatch.forEach((f) => f(space, col, { op: "delete", id: b.id, rev: x.rev + 1 }));
+      return { ok: true, existed: !!x };
+    }
+    let items = [...t].map(([id, x]) => ({ id, ...x })).filter((r) => Object.entries(b.where ?? {}).every(([k, v]) => (r.doc?.[k] ?? null) === v));
+    if (b.order) items.sort((a, c) => (a.doc?.[b.order.field] > c.doc?.[b.order.field] ? 1 : -1) * (b.order.dir === "desc" ? -1 : 1));
+    return { items: items.slice(0, b.limit ?? 100) };
+  };
+  const polyWatch = (space: string, col: string, fn: (e: any) => void) => {
+    const f = (s: string, c: string, e: any) => s === space && c === col && fn(e);
+    pwatch.add(f);
+    return () => void pwatch.delete(f);
+  };
   const needsBrasOS = (what: string) => Promise.reject(new UnsupportedError(`${what} needs BrasOS`));
 
   return {
@@ -83,11 +121,71 @@ export function createOS(env: Env) {
         env.parent.postMessage({ brasos: "open", id }, base);
         return true;
       },
-      /** installs a PWA from its manifest URL; polyfill: rejects with UnsupportedError */
-      install: (manifestUrl: string) =>
-        inside() ? call<AppInfo>("/os/apps/install", { manifestUrl }).then(changed("apps-changed")) : needsBrasOS("apps.install"),
+      /**
+       * Asks to install a PWA from its manifest URL. The SHELL shows the user what the app wants to be able to do and the user
+       * decides, so this resolves with the installed app (with the permissions the user granted) or rejects ("cancelled"). Needs
+       * the `apps.install` permission to ask. Polyfill: rejects with UnsupportedError.
+       */
+      install: (manifestUrl: string) => {
+        if (!inside()) return needsBrasOS("apps.install");
+        if (!env.parent || !env.listen) return Promise.reject(new Error("apps.install needs a BrasOS window"));
+        const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        return new Promise<AppInfo>((resolve, reject) => {
+          const stop = env.listen!((e) => {
+            if (e.origin !== base || e.data?.brasos !== "install-result" || e.data.nonce !== nonce) return;
+            stop();
+            e.data.app ? resolve(e.data.app as AppInfo) : reject(new Error(String(e.data.error ?? "install failed")));
+          });
+          env.parent!.postMessage({ brasos: "install", manifestUrl, nonce }, base);
+        });
+      },
       uninstall: (id: string) =>
         inside() ? call<{ ok: true }>("/os/apps/uninstall", { id }).then(changed("apps-changed")) : needsBrasOS("apps.uninstall"),
+    },
+    /**
+     * This window, controlled by the app itself. Needs the `window.control` permission (a built-in app lists it; an installed PWA
+     * must be granted it). With manifest `window: { frame: false }` BrasOS draws no title bar, so the app draws its own and uses
+     * these to drag, resize and close. Each resolves true if the message was sent (the shell ignores it without the permission).
+     */
+    window: {
+      close: () => send({ op: "close" }),
+      focus: () => send({ op: "focus" }),
+      setTitle: (title: string) => send({ op: "title", title: String(title) }),
+      /** move by a delta in CSS pixels, e.g. from pointermove (use movementX/Y or screenX/Y differences) */
+      moveBy: (dx: number, dy: number) => send({ op: "moveBy", dx, dy }),
+      resize: (w: number, h: number) => send({ op: "resize", w, h }),
+    },
+    /**
+     * The OS database: JSON documents in collections, private to this app ("own") or shared between apps that hold `db.shared`.
+     * Every write is also a change event, so apps can react to each other: `watch` calls back on every put and delete.
+     * Needs `db.own` / `db.shared`. Polyfill outside BrasOS: an in-memory store with the same events.
+     */
+    db: {
+      collection: (col: string, opts: { space?: "own" | "shared" } = {}) => {
+        const space = opts.space ?? "own";
+        const q = (p: string, b: object) => (inside() ? call<any>("/os/db/" + p, { space, col, ...b }) : polyDb(space, col, p, b));
+        return {
+          /** insert or replace; without an id one is made. Resolves { id, rev } */
+          put: (doc: unknown, id?: string) => q("put", { doc, ...(id === undefined ? {} : { id }) }) as Promise<{ id: string; rev: number }>,
+          get: (id: string) => q("get", { id }) as Promise<{ id: string; rev: number; ts: number; doc: any }>,
+          /** equality filters on top-level fields, optional ordering and limit (max 1000) */
+          list: (query: { where?: Record<string, string | number | boolean | null>; order?: { field: string; dir?: "asc" | "desc" }; limit?: number } = {}) =>
+            q("list", query).then((r: { items: { id: string; rev: number; ts: number; doc: any }[] }) => r.items),
+          delete: (id: string) => q("delete", { id }) as Promise<{ ok: true; existed: boolean }>,
+          /** calls back on every change to this collection; returns an unsubscribe function */
+          watch: (fn: (e: { op: "put" | "delete"; id: string; rev: number; doc?: any }) => void): (() => void) => {
+            if (!inside()) return polyWatch(space, col, fn);
+            const es = env.eventSource?.(`${base}/os/db/events?space=${space}&col=${encodeURIComponent(col)}`);
+            if (!es) return () => {};
+            es.addEventListener("message", (e) => {
+              try {
+                fn(JSON.parse(e.data));
+              } catch {}
+            });
+            return () => es.close();
+          },
+        };
+      },
     },
     /** The user's files (a folder tree confined to their BrasOS home: "/Desktop", "/Documents", ...). Polyfill: an in-memory tree. */
     fs: {
@@ -148,6 +246,8 @@ export const os = createOS({
   location: g.location,
   fetch: (input, init) => g.fetch(input, init),
   parent: g.parent && g.parent !== g ? g.parent : undefined,
+  listen: (fn) => (g.addEventListener?.("message", fn), () => g.removeEventListener?.("message", fn)),
+  eventSource: (url) => new g.EventSource(url),
   modelContext: () => g.document?.modelContext ?? g.navigator?.modelContext,
   polyfill: () => g.__brasosPolyfill,
 });
