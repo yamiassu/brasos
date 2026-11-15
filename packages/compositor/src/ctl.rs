@@ -41,8 +41,13 @@ fn esc(s: &str) -> String {
     o
 }
 
+/// unique across clients (protocol ids restart at 1 per client): a hash of the full object id, never 0
 fn id_of(w: &Window) -> u32 {
-    w.toplevel().map(|t| t.wl_surface().id().protocol_id()).unwrap_or(0)
+    use std::hash::{Hash, Hasher};
+    let Some(t) = w.toplevel() else { return 0 };
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    t.wl_surface().id().hash(&mut h);
+    (h.finish() as u32).max(1)
 }
 
 /// `{"focus":3}` -> ("focus", 3); anything else is ignored

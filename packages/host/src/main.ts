@@ -19,6 +19,7 @@ const host = await startHost({
   home: env.BRASOS_HOME,
   restart: env.BRASOS_RESTART_CMD ? () => void Bun.spawn([env.BRASOS_RESTART_CMD!], { stdio: ["ignore", "ignore", "ignore"] }) : undefined,
   setupPreseed: env.BRASOS_SETUP_PRESEED,
+  nativeSocket: env.BRASOS_COMP_SOCKET,
   gateway: { allowPrivate: env.BRASOS_WEB_ALLOW_PRIVATE === "1" },
   // stdout goes to the journal under systemd; BRASOS_AUDIT_FILE adds a file copy
   audit: [(l) => console.log(l), ...(auditFile ? [(l: string) => appendFileSync(auditFile, l + "\n")] : [])],
