@@ -27,6 +27,7 @@ The repo is organized by what BrasOS does, not by technical layer. Each slice ow
 | `nixos/base.nix` | OS image pieces every system shares: kiosk session, fonts, VM settings | |
 | `flake.nix` | One system per profile: `brasos-dev`, `brasos-hardened` | `flake.lock` pins nixpkgs: commit it |
 | `tools/bench.ts` | Benchmark runner: discovers every slice's `bench.ts` | |
+| `tools/storybook/` | Storybook for the UI kit and the apps (`bun run storybook`), on the SDK polyfills; its own dependencies | Not in the image; see its README |
 | `scripts/vm/` | Build, boot and drive the test VM | |
 
 Modules import each other through the aliases in `tsconfig.json` (`@brasos/audit`, `@brasos/sdk`, `@brasos/host/*`, ...). There is no workspace install: one root `package.json`, one `bun.lock`.
@@ -57,6 +58,7 @@ Modules import each other through the aliases in `tsconfig.json` (`@brasos/audit
 ```bash
 bun install && bun run dev                  # OS shell at http://localhost:7000 (works on Windows/macOS/Linux)
 bun test                                    # every slice's tests, ~3 s
+bun run storybook                           # UI kit and apps in a browser at :6006, no VM or host (SDK polyfills)
 bun run bench [--out f.json] [--compare baseline.json]   # benchmarks; --compare exits 1 on >25% p50 regression
 BRASOS_PACKAGES=hardened bun run dev        # run the server with the hardened policy
 journalctl -u brasos-shell -o cat | grep '^AUDIT' | bun packages/audit/src/verify.ts   # verify the audit trail
@@ -74,7 +76,7 @@ WSL2 specifics (already handled in the config, listed so you don't re-debug): QE
 
 - `bun test` passes.
 - Touching `nixos/`, `packages/*/module.nix` or `flake.nix`: `scripts/vm/build.sh` succeeds for **both** profiles, and for anything user-visible, boot it and look (`ctl.py shot`).
-- Touching UI: use the feature in a browser at `http://localhost:7000`; type checks passing is not evidence it works.
+- Touching UI: tweak it in Storybook (`bun run storybook`, add a story for a new component or app), then use the feature in a browser at `http://localhost:7000`; type checks passing is not evidence it works.
 - Anything new that runs code ships with a benchmark (see below).
 - A new contract, capability or convention gets written here in the same commit.
 

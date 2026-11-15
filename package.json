@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "BRASOS_STATE_DIR=.state bun packages/host/src/main.ts",
     "test": "bun test",
-    "bench": "bun tools/bench.ts"
+    "bench": "bun tools/bench.ts",
+    "storybook": "cd tools/storybook && bun install && STORYBOOK_DISABLE_TELEMETRY=1 bunx storybook dev -p 6006 --no-open"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createOS, UnsupportedError } from "../src/index";
+import { createMemoryFs, createOS, UnsupportedError } from "../src/index";
 
 const recorder = (status = 200, body: unknown = { ok: true }) => {
   const calls: { url: string; init?: RequestInit }[] = [];
@@ -33,12 +33,34 @@ test("installing still announces apps-changed", async () => {
   expect(sent).toEqual([{ brasos: "apps-changed" }]);
 });
 
-test("outside BrasOS fs is unsupported and never touches the network", async () => {
+test("outside BrasOS fs is an in-memory polyfill and never touches the network", async () => {
   const r = recorder();
   const os = createOS({ location: loc("example.com", ""), fetch: r.fetch });
-  await expect(os.fs.list("/")).rejects.toBeInstanceOf(UnsupportedError);
-  await expect(os.fs.write("/x", "y")).rejects.toBeInstanceOf(UnsupportedError);
+  expect((await os.fs.list("/")).map((e) => e.name)).toEqual(["Desktop", "Documents", "Downloads"]);
+  await os.fs.write("/Documents/a.txt", "hello");
+  expect((await os.fs.read("/Documents/a.txt")).content).toBe("hello");
+  await os.fs.mkdir("/Documents/sub");
+  await os.fs.move("/Documents/a.txt", "/Documents/sub/b.txt");
+  expect((await os.fs.list("/Documents")).map((e) => [e.name, e.kind])).toEqual([["sub", "dir"]]);
+  await expect(os.fs.mkdir("/Documents/sub")).rejects.toThrow("already exists");
+  await expect(os.fs.move("/Documents/sub", "/Documents/sub/in")).rejects.toThrow("into itself");
+  expect((await os.fs.read("/../Documents/sub/b.txt")).size).toBe(5); // ".." collapses at the root
+  const gone = await os.fs.remove("/Documents/sub/b.txt");
+  expect(gone.path).toMatch(/^\/\.trash\/\d+-b\.txt$/);
+  expect((await os.fs.list("/")).some((e) => e.name === ".trash")).toBe(false); // hidden like the real one
+  expect((await os.fs.read(gone.path)).content).toBe("hello");
+  await expect(os.fs.read("/nope")).rejects.toThrow("not found");
   expect(r.calls.length).toBe(0);
+});
+
+test("a page can supply its own fs and docs polyfill; without docs they are unsupported", async () => {
+  const fs = createMemoryFs({ "/Desktop/seed.txt": "s" });
+  const docs = { list: async () => [{ slug: "a", title: "A" }], page: async (slug: string) => ({ slug, title: "A", html: "<p>x</p>" }) };
+  const os = createOS({ location: loc("example.com", ""), fetch: recorder().fetch, polyfill: () => ({ fs, docs }) });
+  expect((await os.fs.list("/Desktop")).map((e) => e.name)).toEqual(["seed.txt"]);
+  expect((await os.docs.page("a")).html).toBe("<p>x</p>");
+  const bare = createOS({ location: loc("example.com", ""), fetch: recorder().fetch });
+  await expect(bare.docs.list()).rejects.toBeInstanceOf(UnsupportedError);
 });
 
 test("tools register with WebMCP when the browser has it, and unregister", async () => {

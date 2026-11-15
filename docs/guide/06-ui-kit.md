@@ -58,3 +58,7 @@ Everything is styled with CSS variables, so the whole OS can be restyled by chan
 Change `--accent` and `--accent-2` and every glow and gradient follows. A different mood is a few lines in `user.css`, for example a cool one: `:root { --accent: #38f2c0; --accent-2: #8f7bff; }`.
 
 See [Customizing](09-customizing.md) for where to override them.
+
+## Trying it without the OS
+
+The repository has a Storybook (`bun run storybook`, then open http://localhost:6006) with every component, the icon set, the palette, a whole desktop, and the Files and Docs apps. It runs in a plain browser: outside BrasOS the SDK falls back to polyfills (an in-memory file tree for `os.fs`), which is also how your own apps can be developed without booting anything. A *Palette* menu in its toolbar swaps the two rare colors so you can try a mood before editing `user.css`.

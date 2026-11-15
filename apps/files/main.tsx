@@ -180,4 +180,8 @@ function NameDialog({ ask, onClose, onError }: { ask: Extract<Ask, { onSubmit: u
   );
 }
 
-createRoot(document.getElementById("root")!).render(<Files />);
+// the page mounts when there is a #root; Storybook imports the component instead
+const mount = document.getElementById("root");
+if (mount) createRoot(mount).render(<Files />);
+
+export { Files };

@@ -18,16 +18,18 @@ As a plain script on any page inside BrasOS: `<script src="/__brasos/sdk.js"></s
 | `await os.apps.open(id)` | `apps.open` (checked by the shell) | `false` |
 | `await os.apps.install(manifestUrl)` | `apps.install` | rejects `UnsupportedError` |
 | `await os.apps.uninstall(id)` | `apps.uninstall` | rejects `UnsupportedError` |
-| `await os.fs.list(path)` | `fs.read` | rejects `UnsupportedError` |
-| `await os.fs.stat(path)` | `fs.read` | rejects `UnsupportedError` |
-| `await os.fs.read(path, maxBytes?)` | `fs.read` | rejects `UnsupportedError` |
-| `await os.fs.write(path, content, encoding?)` | `fs.write` | rejects `UnsupportedError` |
-| `await os.fs.mkdir(path)` | `fs.write` | rejects `UnsupportedError` |
-| `await os.fs.move(from, to)` | `fs.write` | rejects `UnsupportedError` |
-| `await os.fs.remove(path)` | `fs.write` | rejects `UnsupportedError` |
-| `await os.docs.list()` / `os.docs.page(slug)` | `docs.read` | rejects `UnsupportedError` |
+| `await os.fs.list(path)` | `fs.read` | an in-memory file tree |
+| `await os.fs.stat(path)` | `fs.read` | an in-memory file tree |
+| `await os.fs.read(path, maxBytes?)` | `fs.read` | an in-memory file tree |
+| `await os.fs.write(path, content, encoding?)` | `fs.write` | an in-memory file tree |
+| `await os.fs.mkdir(path)` | `fs.write` | an in-memory file tree |
+| `await os.fs.move(from, to)` | `fs.write` | an in-memory file tree |
+| `await os.fs.remove(path)` | `fs.write` | an in-memory file tree |
+| `await os.docs.list()` / `os.docs.page(slug)` | `docs.read` | rejects `UnsupportedError`, unless the page supplies the guides (Storybook does) |
 | `await os.web.open(url)` | `web.open` | `{ url, site }` with the URL unchanged |
 | `os.tools.register(tool)` | none | does nothing without WebMCP |
+
+The polyfill file tree starts with `/Desktop`, `/Documents` and `/Downloads` and follows the same rules as the real one (virtual paths, `..` collapses, delete goes to `/.trash`); it lives in memory and is gone on reload. A page can supply its own through `globalThis.__brasosPolyfill` (`{ fs, docs, standalone }`), which is how Storybook runs the apps.
 
 A call the app has no permission for rejects with an `Error` whose message contains the HTTP status (`403`).
 

@@ -1,6 +1,6 @@
 # @brasos/sdk
 
-Talk to BrasOS from a web page. Inside BrasOS it calls the host; anywhere else every call degrades to a polyfill, so one codebase also runs on a plain browser.
+Talk to BrasOS from a web page. Inside BrasOS it calls the host; anywhere else every call degrades to a polyfill, so one codebase also runs on a plain browser. `os.fs` polyfills to an in-memory tree (`src/memory-fs.ts`); a page may supply its own fs and guides via `globalThis.__brasosPolyfill` (Storybook does, see `tools/storybook`).
 
 ```ts
 import { os } from "@brasos/sdk";
