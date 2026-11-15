@@ -50,7 +50,7 @@ export type HostOptions = {
 };
 
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
-const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "setup.write", "setup.login", "native.read", "native.control", "db.own", "db.shared"];
+const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "setup.write", "setup.login", "apps.install", "native.read", "native.control", "db.own", "db.shared"];
 /** what a user can grant an installed PWA (never anything that controls the OS itself); a PWA window is a website to the host, so these are checked again at the gate */
 export const PWA_GRANTABLE = ["fs.read", "fs.write", "docs.read", "db.own", "db.shared", "window.control", "window.frameless", "apps.open"];
 /** what an authenticated AI agent may do (on top of each tool's own check and the enabled packages' policies) */
@@ -75,6 +75,7 @@ export async function startHost(o: HostOptions) {
   const gateway = createGateway({ stateDir: o.stateDir, ...o.gateway });
   const registry = createRegistry({
     appsDir: join(root, "apps"),
+    grantable: PWA_GRANTABLE,
     stateDir: o.stateDir,
     allowApp: (m) => policies.every((p) => p.allowApp?.(m) ?? true),
     fetchManifest: async (url) => {

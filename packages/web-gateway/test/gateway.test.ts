@@ -173,11 +173,11 @@ test("the number of distinct sites is capped, and known sites keep working at th
 });
 
 test("installing a PWA from a site: stored with no permissions, listed, and openable by the shell", async () => {
-  const bad = await post(h, "browser.localhost", "/os/apps/install", { manifestUrl: upstream + "/evil-manifest.webmanifest" });
+  const bad = await post(h, "localhost", "/os/apps/install", { manifestUrl: upstream + "/evil-manifest.webmanifest" });
   expect(bad.status).toBe(400);
   expect((await bad.json()).error).toContain("origin");
 
-  const ok = await post(h, "browser.localhost", "/os/apps/install", { manifestUrl: upstream + "/manifest.webmanifest" });
+  const ok = await post(h, "localhost", "/os/apps/install", { manifestUrl: upstream + "/manifest.webmanifest" });
   expect(ok.status).toBe(200);
   const app = await ok.json();
   expect(app).toMatchObject({ kind: "pwa", name: "Notes App", start_url: upstream + "/app/", permissions: [] });
@@ -190,7 +190,7 @@ test("installing a PWA from a site: stored with no permissions, listed, and open
   expect((await opened.json()).url).toMatch(/\.web\.localhost:\d+\/app\/$/);
 });
 
-test("other apps cannot install, and the audit trail shows the gateway's decisions", async () => {
+test("the Browser app cannot install by itself (the shell prompts), and other apps cannot either, and the audit trail shows the gateway's decisions", async () => {
   expect((await post(h, "about.localhost", "/os/apps/install", { manifestUrl: upstream + "/manifest.webmanifest" })).status).toBe(403);
   const e = h.events();
   expect(e.some((x) => x.event === "capability.web.open" && x.outcome === "allow")).toBe(true);

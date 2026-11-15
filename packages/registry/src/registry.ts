@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { json, type Manifest, type Slice } from "@brasos/host/types";
-import type { AppInfo } from "@brasos/sdk";
+import { describePermission, type AppInfo, type Risk } from "@brasos/sdk";
 
 export type RegistryOptions = {
   appsDir: string;
@@ -12,12 +12,39 @@ export type RegistryOptions = {
   stateDir?: string;
   /** policies from enabled packages (all must allow) */
   allowApp?: (m: Manifest) => boolean;
+  /** what a user may grant an installed PWA; anything else a manifest asks for is shown as unavailable */
+  grantable?: readonly string[];
   /** SSRF-safe manifest fetch, injected by the host; absent when installing is not available */
   fetchManifest?: (url: URL) => Promise<unknown>;
 };
 
+export type Inspection = {
+  name: string;
+  origin: string;
+  start_url: string;
+  /** every permission the manifest asks for, described; `grantable: false` ones can never be granted to a website */
+  requested: { id: string; label: string; risk: Risk; reason: string; grantable: boolean }[];
+  frameless: boolean;
+};
+
+/** a manifest's permission list in one shape: ids (letters, digits, dots) with an optional reason */
+function requestsOf(m: Manifest): { id: string; reason: string }[] {
+  const seen = new Set<string>();
+  const out: { id: string; reason: string }[] = [];
+  for (const p of Array.isArray(m.brasos?.permissions) ? m.brasos!.permissions! : []) {
+    const id = typeof p === "string" ? p : p && typeof p === "object" ? String((p as any).id) : "";
+    if (!/^[a-z][a-z0-9.]{0,39}$/.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, reason: typeof p === "object" ? String((p as any).reason ?? "").slice(0, 200) : "" });
+  }
+  // asking for no window frame is asking for a permission, so it is shown (and refusable) like any other
+  if (m.brasos?.window?.frame === false && !seen.has("window.frameless")) out.push({ id: "window.frameless", reason: "" });
+  return out.slice(0, 20);
+}
+
 export function createRegistry(o: RegistryOptions) {
   const allow = o.allowApp ?? (() => true);
+  const grantable = new Set(o.grantable ?? []);
   const pwaDir = o.stateDir && join(o.stateDir, "apps");
 
   const builtinIds = () =>
@@ -30,7 +57,7 @@ export function createRegistry(o: RegistryOptions) {
     builtinIds()
       .map((id) => [id, manifest(id)] as const)
       .filter(([, m]) => allow(m))
-      .map(([id, m]) => ({ id, kind: "builtin", name: m.name, icon: m.brasos?.icon ?? "app", permissions: m.brasos?.permissions ?? [] }));
+      .map(([id, m]) => ({ id, kind: "builtin" as const, name: m.name, icon: m.brasos?.icon ?? "app", permissions: requestsOf(m).map((r) => r.id), window: { frame: m.brasos?.window?.frame !== false } }));
   const installed = (): AppInfo[] =>
     pwaDir && existsSync(pwaDir)
       ? readdirSync(pwaDir)
@@ -43,7 +70,8 @@ export function createRegistry(o: RegistryOptions) {
   const list = (): AppInfo[] => [...builtins(), ...installed()];
   const get = (id: string) => list().find((a) => a.id === id);
 
-  async function install(manifestUrl: string): Promise<AppInfo> {
+  /** fetch and validate a remote manifest; nothing is stored */
+  async function inspectRaw(manifestUrl: string) {
     if (!o.fetchManifest || !pwaDir) throw new Error("installing apps is not available");
     const url = new URL(manifestUrl);
     const m = (await o.fetchManifest(url)) as Manifest | null;
@@ -51,12 +79,34 @@ export function createRegistry(o: RegistryOptions) {
     if (!m || !name) throw new Error("manifest has no name");
     const start = new URL(String(m.start_url ?? "/"), url);
     if (start.origin !== url.origin) throw new Error("start_url must be on the manifest's origin");
+    return { m, name, start, requests: requestsOf(m) };
+  }
+
+  /** what installing would ask the user: the app's requests, described. The shell shows this before anything is installed. */
+  async function inspect(manifestUrl: string): Promise<Inspection> {
+    const { m, name, start, requests } = await inspectRaw(manifestUrl);
+    return {
+      name,
+      origin: start.origin,
+      start_url: start.href,
+      requested: requests.map((r) => ({ id: r.id, ...describePermission(r.id), reason: r.reason, grantable: grantable.has(r.id) })),
+      frameless: m.brasos?.window?.frame === false,
+    };
+  }
+
+  /** `grant` is what the user ticked in the prompt; it is cut down to what the manifest asked for and what a website may hold */
+  async function install(manifestUrl: string, grant: string[] = []): Promise<AppInfo> {
+    const { m, name, start, requests } = await inspectRaw(manifestUrl);
     const id = "pwa-" + createHash("sha256").update(start.origin + String(m.scope ?? "")).digest("hex").slice(0, 12);
-    // permissions are granted by the OS or the user, never self-declared by a remote manifest
-    // shortcut: manifest icons are ignored; every PWA gets the same icon
-    const app: AppInfo = { id, kind: "pwa", name, icon: "globe", start_url: start.href, permissions: [] };
-    mkdirSync(pwaDir, { recursive: true });
-    writeFileSync(join(pwaDir, id + ".json"), JSON.stringify(app));
+    // a manifest can only ask: the user grants. shortcut: manifest icons are ignored; every PWA gets the same icon
+    const granted = requests.map((r) => r.id).filter((p) => grantable.has(p) && grant.includes(p));
+    const app: AppInfo = {
+      id, kind: "pwa", name, icon: "globe", start_url: start.href, permissions: granted,
+      requested: requests,
+      window: { frame: !(m.brasos?.window?.frame === false && granted.includes("window.frameless")) },
+    };
+    mkdirSync(pwaDir!, { recursive: true });
+    writeFileSync(join(pwaDir!, id + ".json"), JSON.stringify(app));
     return app;
   }
 
@@ -74,15 +124,19 @@ export function createRegistry(o: RegistryOptions) {
         const g = ctx.gate("apps.read", { quiet: true });
         return g.ok ? json(list()) : g.res;
       }
-      if ((path === "/os/apps/install" || path === "/os/apps/uninstall") && req.method === "POST") {
-        const install_ = path.endsWith("/install");
-        const g = ctx.gate(install_ ? "apps.install" : "apps.uninstall");
+      // install and inspect are the shell's: it shows the permission prompt, so no page can install an app (or grant itself
+      // anything) by calling the host directly. An app that wants one installed asks the shell (see the SDK's apps.install).
+      if ((path === "/os/apps/install" || path === "/os/apps/inspect" || path === "/os/apps/uninstall") && req.method === "POST") {
+        const op = path.slice("/os/apps/".length);
+        const g = ctx.gate(op === "uninstall" ? "apps.uninstall" : "apps.install", { sameOrigin: true });
         if (!g.ok) return g.res;
         const body = await req.json().catch(() => null);
         try {
-          if (!install_) return uninstall(String(body?.id)), json({ ok: true });
-          const app = await install(String(body?.manifestUrl));
-          ctx.audit("apps.install", "info", { app: app.id }, { name: app.name, start_url: app.start_url });
+          if (op === "uninstall") return uninstall(String(body?.id)), json({ ok: true });
+          if (op === "inspect") return json(await inspect(String(body?.manifestUrl)));
+          const grant = Array.isArray(body?.grant) ? body.grant.filter((x: unknown) => typeof x === "string") : [];
+          const app = await install(String(body?.manifestUrl), grant);
+          ctx.audit("apps.install", "info", { app: app.id }, { name: app.name, start_url: app.start_url, granted: app.permissions, requested: (app.requested ?? []).map((r) => r.id) });
           return json(app);
         } catch (e) {
           return json({ error: (e as Error).message }, 400);
@@ -91,7 +145,7 @@ export function createRegistry(o: RegistryOptions) {
     },
   };
 
-  return { list, get, has: (id: string) => builtins().some((a) => a.id === id), install, uninstall, slice };
+  return { list, get, has: (id: string) => builtins().some((a) => a.id === id), install, inspect, uninstall, slice };
 }
 
 export type Registry = ReturnType<typeof createRegistry>;

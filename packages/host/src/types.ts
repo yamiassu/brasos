@@ -15,8 +15,13 @@ export type Manifest = {
     icon?: string;
     /** may ship in the hardened package (default: no) */
     hardened?: boolean;
-    /** server-side capabilities this app may use */
-    permissions?: string[];
+    /**
+     * server-side capabilities this app may use. Built-in apps hold what they list. For an installed PWA this is only a REQUEST:
+     * the install prompt shows each one (with its `reason`) and the user grants a subset. A bare string has no reason.
+     */
+    permissions?: (string | { id: string; reason?: string })[];
+    /** `frame: false` = no BrasOS title bar; the app draws and controls its own window (needs `window.frameless` for an installed PWA) */
+    window?: { frame?: boolean };
   };
 };
 

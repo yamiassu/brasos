@@ -4,6 +4,7 @@ import { installHeartbeat } from "./heartbeat";
 import { createMemoryFs, type MemoryFs } from "./memory-fs";
 
 export { createMemoryFs, type MemoryFs };
+export { PERMISSIONS, describePermission, type Risk } from "./permissions";
 
 export type AppInfo = {
   id: string;
@@ -11,7 +12,12 @@ export type AppInfo = {
   name: string;
   icon: string;
   start_url?: string;
+  /** what the app holds: built-in apps, the manifest's list; installed PWAs, what the user granted */
   permissions: string[];
+  /** an installed PWA's requests (shown at install), with the reason the app gave for each */
+  requested?: { id: string; reason?: string }[];
+  /** frame: false = the app draws its own window frame (see `window.frameless`) */
+  window?: { frame: boolean };
 };
 
 export type FsEntry = { name: string; kind: "dir" | "file" | "link"; size: number; mtime: number };

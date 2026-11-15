@@ -77,3 +77,44 @@ test("a policy that needs an opt-in hides installed PWAs, and uninstall only tou
   open.uninstall(app.id);
   expect(existsSync(join(state, "apps", app.id + ".json"))).toBe(false);
 });
+
+const asks = {
+  name: "Notes",
+  start_url: "/app/",
+  brasos: {
+    permissions: ["db.own", { id: "fs.read", reason: "Open your notes" }, "system.restart", "db.own", "Bad Id", 7, { id: "fs.write" }],
+    window: { frame: false },
+  },
+};
+const GRANTABLE = ["fs.read", "fs.write", "db.own", "window.frameless"];
+
+test("inspect describes what an app asks for, nothing is stored, and what can never be granted is marked", async () => {
+  const state = tmp();
+  const r = createRegistry({ appsDir: fixture(), stateDir: state, grantable: GRANTABLE, fetchManifest: manifestAt(asks) });
+  const i = await r.inspect("https://notes.example.com/m.json");
+  expect(i).toMatchObject({ name: "Notes", origin: "https://notes.example.com", frameless: true });
+  expect(i.requested.map((x) => [x.id, x.grantable, x.reason])).toEqual([
+    ["db.own", true, ""], ["fs.read", true, "Open your notes"], ["system.restart", false, ""], ["fs.write", true, ""], ["window.frameless", true, ""],
+  ]);
+  expect(i.requested.find((x) => x.id === "fs.read")).toMatchObject({ label: "Read your files", risk: "medium" });
+  expect(existsSync(join(state, "apps"))).toBe(false);
+});
+
+test("the user grants a subset of the requests; the rest, and anything not grantable, is refused", async () => {
+  const r = createRegistry({ appsDir: fixture(), stateDir: tmp(), grantable: GRANTABLE, fetchManifest: manifestAt(asks) });
+  const app = await r.install("https://notes.example.com/m.json", ["db.own", "system.restart", "fs.read", "pty", "docs.read"]);
+  expect(app.permissions).toEqual(["db.own", "fs.read"]); // not system.restart (ungrantable), not pty/docs.read (never asked), not fs.write (not ticked)
+  expect(app.window).toEqual({ frame: true }); // asked for no frame but frameless was not granted: BrasOS keeps its title bar
+  expect(r.get(app.id)!.requested!.map((x) => x.id)).toContain("system.restart"); // the record keeps what it asked for
+  const framed = await r.install("https://notes.example.com/m.json", ["window.frameless"]);
+  expect(framed.window).toEqual({ frame: false });
+});
+
+test("built-in apps may ask for a frameless window and describe permissions with reasons", () => {
+  const appsDir = tmp();
+  mkdirSync(join(appsDir, "paint"));
+  writeFileSync(join(appsDir, "paint", "manifest.webmanifest"), JSON.stringify({ name: "Paint", brasos: { permissions: [{ id: "fs.read", reason: "Open images" }, "window.control"], window: { frame: false } } }));
+  const a = createRegistry({ appsDir }).get("paint")!;
+  expect(a.permissions).toEqual(["fs.read", "window.control", "window.frameless"]);
+  expect(a.window).toEqual({ frame: false });
+});

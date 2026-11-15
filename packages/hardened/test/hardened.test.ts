@@ -38,7 +38,7 @@ test("the web gateway and app installing are off, even for the shell and for the
   // allowPrivate is on here on purpose: only the package's policy can be what refuses these
   expect((await h.at("localhost", "/os/web/open", { ...json({ url: "https://example.com" }), headers: { origin: `http://localhost:${h.port}`, "content-type": "application/json" } })).status).toBe(403);
   expect((await h.at("localhost", "/os/web/open", { ...json({ url: "https://example.com" }), headers: { origin: `http://browser.localhost:${h.port}`, "content-type": "application/json" } })).status).toBe(403);
-  expect((await h.at("localhost", "/os/apps/install", { ...json({ manifestUrl: "https://example.com/m" }), headers: { origin: `http://browser.localhost:${h.port}`, "content-type": "application/json" } })).status).toBe(403);
+  expect((await h.at("localhost", "/os/apps/install", { ...json({ manifestUrl: "https://example.com/m" }), headers: { origin: `http://localhost:${h.port}`, "content-type": "application/json" } })).status).toBe(403);
 });
 
 test("the shell can still list apps (apps.read is one of two capabilities left on)", async () => {
