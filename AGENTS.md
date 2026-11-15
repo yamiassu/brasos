@@ -9,12 +9,12 @@ The repo is organized by what BrasOS does, not by technical layer. Each slice ow
 | Path | What | Notes |
 |---|---|---|
 | `packages/host/` | Composition root: serves every origin, the **one capability gate**, static serving, build. Knows no feature itself | Security boundary. Read "Contracts" before changing. `module.nix` defines `brasos.src` |
-| `packages/shell/` | React desktop: windows, dock, desktop icons, the agent client. Layout in `shell.css`, user overrides in `user.css` | Windows host apps as iframes; built on `@brasos/ui` |
+| `packages/shell/` | React desktop: windows, taskbar (start, search, apps, tray), desktop icons, the agent client. Layout in `shell.css`, user overrides in `user.css` | Windows host apps as iframes; built on `@brasos/ui` |
 | `packages/files/` | The user's files: a filesystem confined to one home folder, as routes and agent tools | Read its README before touching it |
 | `packages/docs/` | The OS's guides: markdown in `docs/guide/`, rendered by Bun's built-in renderer | `/os/docs*` routes |
 | `packages/system/` | Restart the interface: `POST /os/system/restart` and the `system_restart` agent tool, gated by `system.restart` | Only where a supervisor can restart the host (`BRASOS_RESTART_CMD`) |
 | `packages/agent/` | The agent interface: an MCP endpoint, token auth, and a relay to the shell's UI tools | Denied entirely by the hardened package |
-| `packages/ui/` | `@brasos/ui`: the basic components (button, field, toolbar, breadcrumb, list, icon tile, menu, dialog, window frame, dock) and the design tokens | Used by the shell and apps |
+| `packages/ui/` | `@brasos/ui`: the basic components (button, field, toolbar, breadcrumb, list, icon tile, menu, dialog, window frame, taskbar, search field, tray) and the design tokens | Used by the shell and apps |
 | `packages/registry/` | The app list: built-in apps and installed PWAs, both described by a Web App Manifest | `/os/apps*` routes |
 | `packages/web-gateway/` | Loads websites through the host: per-site origins, SSRF-safe fetching, TypeScript served as JavaScript | Read its README before touching it |
 | `packages/sdk/` | `@brasos/sdk`: talk to BrasOS from a page; polyfills outside BrasOS. Every app imports it | Also built as `/__brasos/sdk.js` and injected into websites |
@@ -90,7 +90,7 @@ Not yet measured (open work): window open time and frame time in Chromium, per-a
 
 A profile is a flake output; the packages decide what it contains.
 
-- **dev** (`brasos-dev`): `brasos.hardened.enable = false`, so `brasos.devtools` is on. Everything convenient and deliberately insecure; the dock shows "DEV · hardened package off · not secure" so nobody mistakes it.
+- **dev** (`brasos-dev`): `brasos.hardened.enable = false`, so `brasos.devtools` is on. Everything convenient and deliberately insecure; the taskbar tray shows "DEV · not secure" ("Hardened" in the other profile); the original text was "DEV · hardened package off · not secure" so nobody mistakes it.
 - **hardened** (`brasos-hardened`): `brasos.hardened.enable = true` (sets `BRASOS_PACKAGES=hardened`). Work in progress toward the requirements below. Today it has: no credentials and no sudo (locked `nologin` user), no terminal, browser or dev apps, no web gateway and no app installing (capabilities denied), dependencies fetched at build time and pinned by hash (nothing fetched at boot), everything bundled at build time and run from the immutable store, a sandboxed service (throwaway user, read-only filesystem, no capabilities, syscall filter, loopback-only), a kiosk browser policy (only the local shell, no devtools, extensions or sync), kernel sysctl hardening, no default packages. It has been booted in the VM; it has not been audited or penetration-tested, and it still lacks encryption, secure boot, signed updates and an admin/MFA story.
 
 ## Security posture (requirement: government-grade)

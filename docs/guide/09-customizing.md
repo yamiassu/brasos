@@ -22,10 +22,10 @@ Put files and folders in `/Desktop` (use Files, or save there from an app) and t
 
 ## Change the interface itself
 
-On the dev image the operating system's own source is a normal folder in your home: **BrasOS** (`/BrasOS` in Files, `/var/lib/brasos/state/home/BrasOS` on disk). The dock has two buttons for it:
+On the dev image the operating system's own source is a normal folder in your home: **BrasOS** (`/BrasOS` in Files, `/var/lib/brasos/state/home/BrasOS` on disk). The tray at the right of the taskbar has two buttons for it:
 
-1. **Edit interface** opens Files there. The shell is in `packages/shell/src` (colors and sizes in `shell.css`, your overrides in `user.css`), the components in `packages/ui/src`, each app in `apps/<id>`. Open a file to edit it and save.
-2. **Restart interface** rebuilds the shell and every app from those files and starts the server again. Open windows close and the screen reloads itself in a few seconds.
+1. **Edit interface** (the pencil) opens Files there. The shell is in `packages/shell/src` (colors and sizes in `shell.css`, your overrides in `user.css`), the components in `packages/ui/src`, each app in `apps/<id>`. Open a file to edit it and save.
+2. **Restart interface** (the circular arrow) rebuilds the shell and every app from those files and starts the server again. Open windows close and the screen reloads itself in a few seconds.
 
 An AI agent can do the same through the `system_restart` tool.
 

@@ -18,6 +18,13 @@ const SET: Record<string, { d: string; hi?: string; danger?: boolean }> = {
   link: { d: "M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1", hi: "M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1" },
   edit: { d: "M4 20l1-4L16 5l3 3L8 19z", hi: "M14 7l3 3" },
   restart: { d: "M20 12a8 8 0 1 1-2.5-5.8", hi: "M20 4v5h-5" },
+  search: { d: "M11 5a6 6 0 1 0 0 12a6 6 0 0 0 0-12z", hi: "M16 16l5 5" },
+  start: { d: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" },
+  network: { d: "M3 9a13 13 0 0 1 18 0M6 13a8 8 0 0 1 12 0M9.5 16.5a3 3 0 0 1 5 0", hi: "M12 20v.01" },
+  offline: { d: "M3 9a13 13 0 0 1 18 0M6 13a8 8 0 0 1 12 0M9.5 16.5a3 3 0 0 1 5 0", hi: "M4 4l16 16" },
+  battery: { d: "M3 8h15a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM21 11v2", hi: "M5 11v2M8 11v2" },
+  shield: { d: "M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6z", hi: "M9 12l2 2l4-4" },
+  dev: { d: "M8 8l-4 4l4 4M16 8l4 4l-4 4", hi: "M13 6l-2 12" },
   app: { d: "M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z", hi: "M9 12h6M12 9v6" },
 };
 

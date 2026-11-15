@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppInfo, FsEntry } from "@brasos/sdk";
-import { Badge, Button, Dialog, Dock, Icon, WindowFrame } from "@brasos/ui";
+import { Button, Dialog, Icon, SearchField, Taskbar, TaskButton, Tray, TrayItem, WindowFrame } from "@brasos/ui";
 import { connectAgent, type ShellApi } from "./agent";
 import { Desktop } from "./desktop";
+import { Launcher, search, type Hit } from "./launcher";
+import { Battery, Clock, Mode, Network } from "./tray";
 import { Boundary, Frame, type Win } from "./windows";
 
 const post = (path: string, body: unknown) =>
@@ -18,6 +20,11 @@ export function Shell() {
   const [canRestart, setCanRestart] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [note, setNote] = useState("");
+  const [launcher, setLauncher] = useState(false);
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<Hit | null>(null);
+  const [extra, setExtra] = useState<{ files: Hit[]; guides: Hit[] }>({ files: [], guides: [] });
+  const searchBox = useRef<HTMLInputElement>(null);
   const seq = useRef(1);
 
   const loadApps = () => getJson("/os/apps").then(setApps).catch(() => {});
@@ -70,6 +77,23 @@ export function Shell() {
     const r = await post("/os/system/restart", {});
     setNote(r.ok ? "Restarting the interface…" : "Restart refused");
   };
+  // files in the usual folders and the guides are fetched when the launcher opens (both are optional: hardened has no files)
+  const openLauncher = () => {
+    setLauncher(true);
+    Promise.all(["/Desktop", "/Documents", "/Downloads"].map((d) => post("/os/fs/list", { path: d }).then((r) => (r.ok ? r.json() : [])).catch(() => [])))
+      .then((lists: FsEntry[][]) => {
+        const dirs = ["/Desktop", "/Documents", "/Downloads"];
+        const files: Hit[] = lists.flatMap((l, i) =>
+          l.map((e) => ({ key: "f:" + dirs[i] + "/" + e.name, kind: "File" as const, icon: e.kind === "dir" ? "folder" : "text", label: e.name, meta: dirs[i], run: () => openPath(dirs[i] + "/" + e.name) })));
+        setExtra((x) => ({ ...x, files }));
+      });
+    fetch("/os/docs").then((r) => (r.ok ? r.json() : [])).catch(() => [])
+      .then((pages: { slug: string; title: string }[]) => {
+        const docs = apps.find((a) => a.id === "docs");
+        setExtra((x) => ({ ...x, guides: docs ? pages.map((p) => ({ key: "g:" + p.slug, kind: "Guide" as const, icon: "docs", label: p.title, meta: "Guide", run: () => void open(docs, p.slug) })) : [] }));
+      });
+  };
+  const closeLauncher = () => (setLauncher(false), setQuery(""), setPicked(null));
   const patch = (key: number, f: (w: Win) => Partial<Win>) => setWins((ws) => ws.map((w) => (w.key === key ? { ...w, ...f(w) } : w)));
   const close = (key: number) => setWins((ws) => ws.filter((w) => w.key !== key));
   const focus = (key: number) => {
@@ -77,6 +101,31 @@ export function Shell() {
     patch(key, () => ({ z }));
   };
   const topZ = Math.max(0, ...wins.map((w) => w.z));
+  const focused = wins.find((w) => w.z === topZ);
+  /** an app's button: focus its window if it has one, else open it */
+  const launch = (app: AppInfo) => {
+    const mine = wins.filter((w) => w.app.id === app.id);
+    if (mine.length) focus(mine.reduce((a, b) => (a.z > b.z ? a : b)).key);
+    else open(app);
+  };
+  const hits: Hit[] = [
+    ...apps.map((a) => ({ key: "a:" + a.id, kind: "App" as const, icon: a.icon, label: a.name, meta: "App", run: () => launch(a) })),
+    ...wins.map((w) => ({ key: "w:" + w.key, kind: "Window" as const, icon: w.app.icon, label: w.app.name, meta: "Open window", run: () => focus(w.key) })),
+    ...extra.files,
+    ...extra.guides,
+  ];
+  const results = search(hits, query);
+  const current = picked && results.find((h) => h.key === picked.key) ? picked : results[0] ?? null;
+  const run = (h: Hit) => (closeLauncher(), h.run());
+  // Ctrl+K from anywhere in the shell (a window's iframe keeps its own keys)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") (e.preventDefault(), openLauncher(), searchBox.current?.focus());
+      else if (e.key === "Escape") closeLauncher();
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  });
 
   // Messages from windows (through @brasos/sdk): refresh signals, and apps asking the shell to open another app. Both are
   // UI-level, so the shell checks the permission itself against the registry; nothing privileged happens on the server.
@@ -149,18 +198,41 @@ export function Shell() {
           );
         })}
       </div>
-      <Dock>
-        {apps.map((a) => (
-          <Button key={a.id} onClick={() => open(a)}>
-            <Icon name={a.icon} size={18} /> {a.name}
-          </Button>
-        ))}
-        {canRestart && <Button onClick={() => openPath("/BrasOS")}><Icon name="edit" size={18} /> Edit interface</Button>}
-        {canRestart && <Button onClick={() => setConfirmRestart(true)}><Icon name="restart" size={18} /> Restart interface</Button>}
-        {note && <Badge>{note}</Badge>}
-        {/* nobody should mistake a dev image for a hardened one */}
-        {packages && !packages.includes("hardened") && <Badge>DEV · hardened package off · not secure</Badge>}
-      </Dock>
+      <Taskbar>
+        <TaskButton icon="start" label="Start" active={launcher && !query} onClick={() => (launcher ? closeLauncher() : (setQuery(""), openLauncher()))} />
+        <SearchField
+          ref={searchBox}
+          label="Search apps, files, guides"
+          value={query}
+          onFocus={() => !launcher && openLauncher()}
+          onChange={(e) => (setQuery(e.target.value), setPicked(null))}
+          onKeyDown={(e) => {
+            const i = current ? results.findIndex((h) => h.key === current.key) : -1;
+            if (e.key === "ArrowDown") (e.preventDefault(), setPicked(results[Math.min(results.length - 1, i + 1)] ?? null));
+            else if (e.key === "ArrowUp") (e.preventDefault(), setPicked(results[Math.max(0, i - 1)] ?? null));
+            else if (e.key === "Enter" && current) (e.preventDefault(), run(current));
+          }}
+        />
+        {apps.map((a) => {
+          const mine = wins.filter((w) => w.app.id === a.id);
+          return <TaskButton key={a.id} icon={a.icon} label={a.name} running={mine.length > 0} active={focused?.app.id === a.id} onClick={() => launch(a)} />;
+        })}
+        <Tray>
+          {note && <TrayItem label={note}>{note}</TrayItem>}
+          {canRestart && <TrayItem icon="edit" label="Edit the interface (opens its source in Files)" onClick={() => openPath("/BrasOS")} />}
+          {canRestart && <TrayItem icon="restart" label="Restart the interface" onClick={() => setConfirmRestart(true)} />}
+          <Mode packages={packages} />
+          <Network />
+          <Battery />
+          <Clock />
+        </Tray>
+      </Taskbar>
+      {launcher && (
+        <>
+          <div style={{ position: "absolute", inset: 0, zIndex: 899 }} onPointerDown={closeLauncher} />
+          <Launcher hits={results} selected={current} onSelect={setPicked} onRun={run} query={query} />
+        </>
+      )}
       {confirmRestart && (
         <Dialog
           title="Restart the interface?"

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Icon, iconNames, Badge, Breadcrumb, Button, Dialog, Dock, IconButton, IconTile, List, Menu, splitPath, TextField, Toolbar, WindowFrame } from "../src";
+import { Icon, iconNames, SearchField, Taskbar, TaskButton, Tray, TrayItem, Badge, Breadcrumb, Button, Dialog, Dock, IconButton, IconTile, List, Menu, splitPath, TextField, Toolbar, WindowFrame } from "../src";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
 
@@ -80,4 +80,14 @@ test("every class the components use is defined in ui.css (no unstyled component
 test("Icon: every named icon draws; an unknown name (an emoji from an older manifest) is shown as text", () => {
   for (const n of iconNames) expect(html(<Icon name={n} />)).toContain("<svg");
   expect(html(<Icon name="🧩" />)).toContain("ui-icon-text");
+});
+
+test("Taskbar: apps report running and active, search is a labelled searchbox, the tray is a group", () => {
+  const t = html(<Taskbar><TaskButton icon="files" label="Files" running active /><SearchField label="Search" /><Tray><TrayItem icon="network" label="Network: connected" /><TrayItem label="Clock">12:00</TrayItem></Tray></Taskbar>);
+  expect(t).toContain('aria-label="Taskbar"');
+  expect(t).toContain("ui-task ui-task--running ui-task--active");
+  expect(t).toContain('aria-pressed="true"');
+  expect(t).toMatch(/role="searchbox"[^>]*aria-label="Search"|aria-label="Search"[^>]*role="searchbox"/);
+  expect(t).toContain('role="group" aria-label="System tray"');
+  expect(t).toContain('aria-label="Network: connected"');
 });

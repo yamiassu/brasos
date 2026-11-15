@@ -1,6 +1,6 @@
 // Storybook stories for the UI kit (run: bun run storybook). Plain CSF objects: no Storybook types are needed here.
 import { useState, type ReactNode } from "react";
-import { Badge, Breadcrumb, Button, Dialog, Dock, Icon, iconNames, IconButton, IconTile, List, Menu, TextField, Toolbar, WindowFrame } from "./index";
+import { Breadcrumb, Button, Dialog, Icon, iconNames, IconButton, IconTile, List, Menu, SearchField, Taskbar, TaskButton, TextField, Toolbar, Tray, TrayItem, WindowFrame } from "./index";
 import "../../shell/src/shell.css"; // the desktop layout classes (.layer, .icons) used by the composition story
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (
@@ -129,11 +129,18 @@ export const Desktop = () => (
       <WindowFrame title="Files" icon="files" style={{ left: 200, top: 40 }} onClose={() => {}}><div style={{ padding: 16 }}>Files</div></WindowFrame>
       <WindowFrame title="Docs" icon="docs" focused style={{ left: 280, top: 110 }} onClose={() => {}}><div style={{ padding: 16 }}>Docs (focused)</div></WindowFrame>
     </div>
-    <Dock>
-      {["about", "browser", "docs", "files", "terminal"].map((n) => <Button key={n}><Icon name={n} size={18} /> {n}</Button>)}
-      <Button><Icon name="edit" size={18} /> Edit interface</Button>
-      <Button><Icon name="restart" size={18} /> Restart interface</Button>
-      <Badge>DEV · hardened package off · not secure</Badge>
-    </Dock>
+    <Taskbar>
+      <TaskButton icon="start" label="Start" />
+      <SearchField label="Search apps, files, guides" />
+      {["about", "browser", "docs", "files", "terminal"].map((n) => <TaskButton key={n} icon={n} label={n} running={n !== "about"} active={n === "docs"} />)}
+      <Tray>
+        <TrayItem icon="edit" label="Edit the interface" onClick={() => {}} />
+        <TrayItem icon="restart" label="Restart the interface" onClick={() => {}} />
+        <TrayItem icon="dev" label="Development image">DEV · not secure</TrayItem>
+        <TrayItem icon="network" label="Network: connected" />
+        <TrayItem icon="battery" label="Battery 80%">80%</TrayItem>
+        <TrayItem label="Clock"><span className="stack"><span>02:17</span><span>15/11/2026</span></span></TrayItem>
+      </Tray>
+    </Taskbar>
   </div>
 );

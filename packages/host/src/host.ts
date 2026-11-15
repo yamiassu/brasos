@@ -39,7 +39,7 @@ export type HostOptions = {
 };
 
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
-const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "ui.host", "system.restart"];
+const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart"];
 /** what an authenticated AI agent may do (on top of each tool's own check and the enabled packages' policies) */
 const AGENT_CAPS = ["agent.call", "apps.read", "fs.read", "fs.write", "docs.read", "ui.control", "system.restart"];
 

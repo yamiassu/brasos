@@ -43,7 +43,7 @@ The agent talks standard MCP over `POST /mcp`. It authenticates with a bearer to
 
 ## How an app runs
 
-1. The shell fetches `/os/apps`, lists the apps in the dock, and shows an icon for each on the desktop (followed by the `/Desktop` folder's files).
+1. The shell fetches `/os/apps`, lists the apps on the taskbar, and shows an icon for each on the desktop (followed by the `/Desktop` folder's files).
 2. Opening one creates a window with an `<iframe>` on the app's own origin. Because the origin differs from the shell's, Chromium's site isolation puts it in a separate process: a crash or hang there can't take the shell down.
 3. The host derives the target from the `Host` header. A restarted window uses `<app>--<n>.localhost`, a fresh origin and therefore a fresh process.
 4. The shell pings each window with `postMessage`; `@brasos/sdk` answers `pong`. No pong for 8 seconds shows "isn't responding" with Restart or Close.
@@ -80,7 +80,7 @@ Apps that aren't opted in are filtered out of the source tree at the Nix level t
 
 ## Dev conveniences (dev profile only)
 
-The OS source is seeded to `/var/lib/brasos/state/home/BrasOS` (`/BrasOS` in the user's Files) on first boot and is user-editable; the dock's *Restart interface* (capability `system.restart`, `packages/system`) re-runs it through `BRASOS_RESTART_CMD`. If it fails three times in a minute, systemd starts the pristine copy from the Nix store (`brasos-shell-safe`), and the page reloads itself when the server comes back. `brasos-reset-shell` re-seeds.
+The OS source is seeded to `/var/lib/brasos/state/home/BrasOS` (`/BrasOS` in the user's Files) on first boot and is user-editable; the taskbar's *Restart interface* (capability `system.restart`, `packages/system`) re-runs it through `BRASOS_RESTART_CMD`. If it fails three times in a minute, systemd starts the pristine copy from the Nix store (`brasos-shell-safe`), and the page reloads itself when the server comes back. `brasos-reset-shell` re-seeds.
 
 ## Test and benchmark harness
 

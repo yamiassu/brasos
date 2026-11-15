@@ -24,7 +24,7 @@ Put `class="ui-root"` on your root element and import `ui.css` once.
 | `Dialog` | A modal with a title and actions. Escape or the backdrop closes it |
 | `WindowFrame` | A window's title bar and body; `focused` makes it glow brighter; dragging is up to you, via `headerProps` |
 | `Icon` | One of the OS's line icons by name, or text if the name isn't one |
-| `Dock`, `Badge` | The bottom bar and a status notice |
+| `Taskbar`, `TaskButton`, `SearchField`, `Tray`, `TrayItem` | The bottom bar: app buttons that show running and focused state, a search box, and a tray for status (clock, network, mode). `Dock` and `Badge` are the older, simpler bar |
 
 Every component sets its roles and labels itself, so an interface built from them is usable with a keyboard and a screen reader without extra work.
 
@@ -32,7 +32,7 @@ Every component sets its roles and labels itself, so an interface built from the
 
 BrasOS is dark, neutral and quiet. The surface is grey; color is rare, so that it stands out when it appears. Where attention is, edges light up like neon, and the color is that of living things that make their own light (amber, with coral as its partner).
 
-- **Color is a signal.** It appears only on: the **focused window** (a gradient rim and glow; `WindowFrame` takes `focused`; the others stay grey), keyboard focus, the selected row, the primary button, and dialogs. Danger and notices have their own colors. Everything else, including every icon at rest, is grey.
+- **Color is a signal.** It appears only on: the **focused window** (a gradient rim and glow; `WindowFrame` takes `focused`; the others stay grey), keyboard focus, the selected row, the primary button, and dialogs. Danger and notices have their own colors. Everything else, including every icon at rest, is grey. Nothing is saturated: the amber is soft, and the coral is muted.
 - **Neon edges.** The focused window and dialogs have a gradient rim (amber to coral) drawn behind a solid panel, plus a glow.
 - **Light gradients.** `--sheen` is a faint light falling on a surface (toolbars, title bars, menus); `--aurora` is the amber-to-coral gradient for primary actions and rims. The desktop is night with a few soft aurora glows.
 - **Colors from nature.** Amber (`--accent`) is fireflies and embers, coral (`--accent-2`) is reef. Danger is a separate alarm red (`--danger`) and notices are pale gold (`--warn`), so neither looks decorative. Keep it rare: one bright thing per area, so it stays meaningful.

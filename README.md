@@ -7,7 +7,7 @@ A Linux-based operating system whose entire user interface is React and TypeScri
 
 ## What exists today
 
-- **A React shell** (windows, dock, per-window error boundaries) served by a small Bun host and shown full-screen by Chromium inside a Wayland kiosk (`cage`).
+- **A React shell** (taskbar with search and tray, windows, per-window error boundaries) served by a small Bun host and shown full-screen by Chromium inside a Wayland kiosk (`cage`).
 - **Apps are PWAs.** Each app is a Web App Manifest plus an optional `brasos` block (icon, permissions, hardened opt-in), in its own iframe on its own origin (`<app>.localhost`), so Chromium isolates it in a separate process. A heartbeat detects a hung app; the shell stays responsive and offers Restart.
 - **A browser that loads TypeScript sites.** The browser app opens websites through a gateway that gives each one its own secure-context origin (so service workers and PWAs work), serves `.ts` files as JavaScript, and funnels every web request through one audited, SSRF-checked chokepoint. A site with a manifest can be **installed** as an app.
 - **`@brasos/sdk`**: one small package that talks to the OS from a page and degrades to polyfills on a normal browser. Also served as a script and injected into websites.

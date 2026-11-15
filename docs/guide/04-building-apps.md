@@ -34,7 +34,7 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-Restart `bun run dev`. The app appears on the desktop and in the dock.
+Restart `bun run dev`. The app appears on the desktop and on the taskbar.
 
 ## Rules
 

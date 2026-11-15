@@ -4,7 +4,11 @@
 
 The desktop shows an icon for every app, followed by whatever is in your `/Desktop` folder. **Double-click** an icon, or select it and press **Enter**, to open it. Folders and files open in **Files**. **Right-click** the desktop for *Open Files* and *Refresh*.
 
-The **dock** along the bottom has a button for every app. On the dev image it also shows an orange warning that this is not a secure image.
+The **taskbar** along the bottom works like the one you know:
+
+- **Start** (left) lists every app. Next to it, the **search box** (or **Ctrl+K** anywhere) finds apps, open windows, files in `/Desktop`, `/Documents` and `/Downloads`, and the guides. Arrow keys move through the results, **Enter** opens one, **Escape** closes.
+- The **app buttons** open an app, or bring its window forward if it is already open. A small bar under a button means it has a window; a longer, colored bar means its window has the focus.
+- The **tray** on the right shows the security mode (on the dev image a warning that it is not secure, on the hardened image *Hardened*), the network, the battery when the machine has one, and the date and time. On the dev image it also has buttons to edit and restart the interface.
 
 ## Windows
 
@@ -29,7 +33,7 @@ Files shows your home folder: `/Desktop`, `/Documents` and `/Downloads` to start
 
 Type an address and press Enter. Sites load through the BrasOS web gateway, which gives every site its own isolated origin. That also means a site that ships `.ts` files just works.
 
-If a site is a PWA, **Install** lights up. Installing adds it to the dock and desktop as an app. Installed sites get no special permissions.
+If a site is a PWA, **Install** lights up. Installing adds it to the taskbar and desktop as an app. Installed sites get no special permissions.
 
 Limits: a site installed this way runs on a BrasOS address, not its real one, so sign-in flows and features that check the real address (OAuth redirects, passkeys, push notifications) may not work.
 
@@ -43,4 +47,4 @@ Dev image only. A real shell on the machine, as the `brasos` user.
 
 ## Using only the keyboard
 
-Press **Tab** to move through the dock and the desktop icons, **Enter** to open one. Inside an app, **Tab** and the arrow keys work as you would expect. A mouse is never required.
+Press **Tab** to move through the taskbar and the desktop icons, **Enter** to open one. Inside an app, **Tab** and the arrow keys work as you would expect. A mouse is never required.

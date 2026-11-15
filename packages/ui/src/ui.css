@@ -1,10 +1,9 @@
 /* @brasos/ui: design tokens and the basic components. Everything is driven by the variables below, so the whole OS can be
    restyled by overriding them (put overrides in packages/shell/src/user.css, which loads last).
 
-   Identity ("Aurora"): a neutral, dark, quiet surface; edges that glow like neon only where attention is; light gradients;
-   and a rare, vivid color from living things that make their own light (amber, with coral as its partner).
-   Color is a signal, so it is scarce: the focused window, the keyboard focus, the selected item, the primary action.
-   Everything else is grey.
+   Identity ("Aurora"): a neutral, dark, professional surface. Grey does the work; a soft amber (with coral as its partner)
+   is a rare signal, used for the keyboard focus, the selected item and the focused window's edge. Nothing else is colored,
+   and nothing is saturated.
    See docs/guide/06-ui-kit.md. */
 :root {
   /* neutral night */
@@ -17,18 +16,18 @@
   --icon-2: #7c7c84; /* the detail stroke of an icon at rest */
 
   /* the rare colors */
-  --accent: #ffae42;   /* amber: fireflies and embers */
-  --accent-2: #ff5d7a; /* coral: the partner in a gradient */
-  --danger: #ff3d4d;   /* alarm red, kept apart from the coral so danger never looks decorative */
-  --warn: #ffe08a;     /* pale gold: notices, the dev marker */
-  --on-accent: #1a0d02; /* text on a filled accent */
+  --accent: #e3b36b;   /* soft amber: embers */
+  --accent-2: #d98a94; /* muted coral: the partner */
+  --danger: #f0616d;   /* alarm red, kept apart from the coral so danger never looks decorative */
+  --warn: #ecd28a;     /* pale gold: notices, the dev marker */
+  --on-accent: #17110a; /* text on a filled accent */
 
   /* edges and fills are neutral; the glow is the only place --accent leaks in */
   --border: #ffffff14;
   --border-strong: #ffffff30;
   --hover: #ffffff0d;
   --selected: #ffffff1a;
-  --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 25%, transparent);
+  --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), 0 0 12px color-mix(in srgb, var(--accent) 12%, transparent);
   --aurora: linear-gradient(135deg, var(--accent), var(--accent-2));
   --sheen: linear-gradient(180deg, #ffffff0a, #ffffff00 40%); /* light falling on a surface */
 
@@ -52,8 +51,8 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 .ui-btn:hover:not(:disabled) { border-color: var(--border-strong); background: var(--sheen), var(--selected); }
 .ui-btn:focus-visible, .ui-tile:focus-visible, .ui-item:focus-visible, .ui-menu button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ui-btn:disabled { opacity: 0.4; cursor: default; }
-.ui-btn--primary { background: var(--aurora); color: var(--on-accent); border-color: transparent; font-weight: 600; }
-.ui-btn--primary:hover:not(:disabled) { background: var(--aurora); box-shadow: var(--glow); }
+.ui-btn--primary { background: var(--text); color: var(--bg); border-color: transparent; font-weight: 600; }
+.ui-btn--primary:hover:not(:disabled) { background: #fff; border-color: transparent; }
 .ui-btn--danger:hover:not(:disabled) { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 18%, transparent); }
 .ui-btn--ghost { background: transparent; border-color: transparent; }
 .ui-iconbtn { padding: 4px 8px; }
@@ -96,9 +95,8 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 .ui-menu button:hover { background: var(--selected); }
 .ui-menu button.danger:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); }
 .ui-dialog {
-  /* a dialog asks for attention, so it gets the neon edge: a gradient border behind a solid panel */
-  background: linear-gradient(var(--panel), var(--panel)) padding-box, var(--aurora) border-box; border: 1px solid transparent;
-  border-radius: var(--radius); box-shadow: var(--shadow), var(--glow); padding: 16px; min-width: 280px; max-width: 80vw; display: flex; flex-direction: column; gap: 12px;
+  background: var(--sheen), var(--panel); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; min-width: 280px; max-width: 80vw; display: flex; flex-direction: column; gap: 12px;
 }
 .ui-dialog h2 { margin: 0; font-size: 15px; }
 .ui-dialog .actions { display: flex; justify-content: flex-end; gap: var(--gap); }
@@ -109,11 +107,9 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
   resize: both; overflow: hidden; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow);
 }
 .ui-window--focused {
-  /* the neon rim, drawn behind the panel */
-  border-color: transparent;
-  background: linear-gradient(var(--panel), var(--panel)) padding-box,
-              linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent-2) 70%, transparent) 55%, color-mix(in srgb, var(--accent) 20%, transparent)) border-box;
-  box-shadow: var(--shadow), 0 0 22px color-mix(in srgb, var(--accent) 30%, transparent), 0 0 60px color-mix(in srgb, var(--accent-2) 14%, transparent);
+  /* the one lit edge on screen */
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: var(--shadow), 0 0 16px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 .ui-window > header { display: flex; align-items: center; gap: var(--gap); padding: 6px 10px; cursor: grab; user-select: none; touch-action: none; background: var(--sheen), var(--panel-2); border-bottom: 1px solid var(--border); }
 .ui-window > header .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -132,5 +128,36 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 .ui-icon .m { stroke: var(--icon); }
 .ui-icon .h { stroke: var(--icon-2); }
 .ui-icon .d { stroke: var(--danger); }
-.ui-tile:hover .ui-icon .m, .ui-tile[aria-selected="true"] .ui-icon .m, .ui-btn:hover .ui-icon .m, .ui-item[aria-selected="true"] .ui-icon .m { stroke: var(--accent); }
-.ui-tile:hover .ui-icon .h, .ui-tile[aria-selected="true"] .ui-icon .h, .ui-btn:hover .ui-icon .h, .ui-item[aria-selected="true"] .ui-icon .h { stroke: var(--accent-2); }
+.ui-tile:hover .ui-icon .m, .ui-btn:hover .ui-icon .m, .ui-task:hover .ui-icon .m { stroke: var(--text); }
+.ui-tile:hover .ui-icon .h, .ui-btn:hover .ui-icon .h, .ui-task:hover .ui-icon .h { stroke: var(--icon); }
+.ui-tile[aria-selected="true"] .ui-icon .m, .ui-item[aria-selected="true"] .ui-icon .m, .ui-task--active .ui-icon .m { stroke: var(--accent); }
+
+/* taskbar: start and search on the left, apps in the middle, the system tray on the right */
+:root { --taskbar-h: 48px; }
+.ui-taskbar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: var(--taskbar-h); display: flex; align-items: center; gap: 6px; padding: 0 8px;
+  background: var(--sheen), var(--panel); border-top: 1px solid var(--border);
+}
+.ui-task { position: relative; width: 40px; height: 36px; display: grid; place-items: center; background: transparent; border: 0; border-radius: var(--radius-sm); cursor: pointer; color: inherit; }
+.ui-task:hover { background: var(--hover); }
+.ui-task:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ui-task--running::after { content: ""; position: absolute; bottom: 2px; left: 50%; width: 6px; height: 2px; margin-left: -3px; border-radius: 2px; background: var(--muted); }
+.ui-task--active { background: var(--selected); }
+.ui-task--active::after { width: 14px; margin-left: -7px; background: var(--accent); }
+.ui-search { display: flex; align-items: center; gap: 8px; width: 260px; height: 32px; padding: 0 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; color: var(--muted); }
+.ui-search:focus-within { border-color: var(--border-strong); color: var(--text); }
+.ui-search input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--text); font: inherit; }
+.ui-search input::placeholder { color: var(--muted); }
+.ui-tray { margin-left: auto; display: flex; align-items: center; gap: 2px; color: var(--muted); font-size: 12px; }
+.ui-tray-item { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: inherit; line-height: 1.15; }
+button.ui-tray-item { cursor: pointer; }
+button.ui-tray-item:hover { background: var(--hover); color: var(--text); }
+.ui-tray-item--warn { color: var(--warn); }
+.ui-tray-item .stack { display: flex; flex-direction: column; align-items: flex-end; }
+
+/* the launcher: the panel above the taskbar for start and search */
+.ui-launcher { position: absolute; left: 8px; bottom: calc(var(--taskbar-h) + 8px); z-index: 900; width: 420px; max-height: 70%; display: flex; flex-direction: column; background: var(--sheen), var(--panel-2); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.ui-launcher h4 { margin: 0; padding: 10px 14px 4px; font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.ui-launcher .empty { padding: 18px 14px; color: var(--muted); }
+.ui-launcher .scroll { overflow: auto; padding-bottom: 6px; }
+.ui-launcher .ui-item .meta { margin-left: auto; color: var(--muted); font-size: 12px; }

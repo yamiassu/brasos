@@ -3,7 +3,7 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 #root { position: relative; }
 
 /* the desktop icons sit under the windows, both above the dock's reserved strip */
-.layer { position: absolute; inset: 0 0 44px 0; }
+.layer { position: absolute; inset: 0 0 var(--taskbar-h, 48px) 0; }
 .layer.windows { z-index: 2; pointer-events: none; }
 .layer.windows > * { pointer-events: auto; }
 
@@ -16,6 +16,5 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 #root {
   background:
     radial-gradient(70% 55% at 20% 0%, #ffffff0a, transparent 70%),
-    radial-gradient(60% 45% at 90% 100%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 70%),
-    var(--bg);
+        var(--bg);
 }

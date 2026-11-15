@@ -1,7 +1,7 @@
 // @brasos/ui: the basic components for building an OS interface. Plain React, no runtime dependencies, styled by ui.css tokens.
 // Accessibility is part of each component (roles, labels, keyboard), not an extra.
 import {
-  type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type ReactNode,
+  type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type Ref,
   useEffect, useRef,
 } from "react";
 
@@ -185,4 +185,43 @@ export function Dock({ children }: { children: ReactNode }) {
 
 export function Badge({ children }: { children: ReactNode }) {
   return <span className="ui-badge" role="status">{children}</span>;
+}
+
+/** The bottom bar: a start button and search on the left, running apps in the middle, a system tray on the right. Put them as children, in that order. */
+export function Taskbar({ children }: { children: ReactNode }) {
+  return <nav aria-label="Taskbar" className="ui-taskbar">{children}</nav>;
+}
+
+/** An app on the taskbar: lit when it has windows, brighter when its window has the focus. */
+export function TaskButton({ icon, label, running, active, ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: string; label: string; running?: boolean; active?: boolean }) {
+  return (
+    <button type="button" {...p} aria-label={label} title={label} aria-pressed={!!active} className={cx("ui-task", running && "ui-task--running", active && "ui-task--active")}>
+      <Icon name={icon} size={22} />
+    </button>
+  );
+}
+
+/** A search box with a magnifier. The input is a `searchbox` so assistive tech (and agents) can find it. */
+export function SearchField({ label, className, ref, ...p }: InputHTMLAttributes<HTMLInputElement> & { label: string; ref?: Ref<HTMLInputElement> }) {
+  return (
+    <label className={cx("ui-search", className)}>
+      <Icon name="search" size={16} />
+      <input ref={ref} type="search" role="searchbox" aria-label={label} placeholder={label} autoComplete="off" spellCheck={false} {...p} />
+    </label>
+  );
+}
+
+/** The right side of the taskbar: status items and the clock. */
+export function Tray({ children }: { children: ReactNode }) {
+  return <div role="group" aria-label="System tray" className="ui-tray">{children}</div>;
+}
+
+/** One status item: an icon and/or text, with a tooltip. Clickable when `onClick` is given. */
+export function TrayItem({ icon, label, children, onClick }: { icon?: string; label: string; children?: ReactNode; onClick?(): void }) {
+  const inner = <>{icon && <Icon name={icon} size={16} />}{children}</>;
+  return onClick ? (
+    <button type="button" className="ui-tray-item" aria-label={label} title={label} onClick={onClick}>{inner}</button>
+  ) : (
+    <span className="ui-tray-item" role="status" aria-label={label} title={label}>{inner}</span>
+  );
 }

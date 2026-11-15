@@ -1,6 +1,6 @@
 # shell
 
-The React desktop: icons for every app and for the files in `/Desktop`, a dock, draggable windows, and one iframe per app (or per website for PWAs). Built on `@brasos/ui`.
+The React desktop: icons for every app and for the files in `/Desktop`, a taskbar, draggable windows, and one iframe per app (or per website for PWAs). Built on `@brasos/ui`.
 
 - **Isolation**: each window is an iframe on its own origin, so Chromium puts it in its own process. A heartbeat (`ping`/`pong` through `@brasos/sdk`) detects a hung app; the shell stays responsive and offers Restart (a fresh origin, so a fresh process). Each window sits in an error boundary.
 - **Apps**: lists `/os/apps`. A PWA window asks the host for its gateway URL (`/os/web/open`) first.
@@ -9,6 +9,7 @@ The React desktop: icons for every app and for the files in `/Desktop`, a dock, 
 - **Agent interface**: `src/agent.ts` offers `ui_snapshot`, `windows_focus`, `windows_close` and `apps_open` to AI agents (over a WebSocket the host relays MCP calls through) and to WebMCP when the browser has it. Not attempted in the hardened package.
 - **Self-healing**: if the server restarts or fails over (dev's safe copy), the page reloads itself.
 - **Customization**: colors and radii are CSS variables in `src/shell.css`; put overrides in `src/user.css`.
-- **Marker**: the dock shows "DEV · hardened package off · not secure" unless the hardened package is on.
+- **Taskbar**: Start (all apps) and a search box on the left, a button per app (a bar under it when it has a window, a longer colored one when its window is focused; clicking focuses or opens), and the tray on the right: security mode, network, battery (where the browser has the Battery API), clock, and on the dev image Edit and Restart interface. The search box (or Ctrl+K) searches apps, open windows, files in `/Desktop`, `/Documents` and `/Downloads` (needs `fs.read`; absent in hardened) and the guides (`docs.read`).
+- **Marker**: the tray shows "DEV · not secure" unless the hardened package is on, when it shows "Hardened".
 
-The shell holds a fixed set of capabilities (`apps.read`, `apps.uninstall`, `web.open`, `fs.read`, `ui.host`); see `packages/host/src/host.ts`.
+The shell holds a fixed set of capabilities (`apps.read`, `apps.uninstall`, `web.open`, `fs.read`, `docs.read`, `ui.host`, `system.restart`); see `packages/host/src/host.ts`.
