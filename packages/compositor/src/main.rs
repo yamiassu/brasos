@@ -3,6 +3,7 @@
 mod handlers;
 
 mod ctl;
+mod drm;
 mod grabs;
 mod input;
 mod state;
@@ -28,8 +29,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Open a Wayland/X11 window for our nested compositor
-    crate::winit::init_winit(&mut event_loop, &mut state)?;
+    // `--drm` (or BRASOS_BACKEND=drm): own the display. Otherwise a nested window, for running inside cage or another compositor.
+    if std::env::args().any(|a| a == "--drm") || std::env::var("BRASOS_BACKEND").as_deref() == Ok("drm") {
+        crate::drm::init(&mut event_loop, &mut state)?;
+    } else {
+        crate::winit::init_winit(&mut event_loop, &mut state)?;
+    }
 
     // Set WAYLAND_DISPLAY to our socket name, so child processes connect to Smallvil rather
     // than the host compositor
@@ -57,6 +62,9 @@ fn init_logging() {
 fn spawn_client() {
     let mut args = std::env::args().skip(1);
     while let Some(flag) = args.next() {
+        if flag == "--drm" {
+            continue;
+        }
         if let ("-c" | "--command", Some(command)) = (flag.as_str(), args.next()) {
             std::process::Command::new("sh").arg("-c").arg(command).spawn().ok();
         }

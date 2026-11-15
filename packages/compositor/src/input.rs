@@ -1,7 +1,7 @@
 use smithay::{
     backend::input::{
         AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, InputBackend, InputEvent,
-        KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent,
+        KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent, PointerMotionEvent,
     },
     input::{
         keyboard::FilterResult,
@@ -29,7 +29,17 @@ impl Smallvil {
                     |_, _, _| FilterResult::Forward,
                 );
             }
-            InputEvent::PointerMotion { .. } => {}
+            // a mouse (libinput): move the pointer by the delta, kept inside the output
+            InputEvent::PointerMotion { event, .. } => {
+                let Some(geo) = self.space.outputs().next().and_then(|o| self.space.output_geometry(o)) else { return };
+                let pointer = self.seat.get_pointer().unwrap();
+                let mut pos = pointer.current_location() + event.delta();
+                pos.x = pos.x.clamp(geo.loc.x as f64, (geo.loc.x + geo.size.w - 1) as f64);
+                pos.y = pos.y.clamp(geo.loc.y as f64, (geo.loc.y + geo.size.h - 1) as f64);
+                let under = self.surface_under(pos);
+                pointer.motion(self, under, &MotionEvent { location: pos, serial: SERIAL_COUNTER.next_serial(), time: event.time() });
+                pointer.frame(self);
+            }
             InputEvent::PointerMotionAbsolute { event, .. } => {
                 let output = self.space.outputs().next().unwrap();
 
