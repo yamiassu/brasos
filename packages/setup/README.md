@@ -1,0 +1,12 @@
+# setup
+
+The first-boot installer's server side: the initial account and the preferences, and the lock screen's login.
+
+- **State**: `<state dir>/setup.json`, mode 0600, written atomically. It holds the account (username, display name, an **argon2id** hash; never the password) and the preferences. While it does not exist the shell shows the installer instead of the desktop.
+- **Routes** (shell origin only, same-origin only): `GET /os/setup` (public status: done, user name, preferences, never the hash), `POST /os/setup/complete` (once; 409 afterwards), `POST /os/prefs` (change preferences later), `POST /os/login`.
+- **Capabilities**: `setup.write`, `setup.login`. The shell holds both; no app can get them through a manifest of an installed PWA, and agents do not hold them. The hardened package **allows** both: a government machine still needs its first account.
+- **Validation** (server side, whatever the UI did): username `[a-z][a-z0-9_-]{2,31}`, password 10 to 128 characters and not trivially guessable, language/keyboard/palette from fixed lists, time zone from the runtime's list, device name a hostname. Errors never echo the password.
+- **Login** is a screen lock, not access control: every process on the machine can reach the host anyway. It slows guessing (a delay per failure) and stops it (5 failures a minute: 429). Every attempt is audited (`login`), never with the password.
+- **Preferences** apply where BrasOS can apply them itself: accent palette (also sent to built-in apps), clock format and time zone in the taskbar, page language. Keyboard layout, system time zone and host name are **recorded**; applying them to the operating system is the image's job (a NixOS follow-up), because the server has no privileges.
+- **Unattended provisioning**: `BRASOS_SETUP_PRESEED=/path/preseed.json` (NixOS: `brasos.setup.preseed`) with `{ "account": { "username", "display", "passwordHash" }, "prefs": { ... } }`. Only a hash is accepted, so no password sits in an image. A bad file is audited (`setup.preseed`) and ignored, and the installer appears instead. Make a hash with `bun -e 'console.log(await Bun.password.hash(process.argv[1], {algorithm:"argon2id"}))' 'the password'`.
+- Audit events: `capability.setup.write`/`setup.login` (allow and deny), `setup.complete`, `setup.prefs`, `setup.preseed`, `login`.

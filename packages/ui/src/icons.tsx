@@ -25,6 +25,8 @@ const SET: Record<string, { d: string; hi?: string; danger?: boolean }> = {
   battery: { d: "M3 8h15a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM21 11v2", hi: "M5 11v2M8 11v2" },
   shield: { d: "M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6z", hi: "M9 12l2 2l4-4" },
   dev: { d: "M8 8l-4 4l4 4M16 8l4 4l-4 4", hi: "M13 6l-2 12" },
+  user: { d: "M12 4a4 4 0 1 0 0 8a4 4 0 0 0 0-8z", hi: "M4 20c1-4 4-6 8-6s7 2 8 6" },
+  lock: { d: "M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z", hi: "M8 11V8a4 4 0 0 1 8 0v3" },
   app: { d: "M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z", hi: "M9 12h6M12 9v6" },
 };
 

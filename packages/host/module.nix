@@ -5,4 +5,12 @@
     type = lib.types.path;
     description = "Source of BrasOS (packages/, apps/, package.json, bun.lock, tsconfig.json).";
   };
+
+  # Unattended first boot: a JSON file with the account (an argon2 password hash, never a password) and the preferences.
+  # Without it, the first boot shows the installer. See packages/setup.
+  options.brasos.setup.preseed = lib.mkOption {
+    type = lib.types.nullOr lib.types.path;
+    default = null;
+    description = "A first-boot provisioning file ({ account: { username, display, passwordHash }, prefs: {...} }); null shows the installer.";
+  };
 }

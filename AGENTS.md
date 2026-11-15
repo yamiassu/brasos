@@ -12,6 +12,7 @@ The repo is organized by what BrasOS does, not by technical layer. Each slice ow
 | `packages/shell/` | React desktop: windows, taskbar (start, search, apps, tray), desktop icons, the agent client. Layout in `shell.css`, user overrides in `user.css` | Windows host apps as iframes; built on `@brasos/ui` |
 | `packages/files/` | The user's files: a filesystem confined to one home folder, as routes and agent tools | Read its README before touching it |
 | `packages/docs/` | The OS's guides: markdown in `docs/guide/`, rendered by Bun's built-in renderer | `/os/docs*` routes |
+| `packages/setup/` | First boot: the initial account and preferences, the lock screen's login, unattended preseed | Allowed in hardened (`setup.write`, `setup.login`); read its README |
 | `packages/system/` | Restart the interface: `POST /os/system/restart` and the `system_restart` agent tool, gated by `system.restart` | Only where a supervisor can restart the host (`BRASOS_RESTART_CMD`) |
 | `packages/agent/` | The agent interface: an MCP endpoint, token auth, and a relay to the shell's UI tools | Denied entirely by the hardened package |
 | `packages/ui/` | `@brasos/ui`: the basic components (button, field, toolbar, breadcrumb, list, icon tile, menu, dialog, window frame, taskbar, search field, tray) and the design tokens | Used by the shell and apps |
@@ -52,6 +53,8 @@ Modules import each other through the aliases in `tsconfig.json` (`@brasos/audit
 10. **Files stay inside the home.** Every path is virtual and absolute (`/Desktop/x`); `..` collapses at the root, symlinks that lead outside are refused (also for existing files being overwritten), deleting moves to `/.trash`. The `fs.read`/`fs.write` capabilities cover the whole home (scoping per app is future work).
 11. **Agents are authenticated and never browsers.** `/mcp` needs the bearer token from `agent.token` in the state dir, refuses any request with an `Origin` header, requires the `agent.call` capability, checks every tool's capability against the agent's allow-list and the enabled packages, audits calls, and **never writes tool arguments to the trail**. The hardened package denies `agent.call`, `ui.host`, `ui.control`, `system.*` and `fs.*`.
 12. **Dev only:** the live OS copy is user-editable at `/var/lib/brasos/state/home/BrasOS` (so `/BrasOS` in Files, writable through `fs.write`); restarting it is the `system.restart` capability (shell, agents, apps that declare it; denied by hardened, and only available when `BRASOS_RESTART_CMD` is set); if it fails 3 times in 60 s, systemd starts the pristine copy (`brasos-shell-safe`), and `brasos-reset-shell` re-seeds. Claude Code has full privilege by design (user `brasos`: default password, passwordless sudo). The hardened package has no terminal, no agent, no sudo, no usable login and an immutable shell.
+
+13. **First boot.** Until `<state>/setup.json` exists the shell shows the installer. The account is stored as an argon2id hash only (mode 0600, atomic write), the password never reaches the audit trail or an error message, `setup.write`/`setup.login` belong to the shell alone (apps and agents never get them), setup completes once, login is throttled and audited, and the lock screen is **not** access control (say so wherever it is described). A preseed accepts a hash, never a password.
 
 ## Commands
 

@@ -63,7 +63,8 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
   background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 6px 10px; font: inherit; min-width: 0;
 }
-.ui-field input:focus, .ui-field textarea:focus, .ui-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
+.ui-field select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; font: inherit; min-width: 0; }
+.ui-field input:focus, .ui-field textarea:focus, .ui-field select:focus, .ui-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
 
 /* toolbar and breadcrumb */
 .ui-toolbar { display: flex; align-items: center; gap: var(--gap); padding: 6px; background: var(--sheen), var(--panel); border-bottom: 1px solid var(--border); }

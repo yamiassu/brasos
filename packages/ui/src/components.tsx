@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import { Icon } from "./icons";
+import type { SelectHTMLAttributes } from "react";
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -223,5 +224,15 @@ export function TrayItem({ icon, label, children, onClick }: { icon?: string; la
     <button type="button" className="ui-tray-item" aria-label={label} title={label} onClick={onClick}>{inner}</button>
   ) : (
     <span className="ui-tray-item" role="status" aria-label={label} title={label}>{inner}</span>
+  );
+}
+
+/** A labelled drop-down. Pass `<option>`s as children. */
+export function SelectField({ label, children, ...p }: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
+  return (
+    <label className="ui-field">
+      {label}
+      <select {...p}>{children}</select>
+    </label>
   );
 }

@@ -2,17 +2,17 @@
 import { useEffect, useState } from "react";
 import { TrayItem } from "@brasos/ui";
 
-export function Clock() {
+export function Clock({ timezone, clock24 }: { timezone?: string; clock24?: boolean }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 15_000);
     return () => clearInterval(t);
   }, []);
   return (
-    <TrayItem label={now.toLocaleString()}>
+    <TrayItem label={now.toLocaleString([], { timeZone: timezone })}>
       <span className="stack">
-        <span>{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-        <span>{now.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+        <span>{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: clock24 === undefined ? undefined : !clock24, timeZone: timezone })}</span>
+        <span>{now.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric", timeZone: timezone })}</span>
       </span>
     </TrayItem>
   );

@@ -4,6 +4,20 @@
 
 The desktop shows an icon for every app, followed by whatever is in your `/Desktop` folder. **Double-click** an icon, or select it and press **Enter**, to open it. Folders and files open in **Files**. **Right-click** the desktop for *Open Files* and *Refresh*.
 
+## First start
+
+The first time BrasOS starts, a short setup runs instead of the desktop:
+
+1. **Account**: your name, a username, and a password (at least 10 characters).
+2. **Region**: language, time zone, keyboard layout and 12 or 24-hour clock.
+3. **Appearance**: the one accent color (amber, mint, ice or mono) that marks focus and selection.
+4. **Device**: a name for this computer.
+5. **Review**, then **Finish**.
+
+After that the screen is locked with your password when you press the lock button in the tray, and BrasOS asks for it again in a new session. The password locks the screen; it does not encrypt the disk or stop other programs on the machine. The accent, clock and time zone take effect immediately; the keyboard layout, system time zone and device name are recorded for the system to apply. For a fleet of machines, an administrator can provision the account ahead of time (see the setup package's README) so nobody sees the installer.
+
+## The taskbar
+
 The **taskbar** along the bottom works like the one you know:
 
 - **Start** (left) lists every app. Next to it, the **search box** (or **Ctrl+K** anywhere) finds apps, open windows, files in `/Desktop`, `/Documents` and `/Downloads`, and the guides. Arrow keys move through the results, **Enter** opens one, **Escape** closes.

@@ -77,12 +77,16 @@ in {
         BRASOS_PACKAGES = "hardened";
         BRASOS_PREBUILT = "1";
         BRASOS_DIST = "${dist}";
-      };
+        # the first-boot account and preferences (setup.json) are the only thing it writes
+        BRASOS_STATE_DIR = "/var/lib/brasos";
+      } // lib.optionalAttrs (config.brasos.setup.preseed != null) { BRASOS_SETUP_PRESEED = "${config.brasos.setup.preseed}"; };
       serviceConfig = {
         ExecStart = "${pkgs.bun}/bin/bun ${src}/packages/host/src/main.ts";
         Restart = "on-failure";
         RestartSec = 2;
         DynamicUser = true;
+        StateDirectory = "brasos"; # /var/lib/brasos, private to the throwaway user
+        StateDirectoryMode = "0700";
         NoNewPrivileges = true;
         CapabilityBoundingSet = "";
         ProtectSystem = "strict";

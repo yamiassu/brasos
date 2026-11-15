@@ -1,6 +1,6 @@
 import { Component, type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import type { AppInfo } from "@brasos/sdk";
-import { Button } from "@brasos/ui";
+import { Button, palettes } from "@brasos/ui";
 
 /** src is set for PWA windows (the gateway URL the host handed back); hash opens a built-in app at a place (e.g. Files at /Desktop) */
 export type Win = { key: number; app: AppInfo; x: number; y: number; z: number; reload: number; src?: string; hash?: string };
@@ -30,7 +30,7 @@ export class Boundary extends Component<{ style: CSSProperties; onClose: () => v
 }
 
 // The iframe lives in its own process; the shell detects a hung/crashed app by missing pongs.
-export function Frame({ win, shield, onRestart, onClose }: { win: Win; shield: boolean; onRestart: () => void; onClose: () => void }) {
+export function Frame({ win, palette, shield, onRestart, onClose }: { win: Win; palette?: string; shield: boolean; onRestart: () => void; onClose: () => void }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [hung, setHung] = useState(false);
   useEffect(() => {
@@ -56,7 +56,11 @@ export function Frame({ win, shield, onRestart, onClose }: { win: Win; shield: b
         key={win.reload}
         ref={ref}
         title={win.app.name}
-        onLoad={(e) => e.currentTarget.focus()}
+        onLoad={(e) => {
+          e.currentTarget.focus();
+          // built-in apps follow the user's accent color; websites are never told anything
+          if (!win.src && palette) e.currentTarget.contentWindow?.postMessage({ brasos: "prefs", vars: (palettes as Record<string, { vars: object }>)[palette]?.vars ?? {} }, new URL(frameSrc(win)).origin);
+        }}
         src={frameSrc(win)}
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
         style={{ pointerEvents: shield ? "none" : "auto" }}

@@ -11,7 +11,7 @@ const post = (path: string, body: unknown) =>
   fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 const getJson = (path: string) => fetch(path).then((r) => r.json());
 
-export function Shell() {
+export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clock24: boolean; palette: string }; user?: { display: string }; onLock?: () => void }) {
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [wins, setWins] = useState<Win[]>([]);
@@ -190,7 +190,7 @@ export function Shell() {
                   onPointerUp: () => setDragging(false),
                 }}
               >
-                <Frame win={w} shield={dragging} onRestart={() => patch(w.key, (c) => ({ reload: c.reload + 1 }))} onClose={() => close(w.key)} />
+                <Frame win={w} palette={prefs?.palette} shield={dragging} onRestart={() => patch(w.key, (c) => ({ reload: c.reload + 1 }))} onClose={() => close(w.key)} />
                 {/* clicks inside an iframe never reach us, so unfocused windows get a click-catcher */}
                 {w.z !== topZ && <div className="shield" onPointerDown={() => focus(w.key)} />}
               </WindowFrame>
@@ -221,10 +221,12 @@ export function Shell() {
           {note && <TrayItem label={note}>{note}</TrayItem>}
           {canRestart && <TrayItem icon="edit" label="Edit the interface (opens its source in Files)" onClick={() => openPath("/BrasOS")} />}
           {canRestart && <TrayItem icon="restart" label="Restart the interface" onClick={() => setConfirmRestart(true)} />}
+          {user && <TrayItem icon="user" label={`Signed in as ${user.display}`} />}
+          {onLock && <TrayItem icon="lock" label="Lock the screen" onClick={onLock} />}
           <Mode packages={packages} />
           <Network />
           <Battery />
-          <Clock />
+          <Clock timezone={prefs?.timezone} clock24={prefs?.clock24} />
         </Tray>
       </Taskbar>
       {launcher && (
