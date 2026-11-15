@@ -225,6 +225,12 @@ impl Smallvil {
             }
             self.space.map_element(win, (i as i32 * w, 0), false);
         }
+        // keyboard focus defaults to the first window (the shell); a click or the shell's `focus` command moves it
+        if let (Some(kb), Some(first)) = (self.seat.get_keyboard(), self.space.elements().next().and_then(|w| w.toplevel()).cloned()) {
+            if kb.current_focus().is_none() {
+                kb.set_focus(self, Some(first.wl_surface().clone()), smithay::utils::SERIAL_COUNTER.next_serial());
+            }
+        }
     }
 
     fn unconstrain_popup(&self, popup: &PopupSurface) {
