@@ -45,7 +45,7 @@ test("/os/info is public and lists enabled packages", async () => {
 
 test("the app list comes from manifests, sorted, with permissions", async () => {
   const apps = await (await h.at("localhost", "/os/apps", shell)).json();
-  expect(apps.map((a: any) => a.id)).toEqual(["about", "browser", "crash-test", "docs", "files", "packages", "settings", "task-manager", "terminal"]);
+  expect(apps.map((a: any) => a.id)).toEqual(["about", "browser", "crash-test", "docs", "files", "notes", "packages", "settings", "task-manager", "terminal"]);
   expect(apps.find((a: any) => a.id === "terminal").permissions).toEqual(["pty"]);
 });
 
