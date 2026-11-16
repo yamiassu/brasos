@@ -17,7 +17,7 @@ An app is a [Web App Manifest](https://www.w3.org/TR/appmanifest/) (the standard
 ```
 
 - `permissions`: what the app can do, each an id or `{ id, reason }`. A built-in app holds what it lists. For an app installed from the web this is only a **request**: when you install it, BrasOS shows each permission in plain words with the app's reason and you choose what to allow.
-- `window.frame: false`: BrasOS draws no title bar; the app draws its own and controls its window through `os.window` (it needs `window.control`, and an installed web app needs `window.frameless`, which you also approve at install). Right-clicking the app's button on the taskbar always closes its windows.
+- `window.frame: false`: BrasOS draws no title bar; the app draws its own and controls its window through `os.window` (it needs `window.control`, and an installed web app needs `window.frameless`, which you also approve at install). Right-clicking the app's button on the taskbar always offers **Close window**.
 
 ## Everything isolated by origin
 

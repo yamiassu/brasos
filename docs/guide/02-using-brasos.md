@@ -27,7 +27,7 @@ The **taskbar** along the bottom works like the one you know:
 
 ## Windows
 
-- Drag a window by its **title bar**. Click a window to bring it to the front. Resize from the bottom-right corner. Close it with **✕**.
+- Drag a window by its **title bar**. Click a window to bring it to the front. Resize from the bottom-right corner. The buttons at the right of the title bar **minimize** it (the app keeps running; its taskbar button brings it back), **maximize** it (press again to restore the size it had) and **close** it. A **double click** on the title bar also maximizes and restores. Dragging a maximized window by its title bar returns it to its normal size, with the pointer at the same place on the bar. Drag a window to the very top of the screen and a green preview shows where it will go; let go there and it maximizes. On the taskbar, clicking the button of the app that has the focus minimizes its window. Apps that draw their own title bar (like Religare) have the same buttons and double click.
 - Every window is a separate, isolated program. If one stops answering, the system shows **"isn't responding"** with **Restart** and **Close**; the rest of the system carries on.
 
 ## Files
@@ -47,6 +47,16 @@ Files shows your home folder: `/Desktop`, `/Documents` and `/Downloads` to start
 ## Religare
 
 Type an address and press Enter. Sites load through the BrasOS web gateway, which gives every site its own isolated origin. That also means a site that ships `.ts` files just works.
+
+- **Address bar.** Type an address, or anything else to search (DuckDuckGo by default; change it in Settings). Suggestions come from your favorites and history. Only web addresses (`http`, `https`) open.
+- **Tabs.** **+** or **Ctrl+T** opens one, **Ctrl+W** closes it, **Ctrl+Shift+T** brings back the last closed tab, **Ctrl+Tab** switches, and a middle click closes. Right-click a tab to reload, duplicate or close the others.
+- **Favorites.** **☆** (or **Ctrl+D**) saves the page. They show on a bar under the address bar, and on the new tab page.
+- **History.** **Ctrl+H** opens the history, grouped by day, with search; remove one entry or clear all. A **private tab** (**Ctrl+Shift+N**) adds nothing to history.
+- **Find in page.** **Ctrl+F** searches the page, with the number of matches; **Enter** and **Shift+Enter** go to the next and previous match.
+- **Pinned tabs.** Right-click a tab and choose **Pin tab**: it shrinks to an icon and stays first. Drag tabs to reorder them.
+- **The menu (⋮)** has find, copy address, zoom, the panels, the favorites bar switch, and **Settings** (search engine, home page).
+
+Favorites, history and settings are kept in the app's own space in the OS database, so they survive a restart.
 
 If a site is a PWA, **Install** lights up. Installing adds it to the taskbar and desktop as an app. Installed sites get no special permissions.
 

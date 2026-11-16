@@ -6,7 +6,7 @@ import { Desktop } from "./desktop";
 import { Launcher, search, type Hit } from "./launcher";
 import { isPinned, loadUnpinned, saveUnpinned, setPinned, type Unpinned, type Where } from "./pins";
 import { Battery, Clock, Mode, Network } from "./tray";
-import { Boundary, Frame, type Win } from "./windows";
+import { atTopEdge, Boundary, DEFAULT_W, Frame, restoreLeft, type Win } from "./windows";
 import { InstallPrompt, type Inspection } from "./install";
 
 const post = (path: string, body: unknown) =>
@@ -107,15 +107,38 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
   const close = (key: number) => setWins((ws) => ws.filter((w) => w.key !== key));
   const focus = (key: number) => {
     const z = seq.current++;
-    patch(key, () => ({ z }));
+    patch(key, () => ({ z, min: false })); // focusing a minimized window brings it back
   };
-  const topZ = Math.max(0, ...wins.map((w) => w.z));
-  const focused = wins.find((w) => w.z === topZ);
+  const minimize = (key: number) => patch(key, () => ({ min: true }));
+  const toggleMax = (key: number) => patch(key, (c) => ({ max: !c.max }));
+  /** a drag that starts on a maximized window returns it to its normal size, with the pointer where it was on the title bar */
+  const unmaxAt = (w: Win, pointerX: number) => patch(w.key, () => ({ max: false, x: restoreLeft(pointerX, innerWidth, w.w ?? DEFAULT_W), y: 0 }));
+  const dragFrom = useRef({ x: 0, y: 0 });
+  // dragging a window to the top edge shows a preview of the maximized window, and releasing there maximizes it
+  const [snap, setSnapState] = useState<number | null>(null);
+  const snapRef = useRef<number | null>(null);
+  const setSnap = (key: number | null) => ((snapRef.current = key), setSnapState(key));
+  const dropSnap = (key: number) => {
+    if (snapRef.current === key) patch(key, () => ({ max: true }));
+    setSnap(null);
+  };
+  // a minimized window is still running but is not the one with the focus
+  const shown = wins.filter((w) => !w.min);
+  const topZ = Math.max(0, ...shown.map((w) => w.z));
+  const focused = shown.find((w) => w.z === topZ);
   /** an app's button: focus its window if it has one, else open it */
   const launch = (app: AppInfo) => {
     const mine = wins.filter((w) => w.app.id === app.id);
     if (mine.length) focus(mine.reduce((a, b) => (a.z > b.z ? a : b)).key);
     else open(app);
+  };
+  /** the taskbar button: open the app, bring its window back, or minimize it when it already has the focus (the way a taskbar behaves) */
+  const toggleTask = (app: AppInfo) => {
+    const mine = wins.filter((w) => w.app.id === app.id);
+    if (!mine.length) return void open(app);
+    const top = mine.reduce((a, b) => (a.z > b.z ? a : b));
+    if (!top.min && top === focused) minimize(top.key);
+    else focus(top.key);
   };
   /** the right-click menu of an app, on the taskbar or in the start menu */
   const appMenuItems = (a: AppInfo): MenuItem[] => {
@@ -191,10 +214,19 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
         const { op } = e.data;
         if (op === "close") close(w.key);
         else if (op === "focus") focus(w.key);
+        else if (op === "minimize") minimize(w.key);
+        else if (op === "maximize") toggleMax(w.key);
         else if (op === "title" && typeof e.data.title === "string") patch(w.key, () => ({ title: e.data.title.slice(0, 80) }));
         else if (op === "moveBy") {
           const dx = num(e.data.dx, -4000, 4000), dy = num(e.data.dy, -4000, 4000);
-          if (dx !== null && dy !== null) patch(w.key, (c) => ({ x: c.x + dx, y: Math.max(0, c.y + dy) }));
+          if (dx === null || dy === null) return;
+          const ax = num(e.data.x, -20000, 20000), ay = num(e.data.y, -20000, 20000); // the app says where its pointer is, in its own window
+          if (!w.max) {
+            patch(w.key, (c) => ({ x: c.x + dx, y: Math.max(0, c.y + dy) }));
+            if (ay !== null) setSnap(atTopEdge(Math.max(0, w.y + dy) + ay) ? w.key : null);
+          } else if (ax !== null) unmaxAt(w, ax);
+        } else if (op === "moveEnd") {
+          dropSnap(w.key);
         } else if (op === "resize") {
           const ww = num(e.data.w, 200, 8000), hh = num(e.data.h, 120, 8000);
           if (ww !== null && hh !== null) patch(w.key, () => ({ w: ww, h: hh }));
@@ -236,30 +268,47 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
   return (
     <div className="ui-root">
       <div className="layer windows">
+        {snap !== null && <div className="snap-preview" aria-hidden="true" style={{ zIndex: (wins.find((x) => x.key === snap)?.z ?? 0) + 1 }} />}
         {wins.map((w) => {
-          const pos = { left: w.x, top: w.y, zIndex: w.z + 2, ...(w.w ? { width: w.w } : {}), ...(w.h ? { height: w.h } : {}) };
+          const pos = w.max
+            ? { left: 0, top: 0, width: "100%", height: "100%", zIndex: w.z + 2 }
+            : { left: w.x, top: w.y, zIndex: w.z + 2, ...(w.w ? { width: w.w } : {}), ...(w.h ? { height: w.h } : {}) };
           return (
             <Boundary key={w.key} style={pos} onClose={() => close(w.key)}>
               <WindowFrame
                 title={w.title ?? w.app.name}
                 icon={w.app.icon}
                 bare={w.app.window?.frame === false}
-                focused={w.z === topZ}
+                focused={w === focused}
+                maximized={!!w.max}
+                minimized={!!w.min}
                 style={pos}
                 onClose={() => close(w.key)}
+                onMinimize={() => minimize(w.key)}
+                onMaximize={() => toggleMax(w.key)}
                 headerProps={{
                   onPointerDown: (e) => {
-                    e.currentTarget.setPointerCapture(e.pointerId);
+                    dragFrom.current = { x: e.clientX, y: e.clientY };
+                    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} // a pointer that is already gone can't be captured
                     setDragging(true);
                     focus(w.key);
                   },
-                  onPointerMove: (e) => e.buttons && patch(w.key, (c) => ({ x: c.x + e.movementX, y: Math.max(0, c.y + e.movementY) })),
-                  onPointerUp: () => setDragging(false),
+                  onPointerMove: (e) => {
+                    if (!e.buttons) return;
+                    if (!w.max) {
+                      setSnap(atTopEdge(e.clientY) ? w.key : null);
+                      return patch(w.key, (c) => ({ x: c.x + e.movementX, y: Math.max(0, c.y + e.movementY) }));
+                    }
+                    // a click or a double click must not un-maximize: only a real drag (more than a few pixels) does
+                    if (Math.hypot(e.clientX - dragFrom.current.x, e.clientY - dragFrom.current.y) > 4) unmaxAt(w, e.clientX);
+                  },
+                  onPointerUp: () => (setDragging(false), dropSnap(w.key)),
+                  onPointerCancel: () => (setDragging(false), setSnap(null)),
                 }}
               >
                 <Frame win={w} onRef={(el) => (el ? frames.current.set(w.key, el) : frames.current.delete(w.key))} palette={prefs?.palette} shield={dragging} onRestart={() => patch(w.key, (c) => ({ reload: c.reload + 1 }))} onClose={() => close(w.key)} />
                 {/* clicks inside an iframe never reach us, so unfocused windows get a click-catcher */}
-                {w.z !== topZ && <div className="shield" onPointerDown={() => focus(w.key)} />}
+                {w !== focused && <div className="shield" onPointerDown={() => focus(w.key)} />}
               </WindowFrame>
             </Boundary>
           );
@@ -287,7 +336,7 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
         {apps.filter((a) => isPinned(unpinned, "taskbar", a.id) || wins.some((w) => w.app.id === a.id)).map((a) => {
           const mine = wins.filter((w) => w.app.id === a.id);
           // right-click opens the app's menu, which has Close: the way out of a window that draws its own frame (and has no close button of ours)
-          return <span key={a.id} onContextMenu={(e) => (e.preventDefault(), setAppMenu({ x: e.clientX, y: e.clientY, app: a }))}><TaskButton icon={a.icon} label={a.name} running={mine.length > 0} active={focused?.app.id === a.id} onClick={() => launch(a)} /></span>;
+          return <span key={a.id} onContextMenu={(e) => (e.preventDefault(), setAppMenu({ x: e.clientX, y: e.clientY, app: a }))}><TaskButton icon={a.icon} label={a.name} running={mine.length > 0} active={focused?.app.id === a.id} onClick={() => toggleTask(a)} /></span>;
         })}
         {natives.map((n) => (
           <span key={n.id} onContextMenu={(e) => (e.preventDefault(), post("/os/native/close", { id: n.id }))}>

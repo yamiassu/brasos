@@ -12,6 +12,11 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
   grid-auto-columns: 96px; gap: 4px; align-content: start; justify-content: start;
 }
 
+/* the preview of where a window lands when it is dropped on the top edge: the same area as maximized */
+.snap-preview { position: absolute; inset: 0; border-radius: 10px; pointer-events: none; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); animation: snap-in .14s ease-out; }
+@keyframes snap-in { from { opacity: 0; transform: scale(.97); } }
+@media (prefers-reduced-motion: reduce) { .snap-preview { animation: none; } }
+
 /* the desktop: neutral night with a faint pool of light; the rare color is saved for what is focused */
 #root {
   background:
