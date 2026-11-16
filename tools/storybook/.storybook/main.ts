@@ -9,6 +9,7 @@ const config: StorybookConfig = {
   stories: [`${root}/packages/**/*.stories.@(ts|tsx)`, `${root}/apps/**/*.stories.@(ts|tsx)`],
   framework: "@storybook/react-vite",
   addons: [],
+  staticDirs: [{ from: `${root}/docs/brand`, to: "/brand" }],
   core: { disableTelemetry: true },
   viteFinal(c) {
     // the same aliases as the repo's tsconfig, and one copy of React (the repo's), whatever Storybook installed beside it

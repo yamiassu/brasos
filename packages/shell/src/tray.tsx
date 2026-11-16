@@ -12,7 +12,7 @@ export function Clock({ timezone, clock24 }: { timezone?: string; clock24?: bool
     <TrayItem label={now.toLocaleString([], { timeZone: timezone })}>
       <span className="stack">
         <span>{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: clock24 === undefined ? undefined : !clock24, timeZone: timezone })}</span>
-        <span>{now.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric", timeZone: timezone })}</span>
+        <span>{now.toLocaleDateString([], { day: "2-digit", month: "2-digit", timeZone: timezone })}</span>
       </span>
     </TrayItem>
   );
@@ -48,6 +48,6 @@ export function Mode({ packages }: { packages: string[] | null }) {
   return packages.includes("hardened") ? (
     <TrayItem icon="shield" label="Hardened package on (work in progress, not certified)">Hardened</TrayItem>
   ) : (
-    <span className="ui-tray-item ui-tray-item--warn" role="status" title="Hardened package off: not secure"><TrayItem icon="dev" label="Development image: hardened package off, not secure">DEV · not secure</TrayItem></span>
+    <span className="ui-tray-item ui-tray-item--warn" role="status" title="Hardened package off: not secure"><TrayItem icon="dev" label="Development image: hardened package off, not secure">DEV</TrayItem></span>
   );
 }

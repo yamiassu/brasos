@@ -43,7 +43,7 @@ Files shows your home folder: `/Desktop`, `/Documents` and `/Downloads` to start
 | Delete | Select it, then **Delete**. It goes to the trash (`/.trash`), it is not erased |
 | Preview | Select a file. Text files (up to 1 MB) show their contents and can be edited with **Edit**, then **Save**; small images are shown |
 
-## Browser
+## Religare
 
 Type an address and press Enter. Sites load through the BrasOS web gateway, which gives every site its own isolated origin. That also means a site that ships `.ts` files just works.
 

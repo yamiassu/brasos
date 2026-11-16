@@ -1,7 +1,7 @@
 /* @brasos/ui: design tokens and the basic components. Everything is driven by the variables below, so the whole OS can be
    restyled by overriding them (put overrides in packages/shell/src/user.css, which loads last).
 
-   Identity ("Aurora"): a neutral, dark, professional surface. Grey does the work; a soft amber (with coral as its partner)
+   Identity ("Aurora", minimalist): a flat, neutral, dark surface. Grey does the work; a calm green (with violet as its partner)
    is a rare signal, used for the keyboard focus, the selected item and the focused window's edge. Nothing else is colored,
    and nothing is saturated.
    See docs/guide/06-ui-kit.md. */
@@ -13,29 +13,29 @@
   --text: #ececee;
   --muted: #8b8b92;
   --icon: #c9c9cf;   /* line icons at rest */
-  --icon-2: #7c7c84; /* the detail stroke of an icon at rest */
+  --icon-hi: #7c7c84; /* fallback detail stroke for an icon with no color of its own */
 
   /* the rare colors */
-  --accent: #e3b36b;   /* soft amber: embers */
-  --accent-2: #d98a94; /* muted coral: the partner */
+  --accent: #5fd39a;   /* calm green: the main color */
+  --accent-2: #9b87f5; /* soft violet: the partner */
   --danger: #f0616d;   /* alarm red, kept apart from the coral so danger never looks decorative */
   --warn: #ecd28a;     /* pale gold: notices, the dev marker */
-  --on-accent: #17110a; /* text on a filled accent */
+  --on-accent: #06140d; /* text on a filled accent */
 
   /* edges and fills are neutral; the glow is the only place --accent leaks in */
   --border: #ffffff14;
   --border-strong: #ffffff30;
   --hover: #ffffff0d;
   --selected: #ffffff1a;
-  --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), 0 0 12px color-mix(in srgb, var(--accent) 12%, transparent);
+  --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
   --aurora: linear-gradient(135deg, var(--accent), var(--accent-2));
-  --sheen: linear-gradient(180deg, #ffffff0a, #ffffff00 40%); /* light falling on a surface */
+  --sheen: linear-gradient(transparent, transparent); /* flat: no gradients on surfaces */
 
-  --radius: 12px;
-  --radius-sm: 7px;
+  --radius: 10px;
+  --radius-sm: 6px;
   --gap: 8px;
   --font: system-ui, sans-serif;
-  --shadow: 0 14px 50px #000a;
+  --shadow: 0 8px 28px #0008;
   color-scheme: dark;
 }
 
@@ -109,8 +109,8 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 }
 .ui-window--focused {
   /* the one lit edge on screen */
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  box-shadow: var(--shadow), 0 0 16px color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: var(--shadow);
 }
 .ui-window > header { display: flex; align-items: center; gap: var(--gap); padding: 6px 10px; cursor: grab; user-select: none; touch-action: none; background: var(--sheen), var(--panel-2); border-bottom: 1px solid var(--border); }
 .ui-window > header .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -123,16 +123,14 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
   position: absolute; left: 0; right: 0; bottom: 0; height: 44px; display: flex; align-items: center; gap: var(--gap); padding: 0 12px;
   background: var(--sheen), var(--panel); border-top: 1px solid var(--border);
 }
-.ui-badge { margin-left: auto; color: var(--warn); font-size: 12px; }
+.ui-badge { margin-left: auto; color: var(--accent-2); font-size: 12px; }
 
-/* icons: grey line SVG; the detail stroke is dimmer. Hover or selection lights them. */
+/* icons: grey line SVG; the detail stroke carries the icon's own color (set inline). Hover or selection brightens the main stroke. */
 .ui-icon { display: inline-block; vertical-align: middle; flex: none; }
 .ui-icon .m { stroke: var(--icon); }
-.ui-icon .h { stroke: var(--icon-2); }
-.ui-icon .d { stroke: var(--danger); }
-.ui-tile:hover .ui-icon .m, .ui-btn:hover .ui-icon .m, .ui-task:hover .ui-icon .m { stroke: var(--text); }
-.ui-tile:hover .ui-icon .h, .ui-btn:hover .ui-icon .h, .ui-task:hover .ui-icon .h { stroke: var(--icon); }
-.ui-tile[aria-selected="true"] .ui-icon .m, .ui-item[aria-selected="true"] .ui-icon .m, .ui-task--active .ui-icon .m { stroke: var(--accent); }
+.ui-icon .h { stroke: var(--icon-hi); }
+.ui-tile:hover .ui-icon .m, .ui-btn:hover .ui-icon .m, .ui-task:hover .ui-icon .m,
+.ui-tile[aria-selected="true"] .ui-icon .m, .ui-item[aria-selected="true"] .ui-icon .m, .ui-task--active .ui-icon .m { stroke: var(--text); }
 
 /* taskbar: start and search on the left, apps in the middle, the system tray on the right */
 :root { --taskbar-h: 48px; }
@@ -143,15 +141,15 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 .ui-task { position: relative; width: 40px; height: 36px; display: grid; place-items: center; background: transparent; border: 0; border-radius: var(--radius-sm); cursor: pointer; color: inherit; }
 .ui-task:hover { background: var(--hover); }
 .ui-task:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.ui-task--running::after { content: ""; position: absolute; bottom: 2px; left: 50%; width: 6px; height: 2px; margin-left: -3px; border-radius: 2px; background: var(--muted); }
+.ui-task--running::after { content: ""; position: absolute; bottom: 2px; left: 50%; width: 6px; height: 2px; margin-left: -3px; border-radius: 2px; background: var(--accent-2); }
 .ui-task--active { background: var(--selected); }
 .ui-task--active::after { width: 14px; margin-left: -7px; background: var(--accent); }
 .ui-search { display: flex; align-items: center; gap: 8px; width: 260px; height: 32px; padding: 0 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; color: var(--muted); }
 .ui-search:focus-within { border-color: var(--border-strong); color: var(--text); }
 .ui-search input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--text); font: inherit; }
 .ui-search input::placeholder { color: var(--muted); }
-.ui-tray { margin-left: auto; display: flex; align-items: center; gap: 2px; color: var(--muted); font-size: 12px; }
-.ui-tray-item { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: inherit; line-height: 1.15; }
+.ui-tray { margin-left: auto; display: flex; align-items: center; gap: 0; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.ui-tray-item { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 6px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: inherit; line-height: 1.15; }
 button.ui-tray-item { cursor: pointer; }
 button.ui-tray-item:hover { background: var(--hover); color: var(--text); }
 .ui-tray-item--warn { color: var(--warn); }

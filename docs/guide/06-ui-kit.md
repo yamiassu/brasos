@@ -49,7 +49,7 @@ Everything is styled with CSS variables, so the whole OS can be restyled by chan
 | `--text`, `--muted`, `--on-accent` | Text, and text on a filled glow |
 | `--accent`, `--accent-2` | The living colors (amber and coral) |
 | `--danger`, `--warn` | Alarm red and pale gold |
-| `--icon`, `--icon-2` | Icons at rest (main stroke and detail) |
+| `--icon`, `--icon-hi` | Icons at rest (main stroke, and the fallback for the detail, which each icon colors itself) |
 | `--border`, `--border-strong`, `--hover`, `--selected` | Lines and fills: neutral |
 | `--glow`, `--aurora`, `--sheen` | Neon shadow, the gradient, the light on surfaces |
 | `--radius`, `--radius-sm`, `--gap` | Shape and spacing |

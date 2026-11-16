@@ -27,8 +27,8 @@ const pages = Object.entries(guides)
 };
 
 const PALETTES: Record<string, Record<string, string>> = {
-  "Amber and coral": {},
-  "Mint and violet": { "--accent": "#38f2c0", "--accent-2": "#8f7bff", "--on-accent": "#03110d" },
+  "Green and violet": {},
+  "Amber and coral": { "--accent": "#e3b36b", "--accent-2": "#d98a94", "--on-accent": "#17110a" },
   "Ice and blue": { "--accent": "#7fd4ff", "--accent-2": "#5b7cff", "--on-accent": "#021018" },
   "Mono": { "--accent": "#ffffff", "--accent-2": "#9a9aa2", "--on-accent": "#0c0c0d" },
 };
@@ -37,7 +37,7 @@ const preview: Preview = {
   globalTypes: {
     palette: { description: "The rare colors", toolbar: { title: "Palette", icon: "paintbrush", items: Object.keys(PALETTES), dynamicTitle: true } },
   },
-  initialGlobals: { palette: "Amber and coral" },
+  initialGlobals: { palette: "Green and violet" },
   decorators: [
     (Story, ctx) => {
       const el = document.documentElement;

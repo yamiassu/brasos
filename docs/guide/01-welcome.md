@@ -9,7 +9,7 @@ BrasOS is a Linux-based operating system whose whole interface is built with web
 - On the first start, a short **setup** asks who uses the computer and how it should look (see [Using BrasOS](02-using-brasos.md)).
 - Open apps from the **desktop icons**, the **taskbar** along the bottom, or the **search box** (also **Ctrl+K**).
 - Browse and edit your files in **Files**.
-- Load websites in **Browser**, including sites written in TypeScript, and **install** sites that are PWAs as apps.
+- Load websites in **Religare**, including sites written in TypeScript, and **install** sites that are PWAs as apps.
 - Read these guides in **Docs**.
 - Let an AI agent drive the whole system through typed tools: see [Agents](07-agents.md).
 
