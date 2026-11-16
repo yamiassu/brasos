@@ -24,7 +24,7 @@ Put `class="ui-root"` on your root element and import `ui.css` once.
 | `Dialog` | A modal with a title and actions. Escape or the backdrop closes it |
 | `WindowFrame` | A window's title bar and body; `focused` makes it glow brighter; dragging is up to you, via `headerProps` |
 | `Icon` | One of the OS's line icons by name, or text if the name isn't one |
-| `Taskbar`, `TaskButton`, `SearchField`, `Tray`, `TrayItem` | The bottom bar: app buttons that show running and focused state, a search box, and a tray for status (clock, network, mode). `Dock` and `Badge` are the older, simpler bar |
+| `Taskbar`, `TaskButton`, `SearchField`, `Tray`, `TrayItem` | The bottom bar, in three zones (put start and search in a `.ui-task-left` div, app buttons in `.ui-task-apps`, then the tray): app buttons show running and focused state, a search box, and a tray for status (clock, network, mode). `Dock` and `Badge` are the older, simpler bar |
 
 Every component sets its roles and labels itself, so an interface built from them is usable with a keyboard and a screen reader without extra work.
 

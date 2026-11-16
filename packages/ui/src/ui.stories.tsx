@@ -130,9 +130,13 @@ export const Desktop = () => (
       <WindowFrame title="Docs" icon="docs" focused style={{ left: 280, top: 110 }} onClose={() => {}}><div style={{ padding: 16 }}>Docs (focused)</div></WindowFrame>
     </div>
     <Taskbar>
-      <TaskButton icon="start" label="Start" />
-      <SearchField label="Search apps, files, guides" />
-      {["about", "religare", "docs", "files", "terminal"].map((n) => <TaskButton key={n} icon={n} label={n} running={n !== "about"} active={n === "docs"} />)}
+      <div className="ui-task-left">
+        <TaskButton icon="brasos" label="Start" />
+        <SearchField label="Search apps, files, guides" />
+      </div>
+      <div className="ui-task-apps">
+        {["about", "religare", "docs", "files", "terminal"].map((n) => <TaskButton key={n} icon={n} label={n} running={n !== "about"} active={n === "docs"} />)}
+      </div>
       <Tray>
         <TrayItem icon="edit" label="Edit the interface" onClick={() => {}} />
         <TrayItem icon="restart" label="Restart the interface" onClick={() => {}} />

@@ -2,7 +2,7 @@
 // Accessibility is part of each component (roles, labels, keyboard), not an extra.
 import {
   type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type Ref,
-  useEffect, useRef,
+  useEffect, useLayoutEffect, useRef, useState,
 } from "react";
 
 import { Icon } from "./icons";
@@ -128,13 +128,19 @@ export function IconTile({ icon, label, selected, onSelect, onOpen }: { icon: Re
 
 export type MenuItem = { label: string; onSelect(): void; danger?: boolean };
 
-/** A context menu at (x, y). Closes on Escape or a click anywhere else. */
+/** A context menu at (x, y), kept inside the window (it opens upward from the taskbar). Closes on Escape or a click anywhere else. */
 export function Menu({ items, x, y, onClose }: { items: MenuItem[]; x: number; y: number; onClose(): void }) {
   const first = useRef<HTMLButtonElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState({ left: x, top: y });
   useEffect(() => first.current?.focus(), []);
+  useLayoutEffect(() => {
+    const r = box.current?.getBoundingClientRect();
+    if (r) setAt({ left: Math.max(4, Math.min(x, innerWidth - r.width - 4)), top: Math.max(4, y + r.height > innerHeight - 4 ? y - r.height : y) });
+  }, [x, y]);
   return (
     <div className="ui-backdrop" onClick={onClose} onContextMenu={(e) => (e.preventDefault(), onClose())} onKeyDown={(e) => e.key === "Escape" && onClose()}>
-      <div role="menu" className="ui-menu" style={{ left: x, top: y }} onClick={(e) => e.stopPropagation()}>
+      <div ref={box} role="menu" className="ui-menu" style={at} onClick={(e) => e.stopPropagation()}>
         {items.map((it, i) => (
           <button key={it.label} ref={i === 0 ? first : undefined} role="menuitem" className={it.danger ? "danger" : undefined} onClick={() => (it.onSelect(), onClose())}>
             {it.label}
