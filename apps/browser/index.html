@@ -1,32 +1,12 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Religare</title>
-    <style>
-      /* match the framed page's schemes: a page declaring `color-scheme: light dark` would otherwise render as a blank canvas */
-      :root { color-scheme: light dark; }
-      html, body { margin: 0; height: 100%; background: #0c0c0d; color: #ececee; font: 14px system-ui, sans-serif; }
-      body { display: flex; flex-direction: column; }
-      form { display: flex; gap: 6px; padding: 6px; background: #131314; }
-      form input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid #ffffff14; border-radius: 6px; background: #0c0c0d; color: inherit; }
-      button { background: #ffffff0d; color: inherit; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
-      button:hover:not(:disabled) { background: #ffae42; color: #1a0d02; }
-      button:disabled { opacity: 0.4; cursor: default; }
-      iframe { flex: 1; border: 0; background: Canvas; color-scheme: light dark; }
-      #status { padding: 3px 10px; font-size: 12px; color: #8b8b92; background: #131314; min-height: 16px; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
   <body>
-    <form id="bar">
-      <button type="button" id="back" title="Back" disabled>←</button>
-      <button type="button" id="forward" title="Forward" disabled>→</button>
-      <button type="button" id="reload" title="Reload">⟳</button>
-      <input id="url" placeholder="Enter a web address" autocomplete="off" spellcheck="false" />
-      <button id="install" type="button" disabled title="Install this site as an app">Install</button>
-    </form>
-    <iframe id="frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
-    <div id="status"></div>
-    <script type="module" src="./main.ts"></script>
+    <div id="root" class="ui-root"></div>
+    <script type="module" src="./main.tsx"></script>
   </body>
 </html>
