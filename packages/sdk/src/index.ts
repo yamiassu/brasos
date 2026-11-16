@@ -150,9 +150,18 @@ export function createOS(env: Env) {
     window: {
       close: () => send({ op: "close" }),
       focus: () => send({ op: "focus" }),
+      /** hide the window (the app keeps running; its taskbar button brings it back) */
+      minimize: () => send({ op: "minimize" }),
+      /** fill the desktop, or go back to the size it had */
+      toggleMaximize: () => send({ op: "maximize" }),
       setTitle: (title: string) => send({ op: "title", title: String(title) }),
-      /** move by a delta in CSS pixels, e.g. from pointermove (use movementX/Y or screenX/Y differences) */
-      moveBy: (dx: number, dy: number) => send({ op: "moveBy", dx, dy }),
+      /**
+       * move by a delta in CSS pixels, e.g. from pointermove (use movementX/Y). Pass `at`, the pointer's clientX/Y, so that a drag
+       * of a maximized window can return it to its normal size with the pointer where it was on your title bar.
+       */
+      moveBy: (dx: number, dy: number, at?: { x: number; y: number }) => send({ op: "moveBy", dx, dy, ...(at ? { x: at.x, y: at.y } : {}) }),
+      /** the drag is over (pointerup): a window dropped on the top edge of the page is maximized, and its preview goes away */
+      moveEnd: () => send({ op: "moveEnd" }),
       resize: (w: number, h: number) => send({ op: "resize", w, h }),
     },
     /**

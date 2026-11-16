@@ -1,6 +1,6 @@
 // Storybook stories for the UI kit (run: bun run storybook). Plain CSF objects: no Storybook types are needed here.
 import { useState, type ReactNode } from "react";
-import { Breadcrumb, Button, Dialog, Icon, iconNames, IconButton, IconTile, List, Menu, SearchField, Taskbar, TaskButton, TextField, Toolbar, Tray, TrayItem, WindowFrame } from "./index";
+import { Breadcrumb, Button, Dialog, Icon, iconNames, IconButton, IconTile, List, Menu, SearchField, Taskbar, TaskButton, TextField, Toolbar, TitleBar, Tray, TrayItem, WindowFrame } from "./index";
 import "../../shell/src/shell.css"; // the desktop layout classes (.layer, .icons) used by the composition story
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (
@@ -148,3 +148,20 @@ export const Desktop = () => (
     </Taskbar>
   </div>
 );
+
+// An app that draws its own title bar (window.frame: false): the shell does the window management, TitleBar reports the pointer.
+// Here the window controls just log, since Storybook has no shell.
+export const FramelessTitleBar = () => {
+  const [log, setLog] = useState<string[]>([]);
+  const say = (m: string) => setLog((l) => [m, ...l].slice(0, 6));
+  const win = { close: () => say("close"), minimize: () => say("minimize"), toggleMaximize: () => say("toggle maximize"), moveBy: (dx: number, dy: number) => say(`moveBy ${Math.round(dx)}, ${Math.round(dy)}`), moveEnd: () => say("moveEnd (drop)") };
+  return (
+    <div className="ui-root" style={{ width: 520, margin: 24, border: "1px solid var(--border-strong)", borderRadius: 10, overflow: "hidden" }}>
+      <TitleBar window={win} title="Notes" icon="text" />
+      <div style={{ padding: 16, display: "grid", gap: 6, color: "var(--muted)", fontSize: 12 }}>
+        <div>Drag the bar, double click it, use the buttons:</div>
+        {log.map((l, i) => <code key={i}>{l}</code>)}
+      </div>
+    </div>
+  );
+};

@@ -3,7 +3,24 @@ import type { AppInfo } from "@brasos/sdk";
 import { Button, palettes } from "@brasos/ui";
 
 /** src is set for PWA windows (the gateway URL the host handed back); hash opens a built-in app at a place (e.g. Files at /Desktop) */
-export type Win = { key: number; app: AppInfo; x: number; y: number; z: number; reload: number; src?: string; hash?: string; w?: number; h?: number; title?: string };
+export type Win = { key: number; app: AppInfo; x: number; y: number; z: number; reload: number; src?: string; hash?: string; w?: number; h?: number; title?: string; min?: boolean; max?: boolean };
+
+/** how close to the top of the page (px) the pointer must be, while dragging a window, to snap it to full size on release */
+export const SNAP_EDGE = 2;
+export const atTopEdge = (pointerY: number) => pointerY <= SNAP_EDGE;
+
+/** the size a window has when it is not maximized and the app never resized it (the .ui-window default) */
+export const DEFAULT_W = 640;
+
+/**
+ * Where the restored window's left edge goes when a maximized window is dragged from `pointerX`: the pointer keeps the same
+ * relative place on the title bar (a quarter of the way across stays a quarter of the way across), and the window stays on screen.
+ */
+export function restoreLeft(pointerX: number, viewportW: number, winW: number): number {
+  if (viewportW <= 0) return 0;
+  const left = pointerX - winW * (pointerX / viewportW);
+  return Math.round(Math.max(0, Math.min(Math.max(0, viewportW - winW), left)));
+}
 
 // Fresh origin per restart => fresh renderer process (a hung process would otherwise be reused).
 const appOrigin = (id: string, reload: number) =>

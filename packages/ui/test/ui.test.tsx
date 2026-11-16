@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Icon, iconNames, SearchField, Taskbar, TaskButton, Tray, TrayItem, Badge, Breadcrumb, Button, Dialog, Dock, IconButton, IconTile, List, Menu, splitPath, TextField, Toolbar, WindowFrame } from "../src";
+import { Icon, iconNames, SearchField, Taskbar, TaskButton, Tray, TrayItem, Badge, Breadcrumb, Button, Dialog, Dock, IconButton, IconTile, List, Menu, splitPath, TextField, Toolbar, WindowFrame, TitleBar } from "../src";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
 
@@ -90,4 +90,24 @@ test("Taskbar: apps report running and active, search is a labelled searchbox, t
   expect(t).toMatch(/role="searchbox"[^>]*aria-label="Search"|aria-label="Search"[^>]*role="searchbox"/);
   expect(t).toContain('role="group" aria-label="System tray"');
   expect(t).toContain('aria-label="Network: connected"');
+});
+
+test("WindowFrame shows minimize and maximize only when the shell can do them, and says which way maximize goes", () => {
+  const plain = html(<WindowFrame title="Files" onClose={() => {}}>x</WindowFrame>);
+  expect(plain).not.toContain("Minimize");
+  expect(plain).not.toContain("Maximize");
+  const full = html(<WindowFrame title="Files" onClose={() => {}} onMinimize={() => {}} onMaximize={() => {}}>x</WindowFrame>);
+  expect(full).toContain('aria-label="Minimize Files"');
+  expect(full).toContain('aria-label="Maximize Files"');
+  expect(html(<WindowFrame title="Files" maximized onClose={() => {}} onMaximize={() => {}}>x</WindowFrame>)).toContain('aria-label="Restore Files"');
+  expect(html(<WindowFrame title="Files" minimized onClose={() => {}}>x</WindowFrame>)).toContain("ui-window--min");
+});
+
+test("TitleBar and WindowButtons: a draggable bar with labelled window buttons", () => {
+  const w = { close() {}, minimize() {}, toggleMaximize() {}, moveBy() {}, moveEnd() {} };
+  const out = html(<TitleBar window={w} title="Notes" icon="text" />);
+  for (const l of ["Minimize window", "Maximize or restore window", "Close window"]) expect(out).toContain(`aria-label="${l}"`);
+  expect(out).toContain("ui-titlebar");
+  expect(out).toContain("ui-drag");
+  expect(out).toContain("Notes");
 });

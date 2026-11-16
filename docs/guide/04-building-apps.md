@@ -42,6 +42,24 @@ Restart `bun run dev`. The app appears on the desktop and on the taskbar.
 - **Declare permissions.** Calling a capability you did not list returns 403. Ask for as little as you need.
 - **Be keyboard friendly.** The UI kit components already are; keep it that way.
 
+## Drawing your own title bar
+
+An app can ask BrasOS not to draw its title bar: set `"window": { "frame": false }` and the `window.control` permission in the manifest. The app then draws its own bar (Religare puts its tabs in it), and the shell still does the window management. Use the shared pieces from `@brasos/ui` so your window behaves like every other:
+
+```tsx
+import { os } from "@brasos/sdk";
+import { TitleBar, useWindowDrag, WindowButtons } from "@brasos/ui";
+
+// the simple way: an icon, a title, and the buttons
+<TitleBar window={os.window} title="Notes" icon="text" />
+
+// or around your own content (tabs, a search box...): spread the drag handlers and mark the empty part
+const drag = useWindowDrag(os.window);
+<div className="ui-titlebar" {...drag}>{tabs}<span className="ui-drag" /><WindowButtons window={os.window} /></div>
+```
+
+What you get: dragging the bar (or anything marked `ui-drag`) moves the window; a double click maximizes and restores; dragging a maximized window returns it to its normal size with the pointer at the same place on your bar; dropping a window on the top edge of the screen shows a preview and maximizes it; the buttons minimize, maximize and close. Buttons and tabs inside the bar are left alone. The pieces take any object shaped like `WindowControls`, so they work with a fake in tests and Storybook. Without a BrasOS window (a plain browser, Storybook) the `os.window` calls do nothing.
+
 ## Running on the hardened image
 
 Apps are left out of the hardened image unless the manifest says `"hardened": true`. Only opt in apps that need no capability beyond reading the guides or listing apps.

@@ -114,6 +114,16 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 }
 .ui-window > header { display: flex; align-items: center; gap: var(--gap); padding: 6px 10px; cursor: grab; user-select: none; touch-action: none; background: var(--sheen), var(--panel-2); border-bottom: 1px solid var(--border); }
 .ui-window > header .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-winctl { display: flex; gap: 2px; }
+.ui-winctl .ui-iconbtn { background: transparent; border-color: transparent; padding: 2px 9px; }
+.ui-winctl .ui-iconbtn:hover { background: var(--selected); }
+.ui-winctl .ui-iconbtn:last-child:hover { background: var(--danger); color: #fff; border-color: transparent; }
+/* a title bar an app draws itself (window.frame: false): see window.tsx. .ui-drag is the part that drags the window. */
+.ui-titlebar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 12px; background: var(--panel); user-select: none; flex: none; }
+.ui-drag { display: flex; align-items: center; gap: 8px; flex: 1; align-self: stretch; min-width: 48px; }
+.ui-window--max { border-radius: 0; resize: none; }
+.ui-window--max > header { cursor: default; }
+.ui-window--min { display: none; }
 .ui-window--bare { border: 0; background: transparent; box-shadow: none; border-radius: 0; }
 .ui-window .body { position: relative; flex: 1; min-height: 0; }
 .ui-window .body iframe { width: 100%; height: 100%; border: 0; background: Canvas; color-scheme: light dark; }

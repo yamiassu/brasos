@@ -22,7 +22,8 @@ Put `class="ui-root"` on your root element and import `ui.css` once.
 | `IconTile` | A glyph with a label, for desktops and file grids. Enter or double-click opens |
 | `Menu` | A context menu at a position. Escape or an outside click closes it |
 | `Dialog` | A modal with a title and actions. Escape or the backdrop closes it |
-| `WindowFrame` | A window's title bar and body; `focused` makes it glow brighter; dragging is up to you, via `headerProps` |
+| `TitleBar`, `useWindowDrag`, `WindowButtons` | For an app that draws its own title bar (`window.frame: false`): drag, double click to maximize, restore under the pointer, snap to the top edge, and minimize, maximize and close buttons. Pass `os.window` (see *Drawing your own title bar* in the building guide) |
+| `WindowFrame` | A window's title bar and body; `focused` makes it glow brighter; dragging is up to you, via `headerProps`. Give it `onMinimize` and `onMaximize` (and `maximized` / `minimized`) to show those buttons and make a double click on the bar maximize |
 | `Icon` | One of the OS's line icons by name, or text if the name isn't one |
 | `Taskbar`, `TaskButton`, `SearchField`, `Tray`, `TrayItem` | The bottom bar, in three zones (put start and search in a `.ui-task-left` div, app buttons in `.ui-task-apps`, then the tray): app buttons show running and focused state, a search box, and a tray for status (clock, network, mode). `Dock` and `Badge` are the older, simpler bar |
 

@@ -165,24 +165,34 @@ export function Dialog({ title, children, actions, onClose }: { title: string; c
 }
 
 /** Window chrome (title bar and body). Dragging and focus are the shell's business: pass pointer handlers in `headerProps`. */
-export function WindowFrame({ title, icon, focused, bare, onClose, headerProps, style, children }: {
+export function WindowFrame({ title, icon, focused, bare, maximized, minimized, onClose, onMinimize, onMaximize, headerProps, style, children }: {
   title: string;
   /** the window with the user's attention glows brighter */
   focused?: boolean;
   icon?: ReactNode;
   /** no title bar and no border: the app draws its own frame (manifest `window.frame: false`) */
   bare?: boolean;
+  /** filling the desktop; hidden while minimized (the app keeps running) */
+  maximized?: boolean;
+  minimized?: boolean;
   onClose(): void;
+  /** when given, the title bar shows the button, and a double click on the bar toggles maximize */
+  onMinimize?(): void;
+  onMaximize?(): void;
   headerProps?: HTMLAttributes<HTMLElement>;
   style?: CSSProperties;
   children: ReactNode;
 }) {
   return (
-    <section className={cx("ui-window", focused && !bare && "ui-window--focused", bare && "ui-window--bare")} style={style} aria-label={title}>
+    <section className={cx("ui-window", focused && !bare && "ui-window--focused", bare && "ui-window--bare", maximized && "ui-window--max", minimized && "ui-window--min")} style={style} aria-label={title} hidden={minimized}>
       {!bare && (
-        <header {...headerProps}>
+        <header {...headerProps} onDoubleClick={onMaximize && ((e) => !(e.target as HTMLElement).closest("button") && onMaximize())}>
           <span className="title">{typeof icon === "string" ? <Icon name={icon} size={18} /> : icon} {title}</span>
-          <IconButton label={`Close ${title}`} onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>✕</IconButton>
+          <span className="ui-winctl">
+            {onMinimize && <IconButton label={`Minimize ${title}`} onPointerDown={(e) => e.stopPropagation()} onClick={onMinimize}>–</IconButton>}
+            {onMaximize && <IconButton label={maximized ? `Restore ${title}` : `Maximize ${title}`} onPointerDown={(e) => e.stopPropagation()} onClick={onMaximize}>{maximized ? "❐" : "□"}</IconButton>}
+            <IconButton label={`Close ${title}`} onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>✕</IconButton>
+          </span>
         </header>
       )}
       <div className="body">{children}</div>

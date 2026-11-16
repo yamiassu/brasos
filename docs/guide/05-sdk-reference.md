@@ -28,7 +28,7 @@ As a plain script on any page inside BrasOS: `<script src="/__brasos/sdk.js"></s
 | `await os.docs.list()` / `os.docs.page(slug)` | `docs.read` | rejects `UnsupportedError`, unless the page supplies the guides (Storybook does) |
 | `os.db.collection(name, { space? })` → `put(doc, id?)`, `get(id)`, `list({ where, order, limit })`, `delete(id)` | `db.own` (`db.shared` for `space: "shared"`) | an in-memory store with the same events |
 | `collection.watch(fn)` → unsubscribe | same | the in-memory store's events |
-| `os.window.close()`, `.focus()`, `.setTitle(t)`, `.moveBy(dx, dy)`, `.resize(w, h)` | `window.control` | `false` |
+| `os.window.close()`, `.focus()`, `.minimize()`, `.toggleMaximize()`, `.setTitle(t)`, `.moveBy(dx, dy, at?)`, `.moveEnd()`, `.resize(w, h)` | `window.control` | `false` |
 | `await os.web.open(url)` | `web.open` | `{ url, site }` with the URL unchanged |
 | `os.tools.register(tool)` | none | does nothing without WebMCP |
 
