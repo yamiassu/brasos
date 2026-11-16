@@ -107,3 +107,54 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .login-card.shake { animation: none; } .setup-progress i { transition: none; } }
 
 @media (max-width: 640px) { .setup-card { grid-template-columns: 1fr; } .setup-side { flex-direction: row; align-items: center; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--border); } .setup-steps, .setup-side .setup-note { display: none; } .setup-body, .setup-actions { padding-left: 20px; padding-right: 20px; } .lock-clock .time { font-size: 56px; } }
+
+/* OS installer: the same card as first-boot setup, plus drives, partition bars, the layout table and install phases */
+.os-install .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.os-install .what small, .os-install .mode small, .os-install .danger-box small { color: var(--muted); font-size: 12px; }
+.os-install .mono { font: 12.5px ui-monospace, "Cascadia Code", monospace; }
+.os-install .pill { font-size: 12px; padding: 2px 10px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+.os-install .pill.ok { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.os-install .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+
+.disks { display: flex; flex-direction: column; gap: 10px; }
+.disk { display: flex; align-items: center; gap: 14px; padding: 14px 16px; text-align: left; background: var(--hover); color: inherit; border: 1px solid var(--border); border-radius: var(--radius); font: inherit; cursor: pointer; }
+.disk:hover:not(:disabled) { border-color: var(--border-strong); }
+.disk[aria-checked="true"] { border-color: var(--accent); background: var(--selected); }
+.disk:disabled { opacity: 0.45; cursor: not-allowed; }
+.disk:focus-visible, .mode:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.partbar .bar { display: flex; gap: 2px; height: 10px; margin-top: 8px; border-radius: 5px; overflow: hidden; background: var(--hover); }
+.partbar .bar i { min-width: 3px; }
+.partbar ul { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12px; }
+.partbar li { display: flex; align-items: center; gap: 6px; }
+.partbar li i { width: 8px; height: 8px; border-radius: 2px; }
+.partbar li small { color: var(--muted); }
+.partbar li.none { color: var(--muted); }
+
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mode { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; text-align: left; background: var(--hover); color: inherit; border: 1px solid var(--border); border-radius: var(--radius); font: inherit; }
+.mode[aria-checked="true"] { border-color: var(--accent); background: var(--selected); }
+.mode:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.layout { width: 100%; border-collapse: collapse; font-size: 13px; }
+.layout th, .layout td { text-align: left; padding: 7px 8px 7px 0; border-bottom: 1px solid var(--border); }
+.layout th { font-size: 12px; font-weight: 500; color: var(--muted); }
+.opts { display: flex; gap: 14px; }
+.opts .ui-field { flex: 1; }
+
+.danger-box { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--danger) 50%, transparent); background: color-mix(in srgb, var(--danger) 10%, transparent); border-radius: var(--radius); }
+.danger-box .ui-icon .m, .danger-box .ui-icon .h { stroke: var(--danger); }
+.danger-box small { display: block; margin-top: 2px; }
+
+.os-install .meter { height: 8px; border-radius: 4px; background: var(--hover); overflow: hidden; }
+.os-install .meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s linear; }
+.phases { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; color: var(--muted); }
+.phases li { display: flex; align-items: center; gap: 12px; }
+.phases .dot { width: 18px; height: 18px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 50%; font-size: 10px; }
+.phases li.done { color: var(--text); }
+.phases li.done .dot { background: color-mix(in srgb, var(--accent) 25%, transparent); border-color: var(--accent); color: var(--accent); }
+.phases li.now { color: var(--text); }
+.phases li.now .dot { border-color: var(--accent); border-top-color: transparent; animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .phases li.now .dot { animation: none; } .os-install .meter i { transition: none; } }
+@media (max-width: 640px) { .modes { grid-template-columns: 1fr; } }

@@ -34,6 +34,7 @@ const SET: Record<string, { d: string; hi?: string; c?: string }> = {
   plug: { d: "M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0z", hi: "M12 17v4", c: "#ffb454" },
   package: { d: "M3 9h18v11H3zM3 9l2-5h14l2 5", hi: "M10 13h4", c: "#ffb454" },
   brasos: { d: "M8 4v16", hi: "M12 4h2a3.5 3.5 0 0 1 0 7h-2zM12 13h3a3.5 3.5 0 0 1 0 7h-3z", c: "#5fd39a" },
+  disk: { d: "M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", hi: "M7 14h6M17 14h.01", c: "#6cb6ff" },
   trash: { d: "M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13", hi: "M10 11v6M14 11v6", c: "#ff8fb1" },
   user: { d: "M12 4a4 4 0 1 0 0 8a4 4 0 0 0 0-8z", hi: "M4 20c1-4 4-6 8-6s7 2 8 6", c: "#6cb6ff" },
   lock: { d: "M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z", hi: "M8 11V8a4 4 0 0 1 8 0v3", c: "#f0b429" },
