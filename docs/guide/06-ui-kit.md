@@ -24,20 +24,20 @@ Put `class="ui-root"` on your root element and import `ui.css` once.
 | `Dialog` | A modal with a title and actions. Escape or the backdrop closes it |
 | `WindowFrame` | A window's title bar and body; `focused` makes it glow brighter; dragging is up to you, via `headerProps` |
 | `Icon` | One of the OS's line icons by name, or text if the name isn't one |
-| `Taskbar`, `TaskButton`, `SearchField`, `Tray`, `TrayItem` | The bottom bar: app buttons that show running and focused state, a search box, and a tray for status (clock, network, mode). `Dock` and `Badge` are the older, simpler bar |
+| `Taskbar`, `TaskButton`, `SearchField`, `Tray`, `TrayItem` | The bottom bar, in three zones (put start and search in a `.ui-task-left` div, app buttons in `.ui-task-apps`, then the tray): app buttons show running and focused state, a search box, and a tray for status (clock, network, mode). `Dock` and `Badge` are the older, simpler bar |
 
 Every component sets its roles and labels itself, so an interface built from them is usable with a keyboard and a screen reader without extra work.
 
 ## Visual identity: Aurora
 
-BrasOS is dark, neutral and quiet. The surface is grey; color is rare, so that it stands out when it appears. Where attention is, edges light up like neon, and the color is that of living things that make their own light (amber, with coral as its partner).
+BrasOS is dark, neutral and quiet. The surface is flat grey; color is rare, so that it stands out when it appears. The main color is a calm green, with violet as its partner.
 
-- **Color is a signal.** It appears only on: the **focused window** (a gradient rim and glow; `WindowFrame` takes `focused`; the others stay grey), keyboard focus, the selected row, the primary button, and dialogs. Danger and notices have their own colors. Everything else, including every icon at rest, is grey. Nothing is saturated: the amber is soft, and the coral is muted.
-- **Neon edges.** The focused window and dialogs have a gradient rim (amber to coral) drawn behind a solid panel, plus a glow.
-- **Light gradients.** `--sheen` is a faint light falling on a surface (toolbars, title bars, menus); `--aurora` is the amber-to-coral gradient for primary actions and rims. The desktop is night with a few soft aurora glows.
-- **Colors from nature.** Amber (`--accent`) is fireflies and embers, coral (`--accent-2`) is reef. Danger is a separate alarm red (`--danger`) and notices are pale gold (`--warn`), so neither looks decorative. Keep it rare: one bright thing per area, so it stays meaningful.
-- **Icons.** `Icon` draws the OS's line icons (`about`, `browser`, `docs`, `files`, `folder`, `terminal`, `text`, `image`, `link`, `edit`, `restart`, `app`, ...) as inline SVG: grey strokes with a dimmer detail; hover or selection lights them amber and coral. An app names its icon in the manifest (`"brasos": { "icon": "files" }`); any other text, such as an emoji, is shown as is.
-- **Cost.** Everything is gradients, shadows and borders: no images, no animation. The one blur is behind dialogs.
+- **Color is a signal.** It appears only on: the **focused window** (a green edge; `WindowFrame` takes `focused`; the others stay grey), keyboard focus, the selected row, the primary button, and dialogs. Danger and notices have their own colors. Everything else, including every icon at rest, is grey. Nothing is saturated: the amber is soft, and the coral is muted.
+- **Flat surfaces.** Panels, dialogs and windows are flat: a thin border and a soft shadow. Only the focused window gets a green edge.
+- **One gradient.** `--aurora` is the green-to-violet gradient, kept for the logo, the setup progress bar, avatars and code-block edges. `--sheen` is empty (no gradients on surfaces).
+- **Two colors, and danger.** Green (`--accent`) marks focus and selection, violet (`--accent-2`) marks secondary signals such as running apps and badges. Danger is a separate alarm red (`--danger`) and notices are pale gold (`--warn`), so neither looks decorative. Keep it rare: one bright thing per area, so it stands out.
+- **Icons.** `Icon` draws the OS's line icons (`about`, `browser`, `docs`, `files`, `folder`, `terminal`, `text`, `image`, `link`, `edit`, `restart`, `app`, ...) as inline SVG: grey strokes with a detail in the icon's own color; hover or selection brightens the main stroke. An app names its icon in the manifest (`"brasos": { "icon": "files" }`); any other text, such as an emoji, is shown as is.
+- **Cost.** Gradients, shadows, borders and a little blur behind the taskbar, the start menu and the lock screen: no images, almost no animation.
 
 ## Tokens
 
@@ -47,9 +47,9 @@ Everything is styled with CSS variables, so the whole OS can be restyled by chan
 |---|---|
 | `--bg`, `--panel`, `--panel-2` | Backgrounds, from the page to raised surfaces |
 | `--text`, `--muted`, `--on-accent` | Text, and text on a filled glow |
-| `--accent`, `--accent-2` | The living colors (amber and coral) |
+| `--accent`, `--accent-2` | The two colors (green and violet; the setup offers other pairs) |
 | `--danger`, `--warn` | Alarm red and pale gold |
-| `--icon`, `--icon-2` | Icons at rest (main stroke and detail) |
+| `--icon`, `--icon-hi` | Icons at rest (main stroke, and the fallback for the detail, which each icon colors itself) |
 | `--border`, `--border-strong`, `--hover`, `--selected` | Lines and fills: neutral |
 | `--glow`, `--aurora`, `--sheen` | Neon shadow, the gradient, the light on surfaces |
 | `--radius`, `--radius-sm`, `--gap` | Shape and spacing |

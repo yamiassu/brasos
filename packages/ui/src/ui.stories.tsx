@@ -21,7 +21,7 @@ const swatch = (v: string) => (
 );
 export const Tokens = () => (
   <>
-    <Section title="Neutral night (most of the screen)"><Row>{["--bg", "--panel", "--panel-2", "--text", "--muted", "--icon", "--icon-2"].map(swatch)}</Row></Section>
+    <Section title="Neutral night (most of the screen)"><Row>{["--bg", "--panel", "--panel-2", "--text", "--muted", "--icon", "--icon-hi"].map(swatch)}</Row></Section>
     <Section title="The rare colors (a signal: focus, selection, the primary action)"><Row>{["--accent", "--accent-2", "--danger", "--warn"].map(swatch)}</Row></Section>
     <Section title="Edges and fills"><Row>{["--border", "--border-strong", "--hover", "--selected"].map(swatch)}</Row></Section>
     <Section title="Gradient and glow">
@@ -120,7 +120,7 @@ export const Desktop = () => (
   <div id="root" style={{ position: "relative", height: "100vh" }}>
     <div className="layer">
       <div className="icons">
-        {["about", "browser", "docs", "files", "terminal", "crash"].map((n) => <IconTile key={n} icon={n} label={n[0].toUpperCase() + n.slice(1)} selected={n === "docs"} />)}
+        {["about", "religare", "docs", "files", "terminal", "crash"].map((n) => <IconTile key={n} icon={n} label={n[0].toUpperCase() + n.slice(1)} selected={n === "docs"} />)}
         <IconTile icon="text" label="hello.txt" />
         <IconTile icon="folder" label="Projects" />
       </div>
@@ -130,16 +130,20 @@ export const Desktop = () => (
       <WindowFrame title="Docs" icon="docs" focused style={{ left: 280, top: 110 }} onClose={() => {}}><div style={{ padding: 16 }}>Docs (focused)</div></WindowFrame>
     </div>
     <Taskbar>
-      <TaskButton icon="start" label="Start" />
-      <SearchField label="Search apps, files, guides" />
-      {["about", "browser", "docs", "files", "terminal"].map((n) => <TaskButton key={n} icon={n} label={n} running={n !== "about"} active={n === "docs"} />)}
+      <div className="ui-task-left">
+        <TaskButton icon="brasos" label="Start" />
+        <SearchField label="Search apps, files, guides" />
+      </div>
+      <div className="ui-task-apps">
+        {["about", "religare", "docs", "files", "terminal"].map((n) => <TaskButton key={n} icon={n} label={n} running={n !== "about"} active={n === "docs"} />)}
+      </div>
       <Tray>
         <TrayItem icon="edit" label="Edit the interface" onClick={() => {}} />
         <TrayItem icon="restart" label="Restart the interface" onClick={() => {}} />
-        <TrayItem icon="dev" label="Development image">DEV · not secure</TrayItem>
+        <TrayItem icon="dev" label="Development image">DEV</TrayItem>
         <TrayItem icon="network" label="Network: connected" />
         <TrayItem icon="battery" label="Battery 80%">80%</TrayItem>
-        <TrayItem label="Clock"><span className="stack"><span>02:17</span><span>15/11/2026</span></span></TrayItem>
+        <TrayItem label="Clock"><span className="stack"><span>02:17</span><span>15/11</span></span></TrayItem>
       </Tray>
     </Taskbar>
   </div>

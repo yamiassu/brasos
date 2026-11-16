@@ -21,7 +21,7 @@ An app is a [Web App Manifest](https://www.w3.org/TR/appmanifest/) (the standard
 
 ## Everything isolated by origin
 
-Each app is served from its own address, `http://<app>.localhost:7000`. The browser engine treats different addresses as different security origins and runs them in separate processes, so one app cannot read another's data, and a crash or hang stays inside its window. Websites loaded in the Browser get their own address too (`http://<32 hex characters>.web.localhost:7000`).
+Each app is served from its own address, `http://<app>.localhost:7000`. The browser engine treats different addresses as different security origins and runs them in separate processes, so one app cannot read another's data, and a crash or hang stays inside its window. Websites loaded in Religare get their own address too (`http://<32 hex characters>.web.localhost:7000`).
 
 ## Capabilities and permissions
 

@@ -10,7 +10,7 @@ The first time BrasOS starts, a short setup runs instead of the desktop:
 
 1. **Account**: your name, a username, and a password (at least 10 characters).
 2. **Region**: language, time zone, keyboard layout and 12 or 24-hour clock.
-3. **Appearance**: the one accent color (amber, mint, ice or mono) that marks focus and selection.
+3. **Appearance**: the one accent color (green and violet, amber and coral, mint, ice or mono) that marks focus and selection.
 4. **Device**: a name for this computer.
 5. **Review**, then **Finish**.
 
@@ -20,8 +20,9 @@ After that the screen is locked with your password when you press the lock butto
 
 The **taskbar** along the bottom works like the one you know:
 
-- **Start** (left) lists every app. Next to it, the **search box** (or **Ctrl+K** anywhere) finds apps, open windows, files in `/Desktop`, `/Documents` and `/Downloads`, and the guides. Arrow keys move through the results, **Enter** opens one, **Escape** closes.
+- **Start** (left) shows your pinned apps and a few of your files; **All apps** lists the rest. Next to it, the **search box** (or **Ctrl+K** anywhere) finds apps, open windows, files in `/Desktop`, `/Documents` and `/Downloads`, and the guides. Arrow keys move through the results, **Enter** opens one, **Escape** closes.
 - The **app buttons** open an app, or bring its window forward if it is already open. A small bar under a button means it has a window; a longer, colored bar means its window has the focus.
+- **Right-click** an app button, or an app in Start, to open it in a new window, close its windows, or **pin** and **unpin** it on the taskbar and in Start. Unpinning only hides the app (it stays in All apps and in search), and an app with a window open always shows on the taskbar.
 - The **tray** on the right shows the security mode (on the dev image a warning that it is not secure, on the hardened image *Hardened*), the network, the battery when the machine has one, and the date and time. On the dev image it also has buttons to edit and restart the interface.
 
 ## Windows
@@ -43,7 +44,7 @@ Files shows your home folder: `/Desktop`, `/Documents` and `/Downloads` to start
 | Delete | Select it, then **Delete**. It goes to the trash (`/.trash`), it is not erased |
 | Preview | Select a file. Text files (up to 1 MB) show their contents and can be edited with **Edit**, then **Save**; small images are shown |
 
-## Browser
+## Religare
 
 Type an address and press Enter. Sites load through the BrasOS web gateway, which gives every site its own isolated origin. That also means a site that ships `.ts` files just works.
 
@@ -57,7 +58,7 @@ This app. Pick a page on the left. Links between pages work; links to the web ar
 
 ## Terminal
 
-Dev image only. A real shell on the machine, as the `brasos` user.
+Dev image only. A real shell on the machine, as the `brasos` user. Each tab is its own session: **+** (or **Ctrl+Shift+T**) opens one, **×** (or **Ctrl+Shift+W**, or a middle click) closes it, and **Ctrl+Shift+Left/Right** switches. A tab whose shell has exited stays, crossed out, until you close it.
 
 ## Using only the keyboard
 

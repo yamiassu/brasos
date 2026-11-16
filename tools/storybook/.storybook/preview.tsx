@@ -2,6 +2,7 @@
 // no BrasOS host is needed. The toolbar's "Palette" swaps the rare colors, to try a mood without editing files.
 import type { Preview } from "@storybook/react-vite";
 import "../../../packages/ui/src/ui.css";
+import "../../../packages/shell/src/shell.css";
 import "../../../packages/shell/src/user.css";
 
 // The guides, for the Docs app. Rendered crudely (headings and paragraphs): the real renderer is Bun's, on the host.
@@ -27,8 +28,8 @@ const pages = Object.entries(guides)
 };
 
 const PALETTES: Record<string, Record<string, string>> = {
-  "Amber and coral": {},
-  "Mint and violet": { "--accent": "#38f2c0", "--accent-2": "#8f7bff", "--on-accent": "#03110d" },
+  "Green and violet": {},
+  "Amber and coral": { "--accent": "#e3b36b", "--accent-2": "#d98a94", "--on-accent": "#17110a" },
   "Ice and blue": { "--accent": "#7fd4ff", "--accent-2": "#5b7cff", "--on-accent": "#021018" },
   "Mono": { "--accent": "#ffffff", "--accent-2": "#9a9aa2", "--on-accent": "#0c0c0d" },
 };
@@ -37,7 +38,7 @@ const preview: Preview = {
   globalTypes: {
     palette: { description: "The rare colors", toolbar: { title: "Palette", icon: "paintbrush", items: Object.keys(PALETTES), dynamicTitle: true } },
   },
-  initialGlobals: { palette: "Amber and coral" },
+  initialGlobals: { palette: "Green and violet" },
   decorators: [
     (Story, ctx) => {
       const el = document.documentElement;

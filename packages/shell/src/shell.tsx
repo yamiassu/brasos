@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppInfo, FsEntry } from "@brasos/sdk";
-import { Button, Dialog, Icon, SearchField, Taskbar, TaskButton, Tray, TrayItem, WindowFrame } from "@brasos/ui";
+import { Button, Dialog, Icon, Menu, SearchField, Taskbar, TaskButton, Tray, TrayItem, WindowFrame, type MenuItem } from "@brasos/ui";
 import { connectAgent, type ShellApi } from "./agent";
 import { Desktop } from "./desktop";
 import { Launcher, search, type Hit } from "./launcher";
+import { isPinned, loadUnpinned, saveUnpinned, setPinned, type Unpinned, type Where } from "./pins";
 import { Battery, Clock, Mode, Network } from "./tray";
 import { Boundary, Frame, type Win } from "./windows";
 import { InstallPrompt, type Inspection } from "./install";
@@ -23,6 +24,10 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
   const [note, setNote] = useState("");
   const [launcher, setLauncher] = useState(false);
   const [query, setQuery] = useState("");
+  const [unpinned, setUnpinned] = useState<Unpinned>(loadUnpinned);
+  const [showAll, setShowAll] = useState(false);
+  const [appMenu, setAppMenu] = useState<{ x: number; y: number; app: AppInfo } | null>(null);
+  const pin = (where: Where, id: string, pinned: boolean) => setUnpinned((u) => { const n = setPinned(u, where, id, pinned); saveUnpinned(n); return n; });
   const [picked, setPicked] = useState<Hit | null>(null);
   const [extra, setExtra] = useState<{ files: Hit[]; guides: Hit[] }>({ files: [], guides: [] });
   const searchBox = useRef<HTMLInputElement>(null);
@@ -97,7 +102,7 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
         setExtra((x) => ({ ...x, guides: docs ? pages.map((p) => ({ key: "g:" + p.slug, kind: "Guide" as const, icon: "docs", label: p.title, meta: "Guide", run: () => void open(docs, p.slug) })) : [] }));
       });
   };
-  const closeLauncher = () => (setLauncher(false), setQuery(""), setPicked(null));
+  const closeLauncher = () => (setLauncher(false), setQuery(""), setPicked(null), setShowAll(false));
   const patch = (key: number, f: (w: Win) => Partial<Win>) => setWins((ws) => ws.map((w) => (w.key === key ? { ...w, ...f(w) } : w)));
   const close = (key: number) => setWins((ws) => ws.filter((w) => w.key !== key));
   const focus = (key: number) => {
@@ -112,6 +117,17 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
     if (mine.length) focus(mine.reduce((a, b) => (a.z > b.z ? a : b)).key);
     else open(app);
   };
+  /** the right-click menu of an app, on the taskbar or in the start menu */
+  const appMenuItems = (a: AppInfo): MenuItem[] => {
+    const mine = wins.filter((w) => w.app.id === a.id);
+    const tb = isPinned(unpinned, "taskbar", a.id), st = isPinned(unpinned, "start", a.id);
+    return [
+      { label: mine.length ? "New window" : "Open", onSelect: () => (closeLauncher(), void open(a)) },
+      ...(mine.length ? [{ label: mine.length > 1 ? "Close all windows" : "Close window", danger: true, onSelect: () => mine.forEach((w) => close(w.key)) }] : []),
+      { label: tb ? "Unpin from taskbar" : "Pin to taskbar", onSelect: () => pin("taskbar", a.id, !tb) },
+      { label: st ? "Unpin from Start" : "Pin to Start", onSelect: () => pin("start", a.id, !st) },
+    ];
+  };
   const [nativeApps, setNativeApps] = useState<{ id: string; name: string; icon: string }[]>([]);
   useEffect(() => {
     fetch("/os/native/apps").then((r) => (r.ok ? r.json() : { apps: [] })).then((r) => setNativeApps(r.apps ?? [])).catch(() => {});
@@ -123,7 +139,9 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
     ...extra.files,
     ...extra.guides,
   ];
-  const results = search(hits, query);
+  // with nothing typed the start menu lists the pinned apps (or every app, after "All apps"); natives are always listed
+  const startPinned = (h: Hit) => !h.key.startsWith("a:") || isPinned(unpinned, "start", h.key.slice(2));
+  const results = query ? search(hits, query) : search(hits, "").filter((h) => showAll || startPinned(h));
   const current = picked && results.find((h) => h.key === picked.key) ? picked : results[0] ?? null;
   const run = (h: Hit) => (closeLauncher(), h.run());
   // Native (non-PWA) windows owned by the compositor, where there is one (packages/native): listed once a second, focus on click
@@ -248,7 +266,8 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
         })}
       </div>
       <Taskbar>
-        <TaskButton icon="start" label="Start" active={launcher && !query} onClick={() => (launcher ? closeLauncher() : (setQuery(""), openLauncher()))} />
+        <div className="ui-task-left">
+        <TaskButton icon="brasos" label="Start" active={launcher && !query} onClick={() => (launcher ? closeLauncher() : (setQuery(""), openLauncher()))} />
         <SearchField
           ref={searchBox}
           label="Search apps, files, guides"
@@ -257,21 +276,25 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
           onChange={(e) => (setQuery(e.target.value), setPicked(null))}
           onKeyDown={(e) => {
             const i = current ? results.findIndex((h) => h.key === current.key) : -1;
-            if (e.key === "ArrowDown") (e.preventDefault(), setPicked(results[Math.min(results.length - 1, i + 1)] ?? null));
-            else if (e.key === "ArrowUp") (e.preventDefault(), setPicked(results[Math.max(0, i - 1)] ?? null));
+            const grid = !query; // the start menu's pinned apps are a grid: Left and Right step through it too
+            if (e.key === "ArrowDown" || (grid && e.key === "ArrowRight")) (e.preventDefault(), setPicked(results[Math.min(results.length - 1, i + 1)] ?? null));
+            else if (e.key === "ArrowUp" || (grid && e.key === "ArrowLeft")) (e.preventDefault(), setPicked(results[Math.max(0, i - 1)] ?? null));
             else if (e.key === "Enter" && current) (e.preventDefault(), run(current));
           }}
         />
-        {apps.map((a) => {
+        </div>
+        <div className="ui-task-apps">
+        {apps.filter((a) => isPinned(unpinned, "taskbar", a.id) || wins.some((w) => w.app.id === a.id)).map((a) => {
           const mine = wins.filter((w) => w.app.id === a.id);
-          // right-click closes the app's windows: the way out of a window that draws its own frame (and has no close button of ours)
-          return <span key={a.id} onContextMenu={(e) => (e.preventDefault(), mine.forEach((w) => close(w.key)))}><TaskButton icon={a.icon} label={a.name} running={mine.length > 0} active={focused?.app.id === a.id} onClick={() => launch(a)} /></span>;
+          // right-click opens the app's menu, which has Close: the way out of a window that draws its own frame (and has no close button of ours)
+          return <span key={a.id} onContextMenu={(e) => (e.preventDefault(), setAppMenu({ x: e.clientX, y: e.clientY, app: a }))}><TaskButton icon={a.icon} label={a.name} running={mine.length > 0} active={focused?.app.id === a.id} onClick={() => launch(a)} /></span>;
         })}
         {natives.map((n) => (
           <span key={n.id} onContextMenu={(e) => (e.preventDefault(), post("/os/native/close", { id: n.id }))}>
             <TaskButton icon="app" label={`${n.title || n.app || "Native app"} (right-click to close)`} running active={n.focused} onClick={() => post("/os/native/focus", { id: n.id })} />
           </span>
         ))}
+        </div>
         <Tray>
           {note && <TrayItem label={note}>{note}</TrayItem>}
           {canRestart && <TrayItem icon="edit" label="Edit the interface (opens its source in Files)" onClick={() => openPath("/BrasOS")} />}
@@ -287,9 +310,16 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
       {launcher && (
         <>
           <div style={{ position: "absolute", inset: 0, zIndex: 899 }} onPointerDown={closeLauncher} />
-          <Launcher hits={results} selected={current} onSelect={setPicked} onRun={run} query={query} />
+          <Launcher
+            hits={results} selected={current} onSelect={setPicked} onRun={run} query={query}
+            showAll={showAll} onToggleAll={() => setShowAll((v) => !v)}
+            onContext={(h, e) => { const app = apps.find((a) => "a:" + a.id === h.key); if (app) setAppMenu({ x: e.clientX, y: e.clientY, app }); }}
+            files={extra.files.slice(0, 5)} user={user?.display}
+            actions={[...(onLock ? [{ label: "Lock the screen", icon: "lock", onClick: () => (closeLauncher(), onLock()) }] : []), ...(canRestart ? [{ label: "Restart the interface", icon: "restart", onClick: () => (closeLauncher(), setConfirmRestart(true)) }] : [])]}
+          />
         </>
       )}
+      {appMenu && <Menu items={appMenuItems(appMenu.app)} x={appMenu.x} y={appMenu.y} onClose={() => setAppMenu(null)} />}
       {confirmRestart && (
         <Dialog
           title="Restart the interface?"

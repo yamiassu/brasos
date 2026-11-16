@@ -1,5 +1,13 @@
 import { expect, test } from "bun:test";
-import { baseName, formatSize, imageMime, isImage, isText, join, parent, startFromHash, validName } from "../paths";
+import { baseName, formatSize, imageMime, isImage, isText, join, parent, sortEntries, startFromHash, validName } from "../paths";
+
+test("sortEntries puts folders first and orders names naturally", () => {
+  const e = (name: string, kind: "dir" | "file", size = 0) => ({ name, kind, size, mtime: 0 });
+  const list = [e("file10", "file", 5), e("file2", "file", 9), e("zdir", "dir"), e("adir", "dir")];
+  expect(sortEntries(list, "name", true).map((x) => x.name)).toEqual(["adir", "zdir", "file2", "file10"]);
+  expect(sortEntries(list, "name", false).map((x) => x.name)).toEqual(["zdir", "adir", "file10", "file2"]);
+  expect(sortEntries(list, "size", false).map((x) => x.name).slice(2)).toEqual(["file2", "file10"]);
+});
 
 test("join, parent and baseName treat / as the root", () => {
   expect(join("/", "a")).toBe("/a");
