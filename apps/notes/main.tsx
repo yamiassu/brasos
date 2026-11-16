@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { os } from "@brasos/sdk";
-import { Button, Dialog, Icon, IconButton, TextField } from "@brasos/ui";
+import { Breadcrumb, Button, Dialog, Icon, IconButton, TextField, TitleBar } from "@brasos/ui";
 import "@brasos/ui/ui.css";
 import "./notes.css";
 import { join, parent, validName } from "../files/paths";
@@ -36,6 +36,8 @@ async function walk(path: string, depth = 0): Promise<Node[]> {
 function Notes() {
   const [settings, setSettings] = useState(stored);
   const [showSettings, setShowSettings] = useState(false);
+  const [sidebar, setSidebar] = useState(true);
+  const [hist, setHist] = useState({ stack: [] as string[], i: -1 }); // back and forward through opened notes
   const root = settings.root;
   const [tree, setTree] = useState<Node[]>([]);
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -73,7 +75,7 @@ function Notes() {
     const { file: f, text: t, saved: s, readOnly: ro } = latest.current;
     if (f && !ro && t !== s) await os.fs.write(f, t);
   };
-  const select = async (n: Node) => {
+  const select = async (n: Node, push = true) => {
     setSel(n);
     if (n.dir) return setOpen((o) => (o.delete(n.path) || o.add(n.path), new Set(o)));
     try {
@@ -81,6 +83,7 @@ function Notes() {
       const r = await os.fs.read(n.path);
       const b = splitBlocks(r.encoding === "utf8" ? r.content : "");
       setFile(n.path), setBlocks(b), setAt(b.length === 1 && !b[0] ? 0 : null), setSaved(toText(b)), setReadOnly(!!r.truncated || r.encoding !== "utf8");
+      if (push) setHist((h) => ({ stack: [...h.stack.slice(0, h.i + 1), n.path], i: h.i + 1 }));
       setStatus(r.truncated ? "Too large to edit here: shown read-only" : "");
     } catch (e) {
       fail(e);
@@ -135,14 +138,32 @@ function Notes() {
     setAt(blocks.at(-1) ? blocks.length : blocks.length - 1);
   };
 
+  const step = (d: -1 | 1) => {
+    const path = hist.stack[hist.i + d];
+    if (path === undefined) return;
+    setHist({ ...hist, i: hist.i + d });
+    select({ name: path.split("/").pop()!, path, dir: false }, false);
+  };
+  // a crumb that is a folder inside the notes folder opens it in the tree
+  const goTo = (path: string) => path !== file && path.startsWith(root) && select({ name: path.split("/").pop()!, path, dir: true });
+  useEffect(() => void os.window.setTitle(file ? `${file.split("/").pop()} - Notes` : "Notes"), [file]);
+
   return (
-    <div className="notes" style={{ "--fs": settings.fontSize + "px", "--ff": FONTS[settings.font], "--pw": settings.width + "px" } as React.CSSProperties}>
-      <nav className="side" aria-label="Notes">
+    <div className="notes-app" style={{ "--fs": settings.fontSize + "px", "--ff": FONTS[settings.font], "--pw": settings.width + "px" } as React.CSSProperties}>
+    <TitleBar window={os.window} title="Notes" icon="text">
+      <IconButton label={sidebar ? "Hide sidebar" : "Show sidebar"} onClick={() => setSidebar(!sidebar)}>☰</IconButton>
+      <IconButton label="Back" disabled={hist.i <= 0} onClick={() => step(-1)}>←</IconButton>
+      <IconButton label="Forward" disabled={hist.i >= hist.stack.length - 1} onClick={() => step(1)}>→</IconButton>
+      {file && <Breadcrumb path={file} onNavigate={goTo} />}
+      <span className="ui-drag" />
+      <IconButton label="Settings" onClick={() => setShowSettings(true)}><Icon name="settings" size={16} /></IconButton>
+    </TitleBar>
+    <div className="notes">
+      {sidebar && <nav className="side" aria-label="Notes">
         <div className="head">
           <div className="actions">
             <Button onClick={() => create(false)}>New note</Button>
             <Button onClick={() => create(true)}>New folder</Button>
-            <IconButton label="Settings" onClick={() => setShowSettings(true)}><Icon name="settings" size={16} /></IconButton>
           </div>
           <div className="root" title={root}>{root}</div>
         </div>
@@ -150,7 +171,7 @@ function Notes() {
           {tree.map((n) => row(n, 0))}
           {!tree.length && <li className="none">No notes yet.</li>}
         </ul>
-      </nav>
+      </nav>}
       <main className="main">
         {file ? (
           <div className="page" onClick={(e) => e.target === e.currentTarget && toEnd()}>
@@ -181,6 +202,7 @@ function Notes() {
         </div>
       </main>
       {ask && <NameDialog ask={ask} onClose={() => setAsk(null)} onError={fail} />}
+    </div>
       {showSettings && <SettingsDialog initial={settings} onClose={() => setShowSettings(false)} onSave={(s) => applySettings(s).catch(fail)} />}
     </div>
   );
