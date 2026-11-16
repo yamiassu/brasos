@@ -2,6 +2,7 @@
 // no BrasOS host is needed. The toolbar's "Palette" swaps the rare colors, to try a mood without editing files.
 import type { Preview } from "@storybook/react-vite";
 import "../../../packages/ui/src/ui.css";
+import "../../../packages/shell/src/shell.css";
 import "../../../packages/shell/src/user.css";
 
 // The guides, for the Docs app. Rendered crudely (headings and paragraphs): the real renderer is Bun's, on the host.

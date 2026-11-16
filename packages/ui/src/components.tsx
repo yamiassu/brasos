@@ -246,3 +246,17 @@ export function SelectField({ label, children, ...p }: SelectHTMLAttributes<HTML
     </label>
   );
 }
+
+/** The BrasOS mark: a "B" of a column and two curves (docs/brand). Inline, so it needs no image. */
+export function BrandMark({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 96 96" aria-hidden="true" className="ui-mark">
+      <defs>
+        <linearGradient id="brasos-mark-flow" gradientUnits="userSpaceOnUse" x1="0" y1="16" x2="0" y2="80"><stop offset="0" stopColor="var(--accent)" /><stop offset="1" stopColor="var(--accent-2)" /></linearGradient>
+      </defs>
+      <rect x="29" y="16" width="10" height="64" rx="5" fill="#ececee" />
+      <path d="M43 16h6a14 14 0 0 1 0 28h-6z" fill="url(#brasos-mark-flow)" />
+      <path d="M43 48h8a16 16 0 0 1 0 32h-8z" fill="url(#brasos-mark-flow)" />
+    </svg>
+  );
+}

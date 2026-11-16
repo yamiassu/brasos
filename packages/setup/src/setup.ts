@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { json, type AuditFn, type Slice } from "@brasos/host/types";
 
 export const LANGUAGES = ["pt-BR", "en-US"] as const;
-export const PALETTES = ["amber", "mint", "ice", "mono"] as const;
+export const PALETTES = ["green", "amber", "mint", "ice", "mono"] as const;
 export const KEYBOARDS = ["br-abnt2", "us", "us-intl"] as const;
 
 export type Prefs = { language: string; timezone: string; keyboard: string; clock24: boolean; palette: string; deviceName: string };
@@ -93,7 +93,7 @@ export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: 
       done: true,
       at: Date.now(),
       account: { username: "dev", display: "Developer", hash: Bun.password.hashSync(crypto.randomUUID() + crypto.randomUUID(), { algorithm: "argon2id" }) },
-      prefs: { language: "en-US", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", keyboard: "us", clock24: true, palette: "amber", deviceName: "brasos" },
+      prefs: { language: "en-US", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", keyboard: "us", clock24: true, palette: "green", deviceName: "brasos" },
     });
     audit("setup.dev_skip", "info", {}, {});
   }

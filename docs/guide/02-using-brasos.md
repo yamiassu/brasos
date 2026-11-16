@@ -10,7 +10,7 @@ The first time BrasOS starts, a short setup runs instead of the desktop:
 
 1. **Account**: your name, a username, and a password (at least 10 characters).
 2. **Region**: language, time zone, keyboard layout and 12 or 24-hour clock.
-3. **Appearance**: the one accent color (amber, mint, ice or mono) that marks focus and selection.
+3. **Appearance**: the one accent color (green and violet, amber and coral, mint, ice or mono) that marks focus and selection.
 4. **Device**: a name for this computer.
 5. **Review**, then **Finish**.
 

@@ -180,3 +180,4 @@ button.ui-tray-item:hover { background: var(--hover); color: var(--text); }
 .ui-recent small { margin-left: auto; color: var(--muted); font-size: 12px; }
 .ui-start-foot { display: flex; align-items: center; gap: 4px; padding: 10px 14px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 40%, transparent); }
 .ui-start-foot .who { display: flex; align-items: center; gap: 10px; margin-right: auto; color: var(--muted); }
+.ui-mark { flex: none; display: block; }
