@@ -1,11 +1,35 @@
 html, body, #root { height: 100%; margin: 0; }
 .files { height: 100%; display: flex; flex-direction: column; }
 .files .split { flex: 1; display: flex; min-height: 0; }
+.files .find { display: flex; align-items: center; gap: 6px; width: 160px; height: 28px; padding: 0 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; color: var(--muted); }
+.files .find:focus-within { border-color: var(--accent); color: var(--text); }
+.files .find input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--text); font: inherit; }
+
+/* places */
+.files .places { width: 168px; flex: none; display: flex; flex-direction: column; gap: 2px; padding: 8px; background: var(--panel); border-right: 1px solid var(--border); }
+.files .places > button:not(.ui-btn) { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font: inherit; text-align: left; cursor: pointer; }
+.files .places > button:not(.ui-btn):hover { background: var(--hover); color: var(--text); }
+.files .places > button[aria-current] { background: var(--selected); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
+.files .places .grow { flex: 1; }
+.files .places .ui-btn { justify-content: center; margin-top: 4px; }
+
+/* the folder */
+.files .browse { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.files .cols { display: flex; gap: var(--gap); padding: 4px 10px 4px 36px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.files .cols button { background: transparent; border: 0; color: var(--muted); font: inherit; cursor: pointer; padding: 2px 0; }
+.files .cols button:hover, .files .cols button[aria-pressed="true"] { color: var(--text); }
+.files .cols .name { flex: 1; text-align: left; }
+.files .cols .size { min-width: 56px; text-align: right; }
+.files .cols .mtime { min-width: 76px; text-align: right; }
 .files .ui-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .files .ui-item .meta { color: var(--muted); font-size: 12px; min-width: 56px; text-align: right; }
 .files .ui-item .date { min-width: 76px; }
-.files .preview { width: 42%; min-width: 180px; border-left: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow: auto; background: var(--panel); }
-.files .preview h3 { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.files .grid { flex: 1; overflow: auto; padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, 96px); gap: 6px; align-content: start; }
+.files .empty { margin: 0; padding: 32px 16px; text-align: center; color: var(--muted); }
+
+/* preview */
+.files .preview { width: 34%; min-width: 180px; border-left: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow: auto; background: var(--panel); }
+.files .preview h3 { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
 .files .preview pre, .files .preview textarea { flex: 1; margin: 0; min-height: 120px; font: 12px ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; overflow: auto; }
 .files .preview img { max-width: 100%; border-radius: var(--radius-sm); }
 .files .preview .note { color: var(--muted); font-size: 12px; margin: 0; }

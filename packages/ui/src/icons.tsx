@@ -26,6 +26,8 @@ const SET: Record<string, { d: string; hi?: string; c?: string }> = {
   battery: { d: "M3 8h15a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM21 11v2", hi: "M5 11v2M8 11v2", c: "#a3e635" },
   shield: { d: "M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6z", hi: "M9 12l2 2l4-4", c: "#5fd39a" },
   dev: { d: "M8 8l-4 4l4 4M16 8l4 4l-4 4", hi: "M13 6l-2 12", c: "#ff8fb1" },
+  pulse: { d: "M3 12h4l2.5-7l4 14l2.5-7h5", hi: "M3 21h18", c: "#5fd39a" },
+  trash: { d: "M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13", hi: "M10 11v6M14 11v6", c: "#ff8fb1" },
   user: { d: "M12 4a4 4 0 1 0 0 8a4 4 0 0 0 0-8z", hi: "M4 20c1-4 4-6 8-6s7 2 8 6", c: "#6cb6ff" },
   lock: { d: "M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z", hi: "M8 11V8a4 4 0 0 1 8 0v3", c: "#f0b429" },
   app: { d: "M12 3l8 4.5v9L12 21l-8-4.5v-9z", hi: "M4 7.5l8 4.5l8-4.5M12 12v9", c: "#9b87f5" },

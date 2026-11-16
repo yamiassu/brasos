@@ -35,3 +35,14 @@ export function startFromHash(hash: string): { dir: string; select?: string } {
   const last = baseName(p);
   return /\.[^/.]+$/.test(last) ? { dir: parent(p), select: last } : { dir: p === "" ? "/" : p.replace(/\/+$/, "") || "/" };
 }
+
+export type SortKey = "name" | "size" | "mtime";
+/** folders first, then by the chosen key; names compare the way a person reads them ("file2" before "file10") */
+export function sortEntries(list: FsEntry[], key: SortKey, asc: boolean): FsEntry[] {
+  const dir = asc ? 1 : -1;
+  return [...list].sort((a, b) => {
+    if ((a.kind === "dir") !== (b.kind === "dir")) return a.kind === "dir" ? -1 : 1;
+    const by = key === "name" ? a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }) : a[key] - b[key];
+    return (by || a.name.localeCompare(b.name)) * dir;
+  });
+}
