@@ -40,7 +40,9 @@ let
   };
   envs = {
     BRASOS_VERSION = config.brasos.version;
-    BRASOS_UPDATE_CMD = "/run/wrappers/bin/sudo ${update}/bin/brasos-update";
+    # In its own transient unit, not inside brasos-shell: switching the system restarts the shell's service, and an update that is a
+    # child of that service would be killed halfway through activating. The unit survives; the page just reloads when it is done.
+    BRASOS_UPDATE_CMD = "/run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemd-run --unit=brasos-update --collect --wait --pipe ${update}/bin/brasos-update";
   } // lib.optionalAttrs (cfg.url != null) { BRASOS_UPDATE_URL = cfg.url; };
 in {
   options.brasos.version = lib.mkOption { type = lib.types.str; default = "dev"; description = "Which build this is (the flake's revision); Settings compares it with the manifest's."; };
