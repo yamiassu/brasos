@@ -10,6 +10,7 @@ The React desktop: icons for every app and for the files in `/Desktop`, a taskba
 - **Self-healing**: if the server restarts or fails over (dev's safe copy), the page reloads itself.
 - **Customization**: colors and radii are CSS variables in `src/shell.css`; put overrides in `src/user.css`.
 - **Taskbar**: Start (all apps) and a search box on the left, a button per app (a bar under it when it has a window, a longer colored one when its window is focused; clicking focuses or opens), and the tray on the right: security mode, network, battery (hidden on a computer without one) and the clock; Lock, Edit/New app/Reload/Restart interface, Restart and Shut down are in the Start menu. The search box (or Ctrl+K) searches apps, open windows, files in `/Desktop`, `/Documents` and `/Downloads` (needs `fs.read`; absent in hardened) and the guides (`docs.read`).
+- **Tray panels**: the clock opens a calendar (`calendar.ts`: month grid, ISO week numbers, the preferences' time zone with its UTC offset); the network icon opens the connection details and the Wi-Fi list from `packages/network` (`/os/network`), where a network can be joined or left. Both close on Escape, a press outside, or the page losing focus.
 - **Marker**: the tray shows "DEV · not secure" unless the hardened package is on, when it shows "Hardened".
 
 The shell holds a fixed set of capabilities (`apps.read`, `apps.uninstall`, `web.open`, `fs.read`, `docs.read`, `ui.host`, `system.restart`); see `packages/host/src/host.ts`.

@@ -26,6 +26,7 @@ The **taskbar** along the bottom works like the one you know:
 - The **app buttons** open an app, or bring its window forward if it is already open. A small bar under a button means it has a window; a longer, colored bar means its window has the focus.
 - **Right-click** an app button, or an app in Start, to open it in a new window, close its windows, or **pin** and **unpin** it on the taskbar and in Start. Unpinning only hides the app (it stays in All apps and in search), and an app with a window open always shows on the taskbar.
 - The **tray** on the right shows the security mode (on the dev image a warning that it is not secure, on the hardened image *Hardened*), the network, the battery when the machine has one, and the date and time. On the dev image it also has buttons to edit and restart the interface.
+- **Click the date and time** for a calendar (switch months, the week numbers, today highlighted) with the time zone, the offset from UTC and the time in UTC. **Click the network icon** to see the connection (name, address, gateway, DNS, signal) and the Wi-Fi networks in range: click one to join it (a secured one asks for its password), or Disconnect. A network cable connects by itself. *Network settings* opens Settings. Press Escape or click elsewhere to close either panel.
 
 ## Windows
 

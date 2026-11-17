@@ -29,36 +29,8 @@ export function parseDisks(out: string): Disk[] {
     }));
 }
 
-export type Wifi = { ssid: string; signal: number; secure: boolean; active: boolean };
-/** one line of `nmcli -t`: fields split on colons, `\:` and `\\` being literal */
-export const splitTerse = (line: string): string[] => {
-  const out: string[] = [];
-  let cur = "";
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] === "\\" && i + 1 < line.length) cur += line[++i];
-    else if (line[i] === ":") (out.push(cur), (cur = ""));
-    else cur += line[i];
-  }
-  return [...out, cur];
-};
-/** `nmcli -t -f ACTIVE,SSID,SIGNAL,SECURITY dev wifi list`: strongest entry per network name, the connected one first */
-export function parseWifi(out: string): Wifi[] {
-  const best = new Map<string, Wifi>();
-  for (const l of out.split(/\r?\n/)) {
-    const [active, ssid, signal, security] = splitTerse(l);
-    if (!ssid) continue;
-    const w = { ssid, signal: Number(signal) || 0, secure: !!security && security !== "--", active: active === "yes" };
-    const o = best.get(ssid);
-    if (!o || w.active || (!o.active && w.signal > o.signal)) best.set(ssid, w);
-  }
-  return [...best.values()].sort((a, b) => +b.active - +a.active || b.signal - a.signal);
-}
-/** `nmcli -t -f TYPE,STATE dev`: is any real network device connected (not loopback)? */
-export const parseConnected = (out: string) => out.split(/\r?\n/).some((l) => { const [t, s] = splitTerse(l); return !!t && t !== "loopback" && s === "connected"; });
-/** a network name (1–32 bytes, no control characters, never an option) and a Wi-Fi password (empty, 8–63 characters or 64 hex digits) */
-export const validWifi = (ssid: unknown, pass: unknown) =>
-  typeof ssid === "string" && typeof pass === "string" && ssid.length > 0 && new TextEncoder().encode(ssid).length <= 32 && !ssid.startsWith("-") && !/[\x00-\x1f\x7f]/.test(ssid) &&
-  !/[\x00-\x1f\x7f]/.test(pass) && (pass === "" || (pass.length >= 8 && pass.length <= 63) || /^[0-9a-fA-F]{64}$/.test(pass));
+import { parseConnected, parseWifi, validWifi } from "../../packages/network/src/nmcli";
+export { parseConnected, parseWifi, splitTerse, validWifi, type Wifi } from "../../packages/network/src/nmcli";
 
 type Job = { state: "idle" | "running" | "done" | "failed"; disk: string; log: string; phase: number; percent: number };
 const MAX_LOG = 20_000;

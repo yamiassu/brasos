@@ -471,7 +471,7 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
         <Tray>
           {note && <TrayItem label={note}>{note}</TrayItem>}
           <Mode packages={packages} />
-          <Network />
+          <Network onSettings={() => { const s = apps.find((a) => a.id === "settings"); if (s) launch(s); }} />
           <Battery />
           <Clock timezone={prefs?.timezone} clock24={prefs?.clock24} />
         </Tray>

@@ -168,3 +168,38 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .phases li.now .dot { animation: none; } .os-install .meter i { transition: none; } }
 @media (max-width: 640px) { .modes { grid-template-columns: 1fr; } }
+
+/* taskbar panels (the calendar and the network): above the right end of the taskbar */
+.tray-pop { position: fixed; right: 8px; bottom: calc(var(--taskbar-h) + 8px); z-index: 950; width: 320px; max-height: calc(100vh - var(--taskbar-h) - 24px); overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; color: var(--text); font-size: 13px; background: color-mix(in srgb, var(--panel-2) 94%, transparent); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); }
+.tray-pop .note { margin: 0; font-size: 12px; color: var(--muted); }
+.tray-pop .net-err { color: var(--danger); }
+.cal-time { display: flex; flex-direction: column; gap: 2px; }
+.cal-time b { font-size: 28px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.cal-time span { color: var(--muted); }
+.cal-head, .net-list-head { display: flex; align-items: center; gap: 8px; }
+.cal-head b { flex: 1; font-weight: 600; }
+.cal-head b::first-letter { text-transform: uppercase; }
+.cal-nav, .cal-today { border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; padding: 2px 8px; font: inherit; }
+.cal-nav { font-size: 18px; line-height: 1; }
+.cal-nav:hover, .cal-today:hover { background: var(--hover); color: var(--text); }
+.net-list-head b { flex: 1; font-weight: 600; }
+.cal-grid { width: 100%; border-collapse: collapse; text-align: center; font-variant-numeric: tabular-nums; }
+.cal-grid th { font-size: 11px; font-weight: 500; color: var(--muted); padding: 2px 0; }
+.cal-grid th.wk { font-size: 10px; opacity: 0.7; }
+.cal-grid td { height: 30px; border-radius: var(--radius-sm); }
+.cal-grid td.out { color: var(--muted); opacity: 0.55; }
+.cal-grid td.today { background: var(--accent); color: var(--bg, #000); font-weight: 600; }
+.cal-info { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12px; }
+.cal-info dt { color: var(--muted); }
+.cal-info dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.net-head { display: flex; align-items: center; gap: 10px; }
+.net-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.net-head small { color: var(--muted); font-size: 12px; }
+.net-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.net-item { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.net-item:hover:not(:disabled) { background: var(--hover); }
+.net-item small { color: var(--muted); }
+.net-item .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.net-pw { display: flex; gap: 6px; padding: 4px 8px 8px; }
+.net-pw input { flex: 1; min-width: 0; }
+.net-more { align-self: flex-start; }

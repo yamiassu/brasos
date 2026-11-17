@@ -11,6 +11,7 @@ import { createRegistry } from "@brasos/registry";
 import { createSetup } from "@brasos/setup";
 import { createSystem } from "@brasos/system";
 import { createNative } from "@brasos/native";
+import { createNetwork } from "@brasos/network";
 import { createDb } from "@brasos/db";
 import { createGateway, readText } from "@brasos/web-gateway";
 import { build } from "./build";
@@ -52,7 +53,7 @@ export type HostOptions = {
 };
 
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
-const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "system.power", "setup.write", "setup.login", "apps.install", "native.read", "native.control", "db.own", "db.shared"];
+const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "system.power", "setup.write", "setup.login", "apps.install", "native.read", "native.control", "network.read", "network.control", "db.own", "db.shared"];
 /** what a user can grant an installed PWA (never anything that controls the OS itself); a PWA window is a website to the host, so these are checked again at the gate */
 export const PWA_GRANTABLE = ["fs.read", "fs.write", "docs.read", "db.own", "db.shared", "window.control", "window.frameless", "apps.open"];
 /** what an authenticated AI agent may do (on top of each tool's own check and the enabled packages' policies) */
@@ -115,7 +116,7 @@ export async function startHost(o: HostOptions) {
     audit,
     ownerOf: (c) => (c.kind === "shell" ? "shell" : c.kind === "app" ? (registry.get(c.id) ? c.id : null) : (pwaForSite(c.id)?.id ?? null)),
   });
-  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice, createSystem({ restart: o.restart, power: o.power, rebuild: o.prebuilt ? undefined : rebuildApps, appsDir: join(root, "apps"), audit }).slice, createSetup({ stateDir: o.stateDir, audit, preseed: o.setupPreseed, devSkip: !!o.setupDevSkip && policies.length === 0 }).slice, createNative({ socket: o.nativeSocket, apps: o.nativeApps, audit }).slice, db.slice];
+  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice, createSystem({ restart: o.restart, power: o.power, rebuild: o.prebuilt ? undefined : rebuildApps, appsDir: join(root, "apps"), audit }).slice, createSetup({ stateDir: o.stateDir, audit, preseed: o.setupPreseed, devSkip: !!o.setupDevSkip && policies.length === 0 }).slice, createNative({ socket: o.nativeSocket, apps: o.nativeApps, audit }).slice, createNetwork({ audit }), db.slice];
   const agent = createAgent({ tools: () => slices.flatMap((s) => s.tools ?? []), stateDir: o.stateDir });
   slices.push(agent.slice, ...appSlices);
   const bySlice = new Map(slices.map((s) => [s.name, s]));

@@ -16,6 +16,7 @@ let
   '';
   env = {
     BRASOS_STATE_DIR = "/var/lib/brasos/state";
+    BRASOS_NMCLI = "${pkgs.networkmanager}/bin/nmcli"; # the taskbar network panel (packages/network)
     BRASOS_RESTART_CMD = "${restartCmd}";
     BRASOS_POWER_CMD = "/run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl"; # the host adds the action (poweroff or reboot)
   } // lib.optionalAttrs (config.brasos.setup.preseed != null) { BRASOS_SETUP_PRESEED = "${config.brasos.setup.preseed}"; }
