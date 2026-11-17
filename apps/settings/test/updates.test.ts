@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { testHost, type TestHost } from "../../../packages/host/src/testing";
-import { interfaceBuild, parseManifest } from "../updates";
+import { feed, interfaceBuild, parseManifest } from "../updates";
 
 const tmp = mkdtempSync(join(tmpdir(), "brasos-upd-"));
 // a fake updater is a Bun script (the command is split on spaces: no spaces in these paths); it writes its argv to a file
@@ -87,4 +87,14 @@ test("the decisions and the job are audited, the output is not", async () => {
   expect(e.some((x) => x.event === "system.update.start" && x.detail.action === "rollback")).toBe(true);
   expect(e.some((x) => x.event === "system.update.finish" && x.detail.exit === 0)).toBe(true);
   expect(JSON.stringify(e)).not.toContain("SECRET-OUTPUT");
+});
+
+test("the updater's output becomes a step, a count and a name", () => {
+  const p = { step: "", detail: "", fetched: 0, fetchTotal: 0, built: 0, buildTotal: 0, started: 0, last: 0 };
+  for (const l of ["these 2 derivations will be built:", "these 3 paths will be fetched (10.0 MiB download, 40.0 MiB unpacked):", "copying path '/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-glibc-2.40' from 'https://cache.nixos.org'...", "building '/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-brasos-shell.drv'..."]) feed(p, l);
+  expect(p).toMatchObject({ step: "Building", detail: "brasos-shell", fetched: 1, fetchTotal: 3, built: 1, buildTotal: 2 });
+  feed(p, "activating the configuration...");
+  expect(p.step).toBe("Switching to the new system");
+  feed(p, "removing generation 4");
+  expect(p.step).toBe("Cleaning up old versions");
 });

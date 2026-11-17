@@ -31,7 +31,7 @@ const Slider = ({ value, label, onChange }: { value: number; label: string; onCh
   <span className="slider"><input type="range" min={0} max={100} value={value} aria-label={label} onChange={(e) => onChange(+e.target.value)} /><output>{value}%</output></span>
 );
 
-type UpdateState = { enabled: boolean; current: string; interface: { system: string; from: string; state: "current" | "older" | "unstamped" } | null; url: string; latest: { version: string; notes: string } | null; available: boolean; error: string; job: { state: "idle" | "running" | "done" | "failed"; action: string; log: string } };
+type UpdateState = { enabled: boolean; current: string; interface: { system: string; from: string; state: "current" | "older" | "unstamped" } | null; url: string; latest: { version: string; notes: string } | null; available: boolean; error: string; job: { state: "idle" | "running" | "done" | "failed"; action: string; log: string; progress?: { step: string; detail: string; fetched: number; fetchTotal: number; built: number; buildTotal: number; started: number; last: number } } };
 
 /** the Updates page: what this system is, what the update server offers, and the three things that change it (all through `system.update`) */
 function UpdatesPage() {
@@ -82,7 +82,7 @@ function UpdatesPage() {
         <Row label="Roll back" hint="Return to the previous generation. The boot menu keeps older ones too.">
           <Button variant="danger" disabled={!u.enabled || busy} onClick={() => run("rollback")}>Roll back</Button>
         </Row>
-        {busy && <p className="note" role="status">Working: {u.job.action}… the screen may restart when it finishes.</p>}
+        {busy && <UpdateProgress job={u.job} />}
         {u.job.state === "done" && (
           <Row label="Update finished" hint="Restart the computer to apply every change (the screen, boot and system parts only change after a restart).">
             <Button variant="primary" onClick={() => os.requestRestart()}>Restart the computer</Button>
@@ -272,3 +272,26 @@ const mount = document.getElementById("root");
 if (mount) createRoot(mount).render(<Settings />);
 
 export { Settings };
+
+/** What the update is doing now, how long it has been going and when it last printed anything, so a quiet stretch can be told from a stuck one */
+function UpdateProgress({ job }: { job: UpdateState["job"] }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const p = job.progress;
+  const mins = (ms: number) => (ms < 60_000 ? `${Math.max(0, Math.round(ms / 1000))} s` : `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`);
+  const frac = p && p.step === "Downloading" && p.fetchTotal ? Math.min(1, p.fetched / p.fetchTotal) : undefined;
+  return (
+    <div className="progress" role="status">
+      <p className="note"><strong>{p?.step || `Working: ${job.action}`}</strong>{p?.detail ? ` · ${p.detail}` : ""}</p>
+      <progress max={frac === undefined ? undefined : 1} value={frac} aria-label="Update progress" />
+      <p className="note">
+        {p?.fetchTotal ? `${p.fetched} of ${p.fetchTotal} downloads` : ""}{p?.fetchTotal && p.built ? " · " : ""}{p?.built ? `${p.built}${p.buildTotal ? ` of ${p.buildTotal}` : ""} built` : ""}
+        {p?.fetchTotal || p?.built ? " · " : ""}running for {mins(now - (p?.started ?? now))}{p ? ` · last activity ${mins(now - p.last)} ago` : ""}
+      </p>
+      <p className="note">The screen may restart when it finishes.</p>
+    </div>
+  );
+}
