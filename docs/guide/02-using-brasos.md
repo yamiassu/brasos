@@ -38,6 +38,8 @@ The **taskbar** along the bottom works like the one you know:
 
 Files shows your home folder: `/Desktop`, `/Documents` and `/Downloads` to start with. Nothing outside your home can be reached.
 
+The **Drives** place in the sidebar lists the disks in this computer, their volumes and how full they are. It is for information only: it doesn't open a drive.
+
 | To do this | Do this |
 |---|---|
 | Open a folder | Double-click it, or select it and press **Enter** |
