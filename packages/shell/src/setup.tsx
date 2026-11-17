@@ -184,7 +184,8 @@ export function Setup({ onSubmit }: { onSubmit(form: SetupForm): Promise<string 
 }
 
 /** the lock screen: the time, the account's name and a password. It locks the screen; it is not access control to the machine. */
-export function Login({ display, onSubmit }: { display: string; onSubmit(password: string): Promise<string | void> }) {
+export function Login({ display, hasPin, onSubmit }: { display: string; hasPin?: boolean; onSubmit(secret: string, kind: "password" | "pin"): Promise<string | void> }) {
+  const [usePin, setUsePin] = useState(!!hasPin);
   const [pw, setPw] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
@@ -208,7 +209,7 @@ export function Login({ display, onSubmit }: { display: string; onSubmit(passwor
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
-          const err = await onSubmit(pw);
+          const err = await onSubmit(pw, usePin ? "pin" : "password");
           setBusy(false);
           if (err) (setError(err), setPw(""), setShake((n) => n + 1));
         }}
@@ -216,11 +217,14 @@ export function Login({ display, onSubmit }: { display: string; onSubmit(passwor
         <div className="avatar" aria-hidden="true">{initials(display)}</div>
         <h1>{display}</h1>
         <div className="field-row">
-          <TextField label="Password" type={show ? "text" : "password"} autoFocus value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />
-          <button type="button" className="eye" aria-pressed={show} onClick={() => setShow(!show)}>{show ? "Hide" : "Show"}</button>
+          {usePin
+            ? <TextField label="PIN" type="password" inputMode="numeric" maxLength={8} autoFocus value={pw} onChange={(e) => setPw(e.target.value.replace(/\D/g, ""))} autoComplete="off" />
+            : <TextField label="Password" type={show ? "text" : "password"} autoFocus value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />}
+          {!usePin && <button type="button" className="eye" aria-pressed={show} onClick={() => setShow(!show)}>{show ? "Hide" : "Show"}</button>}
         </div>
         {error && <p role="alert" className="setup-error">{error}</p>}
         <Button variant="primary" type="submit" disabled={busy || !pw}>{busy ? "Unlocking…" : "Unlock"}</Button>
+        {hasPin && <button type="button" className="eye" onClick={() => (setUsePin(!usePin), setPw(""), setError(""))}>{usePin ? "Use the password instead" : "Use the PIN instead"}</button>}
         <p className="setup-note">This locks the screen. It does not encrypt the disk.</p>
       </form>
     </div>

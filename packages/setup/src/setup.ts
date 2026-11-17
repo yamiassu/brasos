@@ -11,7 +11,7 @@ export const KEYBOARDS = ["br-abnt2", "us", "us-intl"] as const;
 
 export type Prefs = { language: string; timezone: string; keyboard: string; clock24: boolean; palette: string; deviceName: string };
 export type SetupInput = { display: string; username: string; password: string; prefs: Prefs };
-type Stored = { done: true; at: number; account: { username: string; display: string; hash: string }; prefs: Prefs };
+type Stored = { done: true; at: number; account: { username: string; display: string; hash: string; pinHash?: string }; prefs: Prefs };
 
 export class SetupError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -51,6 +51,16 @@ export function validateSetup(b: any): SetupInput {
   if (pw.toLowerCase().includes(b.username) || new Set(pw).size < 4) bad("password is too easy to guess");
   return { display, username: b.username, password: pw, prefs: validatePrefs(b.prefs) };
 }
+
+/** a sign-in PIN: 4 to 8 digits, not one repeated digit and not a plain run (1234, 8765). A PIN only unlocks the screen, like the password. */
+export function validatePin(pin: unknown): string {
+  if (typeof pin !== "string" || !/^\d{4,8}$/.test(pin)) return bad("the PIN must be 4 to 8 digits");
+  const d = [...pin].map(Number);
+  const step = d[1] - d[0];
+  if (d.every((x, i) => i === 0 || x - d[i - 1] === step) && Math.abs(step) <= 1) bad("that PIN is too easy to guess (no repeated digits or runs like 1234)");
+  return pin;
+}
+const MAX_PIN_FAILS = 5; // consecutive wrong PINs before the PIN is switched off until the password is used
 
 export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: string; audit: AuditFn; preseed?: string; devSkip?: boolean }) {
   const file = stateDir ? join(stateDir, "setup.json") : undefined;
@@ -100,16 +110,25 @@ export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: 
 
   let busy = false; // one completion at a time: hashing is async, so two requests could race
   const fails: number[] = [];
+  let pinFails = 0; // in memory: a restart gives the PIN a fresh start (the screen lock is not access control)
   const publicState = () => {
     const s = read();
-    return s ? { available: true, done: true, user: { username: s.account.username, display: s.account.display }, prefs: s.prefs, ...(devSkip ? { devSkip: true } : {}) } : { available: !!file, done: false };
+    return s
+      ? { available: true, done: true, user: { username: s.account.username, display: s.account.display }, prefs: s.prefs, hasPin: !!s.account.pinHash && pinFails < MAX_PIN_FAILS, ...(devSkip ? { devSkip: true } : {}) }
+      : { available: !!file, done: false };
+  };
+  /** the per-minute limit shared by the password and the PIN: true when this attempt must be refused */
+  const throttled = () => {
+    const now = Date.now();
+    while (fails.length && now - fails[0] > 60_000) fails.shift();
+    return fails.length >= 5;
   };
 
   const slice: Slice = {
     name: "setup",
     async handle(req, ctx) {
       const path = ctx.url.pathname;
-      if (ctx.target.kind !== "shell" || !/^\/os\/(setup|prefs|login)/.test(path)) return;
+      if (ctx.target.kind !== "shell" || !/^\/os\/(setup|prefs|login|pin)/.test(path)) return;
       if (path === "/os/setup" && req.method === "GET") return json(publicState());
       if (req.method !== "POST") return;
 
@@ -148,27 +167,62 @@ export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: 
         }
       }
 
+      // set or remove the sign-in PIN: the current password is required (so a person at an unlocked screen can't add a PIN they know)
+      if (path === "/os/pin") {
+        const g = ctx.gate("setup.write", { sameOrigin: true });
+        if (!g.ok) return g.res;
+        if (throttled()) return json({ error: "too many attempts, wait a minute" }, 429);
+        const b: any = await req.json().catch(() => null);
+        const s = read();
+        if (!s) return json({ error: "not set up" }, 409);
+        const ok = typeof b?.password === "string" && b.password.length <= 128 && (await Bun.password.verify(b.password, s.account.hash).catch(() => false));
+        if (!ok) {
+          fails.push(Date.now());
+          audit("setup.pin", "deny", { app: "shell" }, { reason: "password" });
+          await Bun.sleep(400);
+          return json({ error: "wrong password" }, 401);
+        }
+        try {
+          if (b.pin === null) delete s.account.pinHash;
+          else s.account.pinHash = await Bun.password.hash(validatePin(b.pin), { algorithm: "argon2id" });
+          write(s);
+          pinFails = 0;
+          audit("setup.pin", "info", { app: "shell" }, { action: b.pin === null ? "remove" : "set" }); // never the PIN, nor its hash
+          return json({ ok: true, hasPin: b.pin !== null });
+        } catch (e) {
+          return e instanceof SetupError ? json({ error: e.message }, e.status) : json({ error: "failed" }, 500);
+        }
+      }
+
       if (path === "/os/login") {
         const g = ctx.gate("setup.login", { sameOrigin: true });
         if (!g.ok) return g.res;
         const now = Date.now();
-        while (fails.length && now - fails[0] > 60_000) fails.shift();
-        if (fails.length >= 5) {
+        const b: any = await req.json().catch(() => null);
+        const s = read();
+        const byPin = typeof b?.pin === "string";
+        if (byPin && pinFails >= MAX_PIN_FAILS) {
+          audit("login", "deny", { app: "shell" }, { method: "pin", reason: "pin-locked" }, { key: "pin-locked", ms: 10_000 });
+          return json({ error: "the PIN is switched off after too many wrong tries; use your password" }, 403);
+        }
+        if (throttled()) {
           audit("login", "deny", { app: "shell" }, { reason: "throttled" }, { key: "login-throttled", ms: 10_000 });
           return json({ error: "too many attempts, wait a minute" }, 429);
         }
-        const b: any = await req.json().catch(() => null);
-        const s = read();
-        const ok = !!s && typeof b?.username === "string" && typeof b?.password === "string" && b.password.length <= 128 &&
-          b.username === s.account.username && (await Bun.password.verify(b.password, s.account.hash).catch(() => false));
+        const ok = byPin
+          ? !!s?.account.pinHash && b.pin.length <= 8 && b.username === s.account.username && (await Bun.password.verify(b.pin, s.account.pinHash).catch(() => false))
+          : !!s && typeof b?.username === "string" && typeof b?.password === "string" && b.password.length <= 128 &&
+            b.username === s.account.username && (await Bun.password.verify(b.password, s.account.hash).catch(() => false));
         if (!ok) {
           fails.push(now);
-          audit("login", "deny", { app: "shell" }, { username: String(b?.username ?? "").slice(0, 32) });
+          if (byPin) pinFails++;
+          audit("login", "deny", { app: "shell" }, { username: String(b?.username ?? "").slice(0, 32), method: byPin ? "pin" : "password" });
           await Bun.sleep(400); // slows guessing a little; the counter above stops it
-          return json({ error: "wrong username or password" }, 401);
+          return json({ error: byPin ? "wrong PIN" : "wrong username or password" }, 401);
         }
         fails.length = 0;
-        audit("login", "allow", { app: "shell" }, { username: s!.account.username });
+        pinFails = 0;
+        audit("login", "allow", { app: "shell" }, { username: s!.account.username, method: byPin ? "pin" : "password" });
         return json({ ok: true });
       }
     },

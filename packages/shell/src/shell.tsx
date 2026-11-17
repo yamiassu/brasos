@@ -15,7 +15,7 @@ const post = (path: string, body: unknown) =>
   fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 const getJson = (path: string) => fetch(path).then((r) => r.json());
 
-export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clock24: boolean; palette: string }; user?: { display: string }; onLock?: () => void }) {
+export function Shell({ prefs, user, onLock, hasPin, onPinChanged }: { prefs?: { timezone: string; clock24: boolean; palette: string }; user?: { display: string }; onLock?: () => void; hasPin?: boolean; onPinChanged?: () => void }) {
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [wins, setWins] = useState<Win[]>([]);
@@ -25,6 +25,20 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [canPower, setCanPower] = useState(false);
   const [confirmPower, setConfirmPower] = useState<"poweroff" | "reboot" | null>(null);
+  const [pinDlg, setPinDlg] = useState<{ password: string; pin: string; again: string; error: string; busy: boolean } | null>(null);
+  const savePin = async (remove: boolean) => {
+    if (!pinDlg) return;
+    if (!remove && pinDlg.pin !== pinDlg.again) return setPinDlg({ ...pinDlg, error: "The two PINs are not the same" });
+    setPinDlg({ ...pinDlg, busy: true, error: "" });
+    const r = await post("/os/pin", { password: pinDlg.password, pin: remove ? null : pinDlg.pin });
+    if (!r.ok) {
+      const error = r.status === 401 ? "Wrong password" : (await r.json().catch(() => ({}))).error ?? "Could not save the PIN";
+      return setPinDlg((d) => d && { ...d, busy: false, password: "", error });
+    }
+    setPinDlg(null);
+    setNote(remove ? "PIN removed" : "PIN saved. Use it on the lock screen.");
+    onPinChanged?.();
+  };
   // dev: make an app from inside the OS (id + name), shown as a dialog
   const [newApp, setNewApp] = useState<{ id: string; name: string; error?: string; busy?: boolean } | null>(null);
   const [note, setNote] = useState("");
@@ -409,7 +423,7 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
             showAll={showAll} onToggleAll={() => setShowAll((v) => !v)}
             onContext={(h, e) => { const app = apps.find((a) => "a:" + a.id === h.key); if (app) setAppMenu({ x: e.clientX, y: e.clientY, app }); }}
             files={extra.files.slice(0, 5)} user={user?.display}
-            actions={[...(onLock ? [{ label: "Lock the screen", icon: "lock", onClick: () => (closeLauncher(), onLock()) }] : []), ...(canRestart ? [{ label: "Restart the interface", icon: "restart", onClick: () => (closeLauncher(), setConfirmRestart(true)) }] : []), ...(canPower ? [{ label: "Restart the computer", icon: "restart", onClick: () => (closeLauncher(), setConfirmPower("reboot")) }, { label: "Shut down", icon: "power", onClick: () => (closeLauncher(), setConfirmPower("poweroff")) }] : [])]}
+            actions={[...(onLock ? [{ label: "Lock the screen", icon: "lock", onClick: () => (closeLauncher(), onLock()) }, { label: hasPin ? "Change or remove the PIN" : "Set a sign-in PIN", icon: "lock", onClick: () => (closeLauncher(), setPinDlg({ password: "", pin: "", again: "", error: "", busy: false })) }] : []), ...(canRestart ? [{ label: "Restart the interface", icon: "restart", onClick: () => (closeLauncher(), setConfirmRestart(true)) }] : []), ...(canPower ? [{ label: "Restart the computer", icon: "restart", onClick: () => (closeLauncher(), setConfirmPower("reboot")) }, { label: "Shut down", icon: "power", onClick: () => (closeLauncher(), setConfirmPower("poweroff")) }] : [])]}
           />
         </>
       )}
@@ -424,6 +438,23 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
           <TextField label="Id (lowercase, dashes)" value={newApp.id} onChange={(e) => setNewApp({ ...newApp, id: e.target.value.toLowerCase() })} />
           <p className="muted">Creates apps/{newApp.id || "<id>"} in the OS source, builds it and adds it to the launcher.</p>
           {newApp.error && <p role="alert" className="setup-error">{newApp.error}</p>}
+        </Dialog>
+      )}
+      {pinDlg && (
+        <Dialog
+          title="Sign-in PIN"
+          onClose={() => setPinDlg(null)}
+          actions={<>
+            <Button onClick={() => setPinDlg(null)}>Cancel</Button>
+            {hasPin && <Button variant="danger" disabled={pinDlg.busy || !pinDlg.password} onClick={() => savePin(true)}>Remove PIN</Button>}
+            <Button variant="primary" disabled={pinDlg.busy || !pinDlg.password || pinDlg.pin.length < 4} onClick={() => savePin(false)}>Save PIN</Button>
+          </>}
+        >
+          <p>Unlock the screen with 4 to 8 digits instead of the password. The password still works. After 5 wrong PINs in a row the PIN is switched off until you use the password.</p>
+          <TextField label="Your password" type="password" autoFocus value={pinDlg.password} onChange={(e) => setPinDlg({ ...pinDlg, password: e.target.value })} autoComplete="current-password" />
+          <TextField label="New PIN" type="password" inputMode="numeric" maxLength={8} value={pinDlg.pin} onChange={(e) => setPinDlg({ ...pinDlg, pin: e.target.value.replace(/\D/g, "") })} autoComplete="off" />
+          <TextField label="New PIN again" type="password" inputMode="numeric" maxLength={8} value={pinDlg.again} onChange={(e) => setPinDlg({ ...pinDlg, again: e.target.value.replace(/\D/g, "") })} autoComplete="off" />
+          {pinDlg.error && <p role="alert" className="setup-error">{pinDlg.error}</p>}
         </Dialog>
       )}
       {confirmPower && (

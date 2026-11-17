@@ -16,7 +16,7 @@ test("a fresh system needs setup; completing it stores the account safely", asyn
   expect(await state(h)).toEqual({ available: true, done: false });
   expect((await post(h, "/os/setup/complete", good)).status).toBe(200);
   const s = await state(h);
-  expect(s).toEqual({ available: true, done: true, user: { username: "maria", display: "Maria Souza" }, prefs });
+  expect(s).toEqual({ available: true, done: true, user: { username: "maria", display: "Maria Souza" }, prefs, hasPin: false });
   const raw = readFileSync(join(h.stateDir, "setup.json"), "utf8");
   expect(raw).not.toContain("correct horse"); // only an argon2 hash is stored
   expect(raw).toContain("$argon2id$");
@@ -117,4 +117,35 @@ test("dev skip: no installer, no lock screen, an account nobody can log into; ig
   const hard = await testHost({ packages: ["hardened"], setupDevSkip: true });
   expect(await state(hard)).toEqual({ available: true, done: false }); // still asks for the first account
   hard.stop();
+});
+
+test("a sign-in PIN: set with the password, unlocks like it, never stored or audited in the clear", async () => {
+  const h = await testHost();
+  await post(h, "/os/setup/complete", good);
+  expect((await post(h, "/os/login", { username: "maria", pin: "2468" })).status).toBe(401); // none set yet
+  expect((await post(h, "/os/pin", { password: "wrong wrong wrong", pin: "2468" })).status).toBe(401);
+  expect((await post(h, "/os/pin", { password: good.password, pin: "2468" }, "files.localhost")).status).toBe(403); // shell only
+  for (const bad of ["12", "123456789", "abcd", "1111", "1234", "4321", "0000"]) expect([bad, (await post(h, "/os/pin", { password: good.password, pin: bad })).status]).toEqual([bad, 400]);
+  expect((await post(h, "/os/pin", { password: good.password, pin: "2468" })).status).toBe(200);
+  expect((await state(h)).hasPin).toBe(true);
+  expect((await post(h, "/os/login", { username: "maria", pin: "2468" })).status).toBe(200);
+  expect((await post(h, "/os/login", { username: "maria", pin: "2469" })).status).toBe(401);
+  const raw = readFileSync(join(h.stateDir, "setup.json"), "utf8");
+  expect(raw).not.toContain("2468");
+  expect(JSON.stringify(h.events())).not.toContain("2468");
+  expect(h.events().some((e) => e.event === "setup.pin" && e.outcome === "info" && e.detail.action === "set")).toBe(true);
+  expect((await post(h, "/os/pin", { password: good.password, pin: null })).status).toBe(200); // remove
+  expect((await state(h)).hasPin).toBe(false);
+  expect((await post(h, "/os/login", { username: "maria", pin: "2468" })).status).toBe(401);
+  h.stop();
+});
+
+test("five wrong PINs switch the PIN off until the password is used", async () => {
+  const h = await testHost();
+  await post(h, "/os/setup/complete", good);
+  await post(h, "/os/pin", { password: good.password, pin: "2468" });
+  for (let i = 0; i < 5; i++) expect((await post(h, "/os/login", { username: "maria", pin: "1357" })).status).toBe(401);
+  expect((await post(h, "/os/login", { username: "maria", pin: "2468" })).status).toBe(403); // right PIN, but switched off
+  expect((await state(h)).hasPin).toBe(false);
+  h.stop();
 });

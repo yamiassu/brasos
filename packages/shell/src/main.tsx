@@ -7,7 +7,7 @@ import "./user.css"; // last on purpose: user overrides win
 import { Shell } from "./shell";
 import { Login, Setup, type SetupForm } from "./setup";
 
-type State = { available: boolean; done: boolean; user?: { username: string; display: string }; prefs?: SetupForm["prefs"]; devSkip?: boolean };
+type State = { available: boolean; done: boolean; user?: { username: string; display: string }; prefs?: SetupForm["prefs"]; devSkip?: boolean; hasPin?: boolean };
 const post = (path: string, body: unknown) => fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 const KEY = "brasos.unlocked"; // per tab session; this is a screen lock, not access control (see the security guide)
 const was = () => { try { return sessionStorage.getItem(KEY) === "1"; } catch { return false; } };
@@ -45,8 +45,9 @@ function Root() {
       <div className="ui-root">
         <Login
           display={st.user!.display}
-          onSubmit={async (password) => {
-            const r = await post("/os/login", { username: st.user!.username, password });
+          hasPin={st.hasPin}
+          onSubmit={async (secret, kind) => {
+            const r = await post("/os/login", { username: st.user!.username, ...(kind === "pin" ? { pin: secret } : { password: secret }) });
             if (!r.ok) return (await r.json().catch(() => ({}))).error ?? "could not unlock";
             remember(true);
             setUnlocked(true);
@@ -55,7 +56,7 @@ function Root() {
       </div>
     );
   }
-  return <Shell prefs={st.prefs} user={st.user} onLock={st.available && st.done && !st.devSkip ? () => (remember(false), setUnlocked(false)) : undefined} />;
+  return <Shell prefs={st.prefs} user={st.user} hasPin={st.hasPin} onPinChanged={load} onLock={st.available && st.done && !st.devSkip ? () => (remember(false), setUnlocked(false)) : undefined} />;
 }
 
 createRoot(document.getElementById("root")!).render(<Root />);
