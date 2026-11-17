@@ -113,6 +113,12 @@ export function createOS(env: Env) {
     },
     info: () =>
       inside() ? call<{ os: "brasos"; packages: string[] }>("/os/info") : Promise.resolve({ os: null, packages: [] as string[] }),
+    /** Asks the shell to offer restarting the computer (the shell shows its own confirmation; only apps that hold `system.update` are heard). Polyfill: false. */
+    requestRestart: () => {
+      if (!inside() || !env.parent) return false;
+      env.parent.postMessage({ brasos: "restart-computer" }, base);
+      return true;
+    },
     apps: {
       /** polyfill: no apps */
       list: () => (inside() ? call<AppInfo[]>("/os/apps") : Promise.resolve([] as AppInfo[])),

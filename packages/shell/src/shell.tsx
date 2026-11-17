@@ -233,6 +233,11 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
       const kind = e.data?.brasos;
       if (kind === "apps-changed") loadApps(); // a refetch is harmless, so no sender check
       else if (kind === "fs-changed") loadDesktop();
+      // an app that applies system updates (Settings) offers a restart; the sender is decided by its origin, and the shell's own dialog confirms
+      else if (kind === "restart-computer") {
+        const from = apps.find((a) => a.id === new URL(e.origin).hostname.replace(/\.localhost$/, "").split("--")[0]);
+        if (canPower && from?.permissions.includes("system.update")) setConfirmPower("reboot");
+      }
       else if (kind === "install" && typeof e.data.manifestUrl === "string" && typeof e.data.nonce === "string") {
         const from = apps.find((a) => a.id === new URL(e.origin).hostname.replace(/\.localhost$/, "").split("--")[0]);
         const reply = (r: unknown) => (e.source as Window | null)?.postMessage({ brasos: "install-result", nonce: e.data.nonce, ...(r as object) }, { targetOrigin: e.origin });
@@ -276,7 +281,7 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
     };
     addEventListener("message", onMsg);
     return () => removeEventListener("message", onMsg);
-  }, [apps, wins]);
+  }, [apps, wins, canPower]);
 
   // The agent interface (see agent.ts). Tools always read the latest state through this ref.
   const live = useRef<ShellApi>(null!);

@@ -72,8 +72,11 @@ function UpdatesPage() {
           <Button variant="danger" disabled={!u.enabled || busy} onClick={() => run("rollback")}>Roll back</Button>
         </Row>
         {busy && <p className="note" role="status">Working: {u.job.action}… the screen may restart when it finishes.</p>}
-        {u.job.state === "done" && <p className="note" role="status">Finished. Restart to be sure everything runs the new system.</p>}
-        {u.job.state === "failed" && <p className="note" role="alert">It failed. The system was not changed beyond what Nix completed. Last output: <span className="mono">{u.job.log.trim().split(/\r?\n/).slice(-3).join(" · ")}</span></p>}
+        {u.job.state === "done" && (
+          <Row label="Update finished" hint="Restart the computer to apply every change (the screen, boot and system parts only change after a restart).">
+            <Button variant="primary" onClick={() => os.requestRestart()}>Restart the computer</Button>
+          </Row>
+        )}        {u.job.state === "failed" && <p className="note" role="alert">It failed. The system was not changed beyond what Nix completed. Last output: <span className="mono">{u.job.log.trim().split(/\r?\n/).slice(-3).join(" · ")}</span></p>}
         {asked.startsWith("failed") && <p className="note" role="alert">{asked}</p>}
       </Card>
     </>

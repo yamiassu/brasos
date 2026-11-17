@@ -123,6 +123,13 @@ test("apps.open asks the shell through the framing window", async () => {
   expect(sent).toEqual([[{ brasos: "open", id: "terminal" }, "http://localhost:7000"]]);
 });
 
+test("requestRestart asks the shell, which confirms and checks the sender", () => {
+  const sent: unknown[] = [];
+  const os = createOS({ location: loc("settings.localhost"), fetch: recorder().fetch, parent: { postMessage: (m, o) => sent.push([m, o]) } });
+  expect(os.requestRestart()).toBe(true);
+  expect(sent).toEqual([[{ brasos: "restart-computer" }, "http://localhost:7000"]]);
+});
+
 test("outside BrasOS every call degrades to a polyfill and never touches the network", async () => {
   const r = recorder();
   const os = createOS({ location: loc("example.com", ""), fetch: r.fetch, parent: { postMessage: () => {} } });
@@ -130,6 +137,7 @@ test("outside BrasOS every call degrades to a polyfill and never touches the net
   expect(await os.info()).toEqual({ os: null, packages: [] });
   expect(await os.apps.list()).toEqual([]);
   expect(await os.apps.open("x")).toBe(false);
+  expect(os.requestRestart()).toBe(false);
   expect(await os.web.open("https://example.com/p")).toEqual({ url: "https://example.com/p", site: "https://example.com" });
   await expect(os.apps.install("https://example.com/m")).rejects.toBeInstanceOf(UnsupportedError);
   expect(r.calls.length).toBe(0);
