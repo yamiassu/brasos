@@ -108,7 +108,10 @@ test("cookies work across the gateway: Set-Cookie is made storable, Cookie is fo
   const r = await fetch(await siteUrl("/"));
   const cookie = r.headers.get("set-cookie")!;
   expect(cookie).toContain("sid=1");
-  expect(cookie).not.toMatch(/domain=|secure|samesite=none/i);
+  expect(cookie).not.toMatch(/domain=/i); // names the real site: dropped
+  // a site in an iframe under the desktop is third-party to the browser: a cookie must be SameSite=None; Secure (Partitioned) or it is never stored
+  expect(cookie).toMatch(/SameSite=None; Secure; Partitioned$/);
+  expect(cookie.match(/samesite=/gi)?.length).toBe(1); // the site's own SameSite=Lax/Strict is replaced, not doubled
   const echo = await (await fetch(await siteUrl("/echo"), { headers: { cookie: "sid=1" } })).json();
   expect(echo.cookie).toBe("sid=1");
 });

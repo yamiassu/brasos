@@ -103,8 +103,12 @@ export function createGateway(opts: GatewayOptions = {}) {
     return res;
   }
 
+  // A site runs in an iframe under the desktop, which is a different site from its gateway origin, so the browser treats every cookie
+  // as third-party: a cookie with no SameSite (or Lax/Strict) is never stored or sent there, and every cookie sign-in failed. Domain is
+  // dropped (it names the real site), and the cookie is made SameSite=None; Secure; Partitioned (a browser accepts Secure cookies on
+  // *.localhost, and partitioned ones even where third-party cookies are limited).
   const rewriteCookie = (c: string) =>
-    c.split(";").map((s) => s.trim()).filter((p) => !/^(domain|secure|partitioned)(=|$)/i.test(p) && !/^samesite=none$/i.test(p)).join("; ");
+    [...c.split(";").map((s) => s.trim()).filter((p) => p && !/^(domain|secure|partitioned|samesite)(=|$)/i.test(p)), "SameSite=None", "Secure", "Partitioned"].join("; ");
 
   // shortcut: only href/src/action/poster/formaction are rewritten. srcset, CSS url(), and URLs built in script keep pointing
   // at the real site; the browser policy in the hardened package blocks those, and dev lets them through.

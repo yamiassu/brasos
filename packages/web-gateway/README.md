@@ -9,7 +9,7 @@ Loads websites through the host. It is the only way BrasOS touches the web, so i
 - **Framing and CSP.** Strips `X-Frame-Options`, CSP, COOP/COEP/CORP, HSTS; removes CSP `<meta>` tags; rewrites absolute `href`/`src`/`action`/`poster`/`formaction` and `Location` so links stay inside the gateway.
 - **The SDK.** Injects `window.__BRASOS_SITE__` (the real origin) and `/__brasos/sdk.js`, which reports navigation and the PWA manifest to the framing browser app and answers the shell's heartbeat.
 - **Devtools.** F12 (or Ctrl+Shift+I/J/C) inside a website opens an in-page devtools panel: the vendored Eruda (`vendor/`, see its README for version, source and checksum), served at `/__brasos/devtools.js` to website origins only and never when a package (hardened) is on. A page cannot open Chromium's own devtools, so the desktop's F12 is left alone and the website gets its own.
-- **Cookies and POST** are forwarded (`Domain`, `Secure`, `Partitioned`, `SameSite=None` stripped so they store on the gateway origin).
+- **Cookies and POST** are forwarded (`Domain` dropped, every cookie made `SameSite=None; Secure; Partitioned`: a site runs in an iframe under the desktop, so the browser treats its cookies as third-party and would otherwise store none, which broke every cookie-based sign-in. Checked in Chromium with a stand-in site: `none`, `lax`, no-attribute and `__Host-` cookies all stored and sent).
 
 ## Safety
 
