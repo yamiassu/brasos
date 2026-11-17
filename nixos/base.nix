@@ -58,6 +58,9 @@ in {
       BrowserAddPersonEnabled = false;
       ShoppingListEnabled = false;
       SearchSuggestEnabled = false;
+      # the real browser's own chrome (tabs, toolbar) in BrasOS's night palette: --panel of packages/ui, dark scheme
+      BrowserThemeColor = "#131314";
+      BrowserColorScheme = "dark";
     };
   };
   system.stateVersion = "25.11";

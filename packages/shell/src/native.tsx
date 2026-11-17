@@ -27,15 +27,16 @@ const place = (id: number, body: unknown) => {
   }, 8);
 };
 
-function Framed({ win, rect, order, setRect, onFocus }: { win: NativeWin; rect: Rect; order: number; setRect(r: Rect): void; onFocus(): void }) {
+function Framed({ win, rect, order, hidden, setRect, onFocus }: { win: NativeWin; rect: Rect; order: number; hidden: boolean; setRect(r: Rect): void; onFocus(): void }) {
   const body = useRef<HTMLDivElement>(null);
   const last = useRef("");
-  // after every layout, say where the content is (only when it changed): the compositor places the real window there
+  // after every layout, say where the content is (only when it changed): the compositor places the real window there.
+  // A window a BrasOS window is in front of is parked off screen (the compositor draws every native window above the shell).
   useLayoutEffect(() => {
     const el = body.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const m = { x: Math.round(r.left), y: Math.round(r.top), w: Math.max(64, Math.round(r.width)), h: Math.max(48, Math.round(r.height)) };
+    const m = { x: hidden ? -8192 : Math.round(r.left), y: hidden ? 0 : Math.round(r.top), w: Math.max(64, Math.round(r.width)), h: Math.max(48, Math.round(r.height)) };
     const key = `${m.x},${m.y},${m.w},${m.h}`;
     if (key === last.current) return;
     last.current = key;
@@ -46,7 +47,7 @@ function Framed({ win, rect, order, setRect, onFocus }: { win: NativeWin; rect: 
   const vh = () => window.innerHeight;
   const clamp = (r: Rect): Rect => ({ ...r, x: Math.min(vw() - 80, Math.max(80 - r.w, r.x)), y: Math.min(vh() - TASKBAR - 40, Math.max(0, r.y)) });
   return (
-    <div style={{ position: "absolute", left: rect.x, top: rect.y, width: rect.w, height: rect.h, zIndex: 100 + order, pointerEvents: "auto", display: "flex" }}>
+    <div style={{ position: "absolute", left: rect.x, top: rect.y, width: rect.w, height: rect.h, zIndex: 100 + order, pointerEvents: hidden ? "none" : "auto", visibility: hidden ? "hidden" : "visible", display: "flex" }}>
       <WindowFrame
         title={win.title || win.app || "Native app"}
         icon="app"
@@ -85,7 +86,9 @@ function Framed({ win, rect, order, setRect, onFocus }: { win: NativeWin; rect: 
   );
 }
 
-export function NativeWindows({ natives }: { natives: NativeWin[] }) {
+/** `cover`: the BrasOS window in front, if one is; a native window it overlaps is hidden until the native window is focused again */
+export function NativeWindows({ natives, cover }: { natives: NativeWin[]; cover: Rect | null }) {
+  const hits = (r: Rect) => !!cover && r.x < cover.x + cover.w && r.x + r.w > cover.x && r.y < cover.y + cover.h && r.y + r.h > cover.y;
   const [rects, setRects] = useState<Record<number, Rect>>({});
   const [order, setOrder] = useState<number[]>([]); // least to most recently focused
   const count = useRef(0);
@@ -119,7 +122,7 @@ export function NativeWindows({ natives }: { natives: NativeWin[] }) {
     <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 800 }}>
       {natives.filter((n) => n.ssd).map((n) =>
         rects[n.id] ? (
-          <Framed key={n.id} win={n} rect={rects[n.id]} order={order.indexOf(n.id)} setRect={(r) => setRects((s) => ({ ...s, [n.id]: r }))} onFocus={() => post("/os/native/focus", { id: n.id })} />
+          <Framed key={n.id} win={n} rect={rects[n.id]} order={order.indexOf(n.id)} hidden={hits(rects[n.id])} setRect={(r) => setRects((s) => ({ ...s, [n.id]: r }))} onFocus={() => post("/os/native/focus", { id: n.id })} />
         ) : null,
       )}
     </div>

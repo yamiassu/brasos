@@ -108,6 +108,7 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged, windowVars }:
     setNote("");
     const key = seq.current++;
     const z = seq.current++;
+    setFront("pwa");
     setWins((w) => [...w, { key, app, x: 60 + 30 * (w.length % 8), y: 30 + 30 * (w.length % 8), z, reload: 0, src, hash }]);
     return true;
   };
@@ -162,7 +163,11 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged, windowVars }:
   const closeLauncher = () => (setLauncher(false), setQuery(""), setPicked(null), setShowAll(false));
   const patch = (key: number, f: (w: Win) => Partial<Win>) => setWins((ws) => ws.map((w) => (w.key === key ? { ...w, ...f(w) } : w)));
   const close = (key: number) => setWins((ws) => ws.filter((w) => w.key !== key));
+  // which kind of window is in front: native windows are drawn by the compositor above the whole shell, so while a BrasOS window is
+  // in front, the native windows it overlaps are hidden (NativeWindows `cover`); focusing a native window shows them again
+  const [front, setFront] = useState<"pwa" | "native">("native");
   const focus = (key: number) => {
+    setFront("pwa");
     const z = seq.current++;
     patch(key, () => ({ z, min: false })); // focusing a minimized window brings it back
   };
@@ -233,6 +238,16 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged, windowVars }:
     const t = setInterval(tick, 500);
     return () => (stop = true, clearInterval(t));
   }, []);
+  const lastNative = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const f = natives.find((n) => n.focused)?.id;
+    if (f !== undefined && f !== lastNative.current) setFront("native");
+    lastNative.current = f;
+  }, [natives]);
+  const frameEl = focused && frames.current.get(focused.key);
+  const cover = front === "pwa" && focused && frameEl
+    ? focused.max ? { x: 0, y: 0, w: innerWidth, h: innerHeight } : (({ left, top, width, height }) => ({ x: left, y: top - 40, w: width, h: height + 40 }))(frameEl.getBoundingClientRect())
+    : null;
   // the browser's own right-click menu (with Reload and Inspect) never shows over the desktop
   useEffect(() => {
     const onMenu = (e: MouseEvent) => nativeMenu(e) && e.preventDefault();
@@ -389,7 +404,7 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged, windowVars }:
           );
         })}
       </div>
-      <NativeWindows natives={natives} />
+      <NativeWindows natives={natives} cover={cover} />
       <Taskbar>
         <div className="ui-task-left">
         <TaskButton icon="brasos" label="Start" active={launcher && !query} onClick={() => (launcher ? closeLauncher() : (setQuery(""), openLauncher()))} />
