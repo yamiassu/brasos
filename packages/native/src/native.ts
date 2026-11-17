@@ -55,6 +55,35 @@ function readWindows(path: string, ms = 1000): Promise<NativeWindow[]> {
   });
 }
 
+/** a small picture of one window (raw RGB, base64): ask on a fresh connection and wait for the line that answers. null when it can't be had. */
+export function readThumb(path: string, id: number, ms = 1500): Promise<{ w: number; h: number; rgb: string } | null> {
+  return new Promise((resolve) => {
+    let buf = "";
+    const s = connect(path, () => s.write(`{"thumb":${id}}\n`));
+    const done = (v: { w: number; h: number; rgb: string } | null) => (clearTimeout(t), s.destroy(), resolve(v));
+    const t = setTimeout(() => done(null), ms);
+    s.on("error", () => done(null));
+    s.on("data", (d) => {
+      buf += d;
+      if (buf.length > 256 * 1024) return done(null);
+      for (let nl = buf.indexOf("\n"); nl >= 0; nl = buf.indexOf("\n")) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        let m: any;
+        try {
+          m = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (m?.thumb !== id) continue; // the window list comes first on every connection
+        // the compositor is trusted but the shell draws this: the sizes must fit and the bytes must be exactly width x height x 3
+        const ok = Number.isInteger(m.w) && Number.isInteger(m.h) && m.w >= 1 && m.w <= 256 && m.h >= 1 && m.h <= 256 && typeof m.rgb === "string" && m.rgb.length === m.w * m.h * 4 && /^[A-Za-z0-9+/]+={0,2}$/.test(m.rgb);
+        return done(ok ? { w: m.w, h: m.h, rgb: m.rgb } : null);
+      }
+    });
+  });
+}
+
 function send(path: string, line: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const s = connect(path, () => s.end(line, () => resolve()));
@@ -90,6 +119,15 @@ export function createNative({ socket, apps: appsFile, audit }: { socket?: strin
         } catch {
           return json({ available: false, windows: [] });
         }
+      }
+      // a picture of a window for the switcher; many are asked for at once, so the allows are not written to the trail one by one
+      if (req.method === "GET" && p === "/os/native/thumb") {
+        const g = ctx.gate("native.read", { quiet: true });
+        if (!g.ok) return g.res;
+        const id = Number(ctx.url.searchParams.get("id"));
+        if (!Number.isInteger(id) || id <= 0 || id > 0xffffffff) return json({ error: "id must be a window id" }, 400);
+        const t = socket ? await readThumb(socket, id) : null;
+        return t ? json(t) : json({ error: "no picture of that window" }, 404);
       }
       if (req.method === "GET" && p === "/os/native/apps") {
         const g = ctx.gate("native.read");

@@ -203,3 +203,16 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 .net-pw { display: flex; gap: 6px; padding: 4px 8px 8px; }
 .net-pw input { flex: 1; min-width: 0; }
 .net-more { align-self: flex-start; }
+
+/* Alt+Tab: the overlay, and the preview (the selected window in front, the others dimmed) */
+.switcher { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 6000; width: max-content; max-width: calc(100vw - 32px); padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; background: color-mix(in srgb, var(--panel-2) 94%, transparent); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); }
+.switcher ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.switcher li { width: 120px; min-height: 92px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--muted); }
+.switcher li.on { background: var(--selected); border-color: var(--accent); color: var(--text); }
+.switcher li .t { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.switcher li small { font-size: 10px; color: var(--muted); }
+.switcher .hint { margin: 0; font-size: 11px; color: var(--muted); }
+.ui-root--switching .ui-window:not(.ui-window--peek) { opacity: 0.35; transition: opacity 80ms; }
+.ui-root--switching .ui-window--peek { box-shadow: 0 0 0 2px var(--accent), var(--shadow); }
+.switcher li.shot { width: 176px; min-height: 0; padding: 8px; }
+.switcher li img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); }

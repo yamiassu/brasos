@@ -169,7 +169,7 @@ export function Dialog({ title, children, actions, onClose }: { title: string; c
 }
 
 /** Window chrome (title bar and body). Dragging and focus are the shell's business: pass pointer handlers in `headerProps`. */
-export function WindowFrame({ title, icon, focused, bare, maximized, minimized, onClose, onMinimize, onMaximize, onResize, onResizeStart, onResizeEnd, headerProps, style, children }: {
+export function WindowFrame({ title, icon, focused, bare, maximized, minimized, onClose, onMinimize, onMaximize, onResize, onResizeStart, onResizeEnd, headerProps, style, className, children }: {
   title: string;
   /** the window with the user's attention glows brighter */
   focused?: boolean;
@@ -190,12 +190,14 @@ export function WindowFrame({ title, icon, focused, bare, maximized, minimized, 
   onResizeEnd?(): void;
   headerProps?: HTMLAttributes<HTMLElement>;
   style?: CSSProperties;
+  /** extra classes on the window (the shell marks the window being previewed by the switcher) */
+  className?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
   const grab = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   return (
-    <section ref={ref} className={cx("ui-window", focused && !bare && "ui-window--focused", bare && "ui-window--bare", maximized && "ui-window--max", minimized && "ui-window--min")} style={style} aria-label={title} hidden={minimized}>
+    <section ref={ref} className={cx("ui-window", focused && !bare && "ui-window--focused", bare && "ui-window--bare", maximized && "ui-window--max", minimized && "ui-window--min", className)} style={style} aria-label={title} hidden={minimized}>
       {!bare && (
         <header {...headerProps} onDoubleClick={onMaximize && ((e) => !(e.target as HTMLElement).closest("button") && onMaximize())}>
           <span className="title">{typeof icon === "string" ? <Icon name={icon} size={18} /> : icon} {title}</span>

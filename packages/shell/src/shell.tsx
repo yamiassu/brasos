@@ -7,6 +7,8 @@ import { Desktop } from "./desktop";
 import { Launcher, search, type Hit } from "./launcher";
 import { isPinned, loadUnpinned, saveUnpinned, setPinned, type Unpinned, type Where } from "./pins";
 import { Battery, Clock, Mode, Network } from "./tray";
+import { isSwitchKey, stepIndex, switchItems, type SwItem } from "./switcher-model";
+import { Switcher } from "./switcher";
 import { atTopEdge, Boundary, DEFAULT_W, Frame, frameSrc, restoreLeft, type Win } from "./windows";
 import { InstallPrompt, type Inspection } from "./install";
 import { NativeWindows, type NativeWin } from "./native";
@@ -162,7 +164,7 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
   };
   const closeLauncher = () => (setLauncher(false), setQuery(""), setPicked(null), setShowAll(false));
   const patch = (key: number, f: (w: Win) => Partial<Win>) => setWins((ws) => ws.map((w) => (w.key === key ? { ...w, ...f(w) } : w)));
-  const close = (key: number) => setWins((ws) => ws.filter((w) => w.key !== key));
+  const close = (key: number) => (thumbs.current.delete(`w:${key}`), setWins((ws) => ws.filter((w) => w.key !== key)));
   // A drag or a resize reports the pointer on every event, usually faster than the screen is drawn, and each state change re-renders the
   // whole shell. So the movement is summed and applied once per frame (a timer backs up requestAnimationFrame, which a hidden page pauses).
   const queued = useRef(new Map<number, { dx: number; dy: number; w?: number; h?: number }>());
@@ -190,7 +192,11 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
     const z = seq.current++;
     patch(key, () => ({ z, min: false })); // focusing a minimized window brings it back
   };
-  const minimize = (key: number) => patch(key, () => ({ min: true }));
+  // thumbnails for the window switcher: a picture per window (see the switcher block below); closing forgets it, minimizing refreshes it
+  const thumbs = useRef(new Map<string, { url: string; at: number }>());
+  const [thumbTick, setThumbTick] = useState(0);
+  const thumbApi = useRef({ ask: (_key: number) => {} });
+  const minimize = (key: number) => (thumbApi.current.ask(key), patch(key, () => ({ min: true })));
   const toggleMax = (key: number) => patch(key, (c) => ({ max: !c.max }));
   /** a drag that starts on a maximized window returns it to its normal size, with the pointer where it was on the title bar */
   const unmaxAt = (w: Win, pointerX: number) => patch(w.key, () => ({ max: false, x: restoreLeft(pointerX, innerWidth, w.w ?? DEFAULT_W), y: 0 }));
@@ -263,6 +269,69 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
     if (f !== undefined && f !== lastNative.current) setFront("native");
     lastNative.current = f;
   }, [natives]);
+  // Alt+Tab: Tab cycles through the windows (the one in front first), releasing Alt switches to the selected one, Escape cancels. While it is
+  // open the selected window is previewed in place (see the render below). The keys arrive here from the shell itself, or from a window's
+  // iframe through the SDK, so the functions are reached through a ref: the listeners always call the latest ones.
+  const sw = useRef<{ items: SwItem[]; index: number } | null>(null);
+  const [swState, setSwState] = useState<{ items: SwItem[]; index: number } | null>(null);
+  const swApi = useRef({ step: (_dir: 1 | -1) => {}, end: (_commit: boolean) => {} });
+  swApi.current = {
+    step(dir) {
+      let cur = sw.current;
+      if (!cur) {
+        const items = switchItems(wins.map((w) => ({ key: w.key, z: w.z, title: w.title ?? w.app.name, icon: w.app.icon, min: w.min })), natives.map((n) => ({ id: n.id, title: n.title || n.app || "Native app", focused: n.focused })), front);
+        if (items.length < 2) return;
+        cur = { items, index: 0 };
+        askThumbs(items);
+      }
+      sw.current = { items: cur.items, index: stepIndex(cur.index, cur.items.length, dir) };
+      setSwState(sw.current);
+    },
+    end(commit) {
+      const cur = sw.current;
+      sw.current = null;
+      setSwState(null);
+      const it = cur?.items[cur.index];
+      if (!commit || !it) return;
+      if (it.kind === "pwa") (focus(it.ref), setTimeout(() => frames.current.get(it.ref)?.focus(), 30)); // the keyboard goes to it too, not to the window left behind
+      else (setFront("native"), void post("/os/native/focus", { id: it.ref }));
+    },
+  };
+  // A BrasOS window draws its own picture when asked (the SDK, snapshot.ts) and the compositor reads a native window's last buffer
+  // (/os/native/thumb); a picture younger than 3 s is reused. A window that can't give one keeps its icon on the card.
+  const askNative = async (id: number) => {
+    try {
+      const r = await fetch(`/os/native/thumb?id=${id}`, { cache: "no-store" });
+      if (!r.ok) return;
+      const t = (await r.json()) as { w: number; h: number; rgb: string };
+      const raw = atob(t.rgb);
+      if (raw.length !== t.w * t.h * 3) return;
+      const px = new Uint8ClampedArray(t.w * t.h * 4);
+      for (let i = 0; i < t.w * t.h; i++) (px[i * 4] = raw.charCodeAt(i * 3), px[i * 4 + 1] = raw.charCodeAt(i * 3 + 1), px[i * 4 + 2] = raw.charCodeAt(i * 3 + 2), px[i * 4 + 3] = 255);
+      const c = document.createElement("canvas");
+      c.width = t.w;
+      c.height = t.h;
+      c.getContext("2d")!.putImageData(new ImageData(px, t.w, t.h), 0, 0);
+      thumbs.current.set(`n:${id}`, { url: c.toDataURL("image/jpeg", 0.75), at: Date.now() });
+      setThumbTick((n) => n + 1);
+    } catch {}
+  };
+  thumbApi.current.ask = (key) => {
+    const w = wins.find((x) => x.key === key);
+    const el = frames.current.get(key);
+    if (!w || w.src || !el?.contentWindow) return; // a website window is never copied
+    const r = el.getBoundingClientRect();
+    el.contentWindow.postMessage({ brasos: "snapshot-request", w: Math.round(r.width) || (w.w ?? DEFAULT_W), h: Math.round(r.height) || (w.h ?? 420) - 40 }, new URL(frameSrc(w)).origin);
+  };
+  const askThumbs = (items: SwItem[]) => {
+    for (const it of items) {
+      if (Date.now() - (thumbs.current.get(it.id)?.at ?? 0) < 3000) continue;
+      if (it.kind === "pwa") thumbApi.current.ask(it.ref);
+      else void askNative(it.ref);
+    }
+  };
+  const swItem = swState?.items[swState.index];
+  const peekKey = swItem?.kind === "pwa" ? swItem.ref : null; // the BrasOS window being previewed
   const frameEl = focused && frames.current.get(focused.key);
   // Measuring the focused window forces a layout, which a drag would pay on every move. While dragging, the last measurement is
   // moved and resized by what the state says changed since.
@@ -277,7 +346,7 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
       box = measured.current.r;
     }
   }
-  const cover = front === "pwa" && focused && frameEl
+  const cover = front === "pwa" && focused && frameEl && swItem?.kind !== "native"
     ? focused.max ? { x: 0, y: 0, w: innerWidth, h: innerHeight } : box && { x: box.left, y: box.top - 40, w: box.width, h: box.height + 40 }
     : null;
   // the browser's own right-click menu (with Reload and Inspect) never shows over the desktop
@@ -294,12 +363,18 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
   // Ctrl+K from anywhere in the shell (a window's iframe keeps its own keys)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isReloadKey(e)) e.preventDefault(); // a reload would close every window and lose unsaved work
+      if (isSwitchKey(e)) (e.preventDefault(), swApi.current.step(e.shiftKey ? -1 : 1));
+      else if (sw.current && e.key === "Escape") (e.preventDefault(), swApi.current.end(false));
+      else if (isReloadKey(e)) e.preventDefault(); // a reload would close every window and lose unsaved work
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") (e.preventDefault(), openLauncher(), searchBox.current?.focus());
       else if (e.key === "Escape") closeLauncher();
     };
+    const onUp = (e: KeyboardEvent) => e.key === "Alt" && sw.current && swApi.current.end(true);
+    const onBlur = () => sw.current && swApi.current.end(false); // a click into a window, or another desktop, ends it without switching
     addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
+    addEventListener("keyup", onUp);
+    addEventListener("blur", onBlur);
+    return () => (removeEventListener("keydown", onKey), removeEventListener("keyup", onUp), removeEventListener("blur", onBlur));
   });
 
   // Messages from windows (through @brasos/sdk): refresh signals, and apps asking the shell to open another app. Both are
@@ -309,6 +384,18 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
       const kind = e.data?.brasos;
       if (kind === "apps-changed") loadApps(); // a refetch is harmless, so no sender check
       else if (kind === "fs-changed") loadDesktop();
+      // a window's picture for the switcher: only from one of our own frames, only a small JPEG data URL
+      else if (kind === "snapshot") {
+        const w = wins.find((x) => frames.current.get(x.key)?.contentWindow === e.source);
+        const u = e.data.url;
+        if (w && !w.src && typeof u === "string" && u.length <= 150_000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(u)) (thumbs.current.set(`w:${w.key}`, { url: u, at: Date.now() }), setThumbTick((n) => n + 1));
+      }
+      // Alt+Tab pressed while a window has the focus (SDK): only from one of our own frames, and only a step or the end of the switch
+      else if (kind === "switch" && wins.some((x) => frames.current.get(x.key)?.contentWindow === e.source)) {
+        if (e.data.phase === "next") swApi.current.step(e.data.shift === true ? -1 : 1);
+        else if (e.data.phase === "end") swApi.current.end(true);
+        else if (e.data.phase === "cancel") swApi.current.end(false);
+      }
       // an app that applies system updates (Settings) offers a restart; the sender is decided by its origin, and the shell's own dialog confirms
       else if (kind === "restart-computer") {
         const from = apps.find((a) => a.id === new URL(e.origin).hostname.replace(/\.localhost$/, "").split("--")[0]);
@@ -386,13 +473,14 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
   }, [packages]);
 
   return (
-    <div className={dragging ? "ui-root ui-root--dragging" : "ui-root"}>
+    <div className={`ui-root${dragging ? " ui-root--dragging" : ""}${swState ? " ui-root--switching" : ""}`}>
       <div className="layer windows">
         {snap !== null && <div className="snap-preview" aria-hidden="true" style={{ zIndex: (wins.find((x) => x.key === snap)?.z ?? 0) + 1 }} />}
         {wins.map((w) => {
+          const z = peekKey === w.key ? 5000 : w.z + 2; // the previewed window rises above the rest
           const pos = w.max
-            ? { left: 0, top: 0, width: "100%", height: "100%", zIndex: w.z + 2 }
-            : { left: w.x, top: w.y, zIndex: w.z + 2, ...(w.w ? { width: w.w } : {}), ...(w.h ? { height: w.h } : {}) };
+            ? { left: 0, top: 0, width: "100%", height: "100%", zIndex: z }
+            : { left: w.x, top: w.y, zIndex: z, ...(w.w ? { width: w.w } : {}), ...(w.h ? { height: w.h } : {}) };
           return (
             <Boundary key={w.key} style={pos} onClose={() => close(w.key)}>
               <WindowFrame
@@ -401,7 +489,8 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
                 bare={w.app.window?.frame === false}
                 focused={w === focused}
                 maximized={!!w.max}
-                minimized={!!w.min}
+                minimized={!!w.min && peekKey !== w.key}
+                className={peekKey === w.key ? "ui-window--peek" : undefined}
                 style={pos}
                 onClose={() => close(w.key)}
                 onMinimize={() => minimize(w.key)}
@@ -438,6 +527,7 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
         })}
       </div>
       <NativeWindows natives={natives} cover={cover} />
+      {swState && <Switcher items={swState.items} index={swState.index} thumbs={Object.fromEntries([...thumbs.current].map(([k, v]) => [k, v.url]))} />}
       <Taskbar>
         <div className="ui-task-left">
         <TaskButton icon="brasos" label="Start" active={launcher && !query} onClick={() => (launcher ? closeLauncher() : (setQuery(""), openLauncher()))} />

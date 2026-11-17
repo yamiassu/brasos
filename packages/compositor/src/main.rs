@@ -8,6 +8,7 @@ mod grabs;
 mod headless;
 mod input;
 mod state;
+mod thumb;
 mod winit;
 
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};

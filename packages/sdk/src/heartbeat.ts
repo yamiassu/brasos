@@ -1,4 +1,6 @@
 // The shell sends "ping" to every window; no "pong" within 8 s shows "isn't responding" (see AGENTS.md, contract 4).
+import { capture, requestedSize } from "./snapshot";
+
 /** F5, Ctrl+R, Ctrl+Shift+R, Ctrl+F5: the keys that reload a page. A reload throws away every open window and unsaved work, so BrasOS does not offer it. */
 export const isReloadKey = (e: { key: string; ctrlKey?: boolean; metaKey?: boolean }) => e.key === "F5" || ((!!e.ctrlKey || !!e.metaKey) && e.key.toLowerCase() === "r");
 
@@ -10,6 +12,9 @@ export const isDevtoolsKey = (e: { key: string; ctrlKey?: boolean; metaKey?: boo
 export const nativeMenu = (e: { target: any }) => !/^(INPUT|TEXTAREA)$/.test(e.target?.tagName ?? "") && !e.target?.isContentEditable;
 /** whether the shell shows this window maximized (the shell tells us), so an app's own window buttons can show the right icon */
 
+/** Alt+Tab (and nothing else with it) */
+export const isSwitchKey = (e: { key: string; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => e.key === "Tab" && !!e.altKey && !e.ctrlKey && !e.metaKey;
+
 export const windowState = { max: false, subs: new Set<(max: boolean) => void>() };
 
 export function installHeartbeat(w: any) {
@@ -19,9 +24,33 @@ export function installHeartbeat(w: any) {
     w.addEventListener("keydown", (e: KeyboardEvent) => isReloadKey(e) && e.preventDefault(), true);
     w.addEventListener("contextmenu", (e: MouseEvent) => nativeMenu(e) && e.preventDefault(), true);
   }
+  // The window switcher (Alt+Tab) lives in the shell, but the keys go to whatever has the focus: this window forwards them. The message
+  // carries no data beyond the phase, and the shell only acts on it as a focus change among its own windows.
+  const shell = `${w.location?.protocol ?? "http:"}//localhost${w.location?.port ? ":" + w.location.port : ""}`;
+  let switching = false;
+  const tell = (phase: "next" | "end" | "cancel", shift = false) => w.parent.postMessage({ brasos: "switch", phase, shift }, shell);
+  w.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (isSwitchKey(e)) (e.preventDefault(), (switching = true), tell("next", e.shiftKey));
+    else if (switching && e.key === "Escape") (e.preventDefault(), (switching = false), tell("cancel"));
+  }, true);
+  w.addEventListener("keyup", (e: KeyboardEvent) => {
+    if (switching && e.key === "Alt") (switching = false, tell("end"));
+  }, true);
+  // a click in the window while the switcher is open dismisses it (the shell never sees clicks that land in a frame)
+  w.addEventListener("pointerdown", () => switching && ((switching = false), tell("cancel")), true);
+  // The window switcher's thumbnail: the shell asks, the window draws itself (snapshot.ts) and answers with a small JPEG. Only an app's own
+  // page does: a website loaded through the gateway is never copied.
+  const isSite = String(w.location?.hostname ?? "").endsWith(".web.localhost");
+  let drawing = false;
   w.addEventListener("message", (e: MessageEvent) => {
     if (e.source !== w.parent) return;
     if (e.data === "ping") w.parent.postMessage("pong", e.origin);
+    else if (e.data?.brasos === "snapshot-request" && !isSite && !drawing) {
+      const size = requestedSize(e.data, { w: w.innerWidth ?? 0, h: w.innerHeight ?? 0 });
+      if (!size) return;
+      drawing = true;
+      void capture(size, w).then((r) => (drawing = false, r && w.parent.postMessage({ brasos: "snapshot", w: r.w, h: r.h, url: r.url }, shell)));
+    }
     else if (e.data?.brasos === "prefs") applyPrefs(w, e.data);
     else if (e.data?.brasos === "window-state" && typeof e.data.max === "boolean") (windowState.max = e.data.max, windowState.subs.forEach((f) => f(windowState.max)));
   });

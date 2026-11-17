@@ -151,3 +151,40 @@ test("installed Flatpak apps are listed and started by application id only, from
     else process.env.BRASOS_FLATPAK = saved;
   }
 });
+
+/** a stand-in compositor that also answers {"thumb":ID} on the connection that asked */
+function thumbCompositor(reply: (id: number) => unknown) {
+  const path = join(mkdtempSync(join(tmpdir(), "brasos-comp-")), "t.sock");
+  srv = createServer((s) => {
+    s.write(JSON.stringify({ windows: [] }) + "\n"); // the list comes first, as on the real socket
+    s.on("data", (d) => {
+      const m = /"thumb":(\d+)/.exec(String(d));
+      if (m) s.write(JSON.stringify(reply(Number(m[1]))) + "\n");
+    });
+  }).listen(path);
+  return path;
+}
+
+test("a window's picture comes through for the shell, checked before it is passed on", async () => {
+  const rgb = Buffer.alloc(2 * 1 * 3, 7).toString("base64"); // 2 x 1 pixels
+  const path = thumbCompositor((id) => (id === 5 ? { thumb: 5, w: 2, h: 1, rgb } : id === 6 ? { thumb: 6, w: 2, h: 1, rgb: "AAAA" } : { thumb: id, error: "not readable" }));
+  const h = await testHost({ nativeSocket: path });
+  const get = (id: string, from = "localhost") => h.at("localhost", `/os/native/thumb?id=${id}`, { headers: { origin: h.origin(from) } });
+  expect(await (await get("5")).json()).toEqual({ w: 2, h: 1, rgb });
+  expect((await get("6")).status).toBe(404); // the bytes don't match the size: dropped
+  expect((await get("7")).status).toBe(404); // the compositor says it can't
+  expect((await get("0")).status).toBe(400);
+  expect((await get("abc")).status).toBe(400);
+  expect((await get("5", "about.localhost")).status).toBe(403); // apps hold no native.read
+  expect((await h.at("localhost", "/os/native/thumb?id=5")).status).toBe(403); // no identifiable caller
+  h.stop();
+  const hard = await testHost({ packages: ["hardened"], nativeSocket: path });
+  expect((await hard.at("localhost", "/os/native/thumb?id=5", { headers: { origin: hard.origin("localhost") } })).status).toBe(403);
+  hard.stop();
+});
+
+test("without a compositor there is no picture", async () => {
+  const h = await testHost();
+  expect((await h.at("localhost", "/os/native/thumb?id=5", { headers: { origin: h.origin("localhost") } })).status).toBe(404);
+  h.stop();
+});

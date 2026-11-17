@@ -61,6 +61,8 @@ enum Cmd {
     Run(String, String),
     /// id, x, y, w, h: where a window's content goes (the shell draws the frame around it)
     Place(u32, i32, i32, i32, i32),
+    /// a small picture of a window (answered on the same connection, see `thumb_reply`)
+    Thumb(u32),
 }
 
 /// A web address that may be handed to a native app as its last argument: http(s) only, bounded, and only URL characters (no quote,
@@ -108,6 +110,7 @@ fn parse(line: &str) -> Option<Cmd> {
     match k {
         "focus" => v.parse().ok().map(Cmd::Focus),
         "close" => v.parse().ok().map(Cmd::Close),
+        "thumb" => v.parse().ok().filter(|id| *id >= 1).map(Cmd::Thumb),
         "launch" => {
             let id = v.trim_matches('"');
             (!id.is_empty() && id.len() <= 40 && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')).then(|| Cmd::Launch(id.to_string()))
@@ -276,6 +279,37 @@ impl Smallvil {
         format!("{{\"windows\":[{}]}}\n", items.join(","))
     }
 
+    /// `{"thumb":ID,"w":W,"h":H,"rgb":"<base64>"}` for the window's last shared-memory buffer shrunk to at most 224 x 140, or
+    /// `{"thumb":ID,"error":"…"}`. A window that draws with the GPU (dmabuf) has no buffer to read here: the shell shows its icon then.
+    fn thumb_reply(&self, id: u32) -> String {
+        use smithay::reexports::wayland_server::protocol::wl_shm::Format;
+        let fail = |m: &str| format!("{{\"thumb\":{id},\"error\":\"{m}\"}}\n");
+        let Some(win) = self.space.elements().find(|w| id_of(w) == id && !crate::state::is_shell(w)) else { return fail("no such window") };
+        let Some(surface) = crate::state::wl_of(win) else { return fail("no surface") };
+        let shot = smithay::backend::renderer::utils::with_renderer_surface_state(&surface, |st| {
+            let buf = st.buffer()?;
+            smithay::wayland::shm::with_buffer_contents(buf, |ptr, len, d| {
+                let (rgba_order, alpha) = match d.format {
+                    Format::Argb8888 => (false, true),
+                    Format::Xrgb8888 => (false, false),
+                    Format::Abgr8888 => (true, true),
+                    Format::Xbgr8888 => (true, false),
+                    _ => return None,
+                };
+                // the pool is mapped for the call only: read it here, inside
+                let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+                let (w, h, stride, offset) = (usize::try_from(d.width).ok()?, usize::try_from(d.height).ok()?, usize::try_from(d.stride).ok()?, usize::try_from(d.offset).ok()?);
+                crate::thumb::downscale(&crate::thumb::Src { bytes, offset, w, h, stride, rgba_order, alpha }, crate::thumb::MAX_W, crate::thumb::MAX_H)
+            })
+            .ok()
+            .flatten()
+        });
+        match shot.flatten() {
+            Some((w, h, rgb)) => format!("{{\"thumb\":{id},\"w\":{w},\"h\":{h},\"rgb\":\"{}\"}}\n", crate::thumb::base64(&rgb)),
+            None => fail("not readable"),
+        }
+    }
+
     /// move a native window and give it the size the shell's frame leaves for its content
     fn place_window(&mut self, win: &Window, x: i32, y: i32, w: i32, h: i32) {
         if let Some(t) = win.toplevel() {
@@ -316,8 +350,17 @@ impl Smallvil {
             }
             while let Some(i) = buf.iter().position(|b| *b == b'\n') {
                 let line: Vec<u8> = buf.drain(..=i).collect();
-                if let Some(c) = parse(&String::from_utf8_lossy(&line)) {
-                    cmds.push(c);
+                match parse(&String::from_utf8_lossy(&line)) {
+                    // a picture is asked for on a connection that waits for the answer: write it back here, to this client only
+                    Some(Cmd::Thumb(id)) => {
+                        let reply = self.thumb_reply(id);
+                        s.set_nonblocking(false).ok();
+                        s.set_write_timeout(Some(Duration::from_millis(300))).ok();
+                        let _ = s.write_all(reply.as_bytes());
+                        s.set_nonblocking(true).ok();
+                    }
+                    Some(c) => cmds.push(c),
+                    None => {}
                 }
             }
             open
@@ -359,6 +402,7 @@ impl Smallvil {
                     }
                     continue;
                 }
+                Cmd::Thumb(_) => continue, // answered while reading
                 Cmd::Focus(id) | Cmd::Close(id) => id,
             };
             let Some(w) = self.space.elements().find(|w| id_of(w) == id && !crate::state::is_shell(w)).cloned() else { continue };
@@ -406,6 +450,9 @@ mod tests {
         assert!(parse("{\"launch\":\"../x\"}").is_none());
         assert!(parse("{\"launch\":\"a b\"}").is_none());
         assert!(matches!(parse("{\"focus\":7}"), Some(Cmd::Focus(7))));
+        assert!(matches!(parse("{\"thumb\":7}"), Some(Cmd::Thumb(7))));
+        assert!(parse("{\"thumb\":0}").is_none());
+        assert!(parse("{\"thumb\":\"7; rm\"}").is_none());
     }
 
     #[test]
