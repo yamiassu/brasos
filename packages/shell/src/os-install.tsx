@@ -3,10 +3,10 @@
 // progress. The host slice that would really partition a disk does not exist yet; Storybook runs it with a simulated `run`.
 import { useState, type FormEvent } from "react";
 import { BrandMark, Button, Icon, SelectField, TextField } from "@brasos/ui";
-import { CONFIRM_WORD, confirmed, diskProblem, hasData, layoutFor, size, type Disk, type Part, type Plan } from "./os-install-model";
+import { busName, CONFIRM_WORD, confirmed, describeDisk, diskProblem, friendly, hasData, layoutFor, size, type Disk, type Part, type Plan } from "./os-install-model";
 
 const STEPS = ["Drive", "Layout", "Review", "Install"] as const;
-export const PHASES = ["Partitioning the drive", "Formatting", "Copying the system", "Installing the bootloader", "Finishing up"] as const;
+export const PHASES = ["Preparing the drive", "Setting up storage", "Copying BrasOS", "Making the computer start BrasOS", "Finishing up"] as const;
 const COLORS = ["var(--accent-2)", "#6cb6ff", "#ffb454", "#ff8fb1", "var(--accent)"];
 
 /** a drive drawn as one bar of its partitions, with a legend */
@@ -26,8 +26,10 @@ function PartBar({ parts, total, labelled = true }: { parts: { label: string; si
   );
 }
 
-export function OsInstall({ disks, run, onRestart }: {
+export function OsInstall({ disks, run, onRestart, filesystems = ["ext4", "btrfs"] }: {
   disks: Disk[];
+  /** the file systems the system image can be installed on (the live image's prebuilt system is ext4 only) */
+  filesystems?: Plan["fs"][];
   /** do the install; call `report(phase, percent)` as it goes; resolve with an error message if it failed */
   run(disk: Disk, plan: Plan, report: (phase: number, percent: number) => void): Promise<string | void>;
   onRestart(): void;
@@ -81,17 +83,19 @@ export function OsInstall({ disks, run, onRestart }: {
             {step === 0 && (
               <>
                 <h1>Where should BrasOS go?</h1>
-                <p className="lead">Choose the drive to install on.</p>
+                <p className="lead">Choose the drive to install on. BrasOS uses the whole drive, so anything already on it will be erased, and you will be asked to confirm before anything happens.</p>
                 <div role="radiogroup" aria-label="Drives" className="disks">
                   {disks.map((d) => {
                     const why = diskProblem(d);
+                    const found = describeDisk(d);
                     return (
                       <button key={d.id} type="button" role="radio" aria-checked={diskId === d.id} disabled={!!why} className="disk" onClick={() => setDiskId(d.id)}>
                         <Icon name="disk" size={26} />
                         <div className="what">
                           <b>{d.model}</b>
-                          <small>{d.path} · {d.bus} · {size(d.sizeGB)}</small>
-                          <PartBar parts={d.parts} total={d.sizeGB} labelled={false} />
+                          <small>{busName(d.bus)} · {size(d.sizeGB)} <span className="muted">({d.path})</span></small>
+                          <PartBar parts={d.parts.map((p) => ({ ...p, label: friendly(p) }))} total={d.sizeGB} labelled={false} />
+                          {!why && <small className={found.systems.length ? "found warn" : "found"} title="A best guess from how the drive is set up. Nothing on it was opened.">{found.summary}</small>}
                         </div>
                         <span className={`pill ${why ? "off" : hasData(d) ? "warn" : "ok"}`}>{why || (hasData(d) ? "Has data" : "Empty")}</span>
                       </button>
@@ -104,7 +108,7 @@ export function OsInstall({ disks, run, onRestart }: {
             {step === 1 && disk && (
               <>
                 <h1>Layout</h1>
-                <p className="lead">The whole drive is used for BrasOS. This is what will be created on {disk.model}.</p>
+                <p className="lead">The whole drive is used for BrasOS. This is how {disk.model} will be set up. The suggested choices are fine for most people, so you can just continue.</p>
                 <div role="radiogroup" aria-label="Install type" className="modes">
                   <button type="button" role="radio" aria-checked className="mode"><b>Erase the drive</b><small>Recommended. Everything on it is removed.</small></button>
                   <button type="button" role="radio" aria-checked={false} className="mode" disabled><b>Install beside another system</b><small>Not available yet.</small></button>
@@ -112,13 +116,21 @@ export function OsInstall({ disks, run, onRestart }: {
                 </div>
                 <PartBar parts={layout} total={disk.sizeGB} />
                 <table className="layout">
-                  <thead><tr><th>Mount</th><th>Type</th><th>Size</th></tr></thead>
-                  <tbody>{layout.map((p) => <tr key={p.id}><td className="mono">{p.mount}</td><td>{p.fs}</td><td>{size(p.sizeGB)}</td></tr>)}</tbody>
+                  <thead><tr><th>What it is for</th><th>Size</th><th>Technical</th></tr></thead>
+                  <tbody>{layout.map((p) => <tr key={p.id}><td>{p.label}</td><td>{size(p.sizeGB)}</td><td className="mono muted">{p.mount} · {p.fs}</td></tr>)}</tbody>
                 </table>
                 <div className="opts">
-                  <SelectField label="File system" value={plan.fs} onChange={(e) => setPlan({ ...plan, fs: e.target.value as Plan["fs"] })}><option value="ext4">ext4</option><option value="btrfs">btrfs</option></SelectField>
-                  <SelectField label="Swap" value={plan.swapGB} onChange={(e) => setPlan({ ...plan, swapGB: +e.target.value })}>{[0, 2, 4, 8, 16].map((g) => <option key={g} value={g}>{g ? `${g} GB` : "None"}</option>)}</SelectField>
+                  {filesystems.length > 1 && (
+                    <SelectField label="File system" value={plan.fs} onChange={(e) => setPlan({ ...plan, fs: e.target.value as Plan["fs"] })}>{filesystems.map((f) => <option key={f} value={f}>{f}</option>)}</SelectField>
+                  )}
+                  <SelectField label="Extra memory (swap)" value={plan.swapGB} onChange={(e) => setPlan({ ...plan, swapGB: +e.target.value })}>{[0, 2, 4, 8, 16].map((g) => <option key={g} value={g}>{g ? `${g} GB` : "None"}</option>)}</SelectField>
                 </div>
+                <dl className="explain">
+                  <dt>File system: {plan.fs}</dt>
+                  <dd>The way files are stored and found on the drive, like the filing system of a cabinet. {plan.fs === "ext4" ? "ext4 is the standard, proven choice for Linux-based systems like BrasOS: fast, reliable, and nothing to set up. Windows cannot read it without extra software." : "btrfs adds snapshots and checks for damaged data."}</dd>
+                  <dt>Extra memory (swap)</dt>
+                  <dd>Spare room on the drive that the computer uses when it runs out of memory (RAM), so programs slow down instead of closing. 4 GB suits most computers; choose more if you have little RAM and run many programs.</dd>
+                </dl>
                 <p className="muted">Drive encryption is not available yet.</p>
               </>
             )}
@@ -128,7 +140,7 @@ export function OsInstall({ disks, run, onRestart }: {
                 <h1>Ready to install</h1>
                 <div className="danger-box" role="alert">
                   <Icon name="crash" size={22} />
-                  <div><b>Everything on {disk.model} will be erased.</b><small>{hasData(disk) ? `${disk.parts.map((p) => p.label).join(", ")} will be lost.` : "The drive is empty."} This cannot be undone.</small></div>
+                  <div><b>Everything on {disk.model} will be erased.</b><small>{hasData(disk) ? `${describeDisk(disk).summary} All of it, and every file, photo and document on this drive, will be lost.` : "The drive is empty."} This cannot be undone.</small></div>
                 </div>
                 <PartBar parts={layout} total={disk.sizeGB} />
                 <TextField label={`Type ${CONFIRM_WORD} to confirm`} autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} />
@@ -142,7 +154,7 @@ export function OsInstall({ disks, run, onRestart }: {
                   <p className="lead">Remove the installer media and restart to start BrasOS.</p>
                 ) : (
                   <>
-                    <p className="lead">Please keep the computer on and plugged in.</p>
+                    <p className="lead">Please keep the computer on and plugged in. This usually takes 5 to 15 minutes.</p>
                     <div className="meter" role="progressbar" aria-label="Installing" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress?.percent ?? 0)}><i style={{ width: `${progress?.percent ?? 0}%` }} /></div>
                   </>
                 )}

@@ -27,6 +27,7 @@ Under systemd the stdout lands in the journal; `BRASOS_AUDIT_FILE=<path>` adds a
 | `web.open` | allow / deny | A site was opened (host name) or refused (reason) | 1 per second |
 | `web.site` | allow | First request to a site (per minute): host name | 1 per minute per site |
 | `web.blocked`, `web.error` | deny | The gateway refused an upstream address, or the upstream failed | 1 per 5 s |
+| `system.rebuild`, `system.app_create` | info | The OS rebuilt its apps from source, or created an app (id only) | none |
 | `apps.install` | info | A PWA was installed: id, name, start URL, the permissions it requested and the ones the user granted | none |
 
 Capabilities that only read (`apps.read`, `fs.read`, `docs.read`, `ui.host`) throttle their *allow* events to one per second per caller, with a `suppressed` count; their *denials* are throttled the same way, and every write-like capability is audited each time.

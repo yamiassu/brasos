@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { confirmed, diskProblem, layoutFor, SAMPLE_DISKS, size } from "../src/os-install-model";
+import { confirmed, describeDisk, diskProblem, friendly, identify, layoutFor, SAMPLE_DISKS, size } from "../src/os-install-model";
 
 const [windows, empty, usb] = SAMPLE_DISKS;
 
@@ -30,4 +30,26 @@ test("sizes read like a person would say them", () => {
   expect(size(512)).toBe("512 GB");
   expect(size(1000)).toBe("1 TB");
   expect(size(2500)).toBe("2.5 TB");
+});
+
+test("a drive is described by what it seems to hold, in plain words", () => {
+  const p = (fs: string, kind = "", label = "", sizeGB = 100) => ({ fs, kind, label, sizeGB });
+  expect(identify(p("ntfs", "Microsoft basic data"))).toBe("windows");
+  expect(identify(p("BitLocker"))).toBe("windows");
+  expect(identify(p("vfat", "EFI System", "", 0.5))).toBe("boot");
+  expect(identify(p("ntfs", "Windows recovery environment", "", 0.5))).toBe("recovery");
+  expect(identify(p("ext4"))).toBe("linux");
+  expect(identify(p("swap"))).toBe("swap");
+  expect(identify(p("apfs"))).toBe("mac");
+  expect(identify(p("crypto_LUKS"))).toBe("encrypted");
+  expect(identify(p("exfat", "", "PHOTOS"))).toBe("files");
+  expect(identify(p("iso9660"))).toBe("installer");
+  expect(identify(p(""))).toBe("unknown");
+  expect(friendly(p("ntfs"))).toBe("Windows");
+  expect(friendly(p("exfat", "", "PHOTOS"))).toBe("PHOTOS");
+  expect(describeDisk(empty).summary).toMatch(/empty/);
+  expect(describeDisk(windows).systems).toEqual(["Windows"]);
+  expect(describeDisk(windows).summary).toMatch(/Windows/);
+  expect(describeDisk({ ...windows, parts: [p("ext4"), p("ntfs")] }).systems).toEqual(["Windows", "Linux"]);
+  expect(describeDisk({ ...windows, parts: [p("exfat", "", "X")] }).summary).toMatch(/no operating system recognised/);
 });

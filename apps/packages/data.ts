@@ -1,8 +1,8 @@
-// What the Packages app shows. Today: a SAMPLE catalog with Linux-style dependencies, so the interface (and the
-// dependency logic: what an install pulls in, what blocks a removal) can be built and judged. A host slice (the real
-// package set of the NixOS image, install and remove as audited, privileged actions, never allowed in hardened) replaces
-// `usePackages` later; the interface only depends on the shapes below.
-import { useState } from "react";
+// What the Packages app shows: the packages of the running system, from the host (apps/packages/server.ts reads the Nix store).
+// The system's software is fixed by its image, so `canChange` is false there and install/remove are off. Where there is no host
+// (Storybook, a plain browser) it falls back to a SAMPLE catalog that does allow changes, so the dependency logic (what an
+// install pulls in, what blocks a removal) can still be built and judged.
+import { useEffect, useState } from "react";
 
 export type Kind = "App" | "Driver" | "Library" | "Tool";
 export type Pkg = { id: string; name: string; kind: Kind; version: string; size: number; summary: string; deps: string[] }; // size in MB
@@ -49,13 +49,13 @@ export const BY_ID = new Map(CATALOG.map((p) => [p.id, p]));
 const BASE = ["glibc", "zlib", "openssl", "libdrm", "mesa", "mesa-drivers", "linux-firmware", "pipewire", "alsa-lib", "git", "nodejs", "htop"];
 
 /** every package an install of `id` needs, in the order they would be installed, skipping what is already installed */
-export function plan(id: string, installed: Set<string>): Pkg[] {
+export function plan(id: string, installed: Set<string>, byId: Map<string, Pkg> = BY_ID): Pkg[] {
   const out: Pkg[] = [];
   const seen = new Set<string>();
   const visit = (x: string) => {
     if (seen.has(x) || installed.has(x)) return;
     seen.add(x);
-    const p = BY_ID.get(x);
+    const p = byId.get(x);
     if (!p) return;
     p.deps.forEach(visit);
     out.push(p);
@@ -65,10 +65,14 @@ export function plan(id: string, installed: Set<string>): Pkg[] {
 }
 
 /** installed packages that need `id`: while there are any, it can't be removed */
-export const requiredBy = (id: string, installed: Set<string>) => CATALOG.filter((p) => installed.has(p.id) && p.deps.includes(id));
+export const requiredBy = (id: string, installed: Set<string>, catalog: Pkg[] = CATALOG) => catalog.filter((p) => installed.has(p.id) && p.deps.includes(id));
 
 export type Packages = {
   sample: boolean;
+  /** false: the system's packages are fixed by its image, so install and remove are not offered */
+  canChange: boolean;
+  catalog: Pkg[];
+  byId: Map<string, Pkg>;
   installed: Set<string>;
   manual: Set<string>; // chosen by the user, as opposed to pulled in as a dependency
   busy: Map<string, "installing" | "removing">;
@@ -76,13 +80,13 @@ export type Packages = {
   remove(id: string): void;
 };
 
-export function usePackages(): Packages {
+function useSample(): Packages {
   const [installed, setInstalled] = useState(() => new Set(BASE));
   const [manual, setManual] = useState(() => new Set(["git", "nodejs", "htop"]));
   const [busy, setBusy] = useState(() => new Map<string, "installing" | "removing">());
   const mark = (id: string, v?: "installing" | "removing") => setBusy((b) => { const n = new Map(b); v ? n.set(id, v) : n.delete(id); return n; });
   return {
-    sample: true,
+    sample: true, canChange: true, catalog: CATALOG, byId: BY_ID,
     installed, manual, busy,
     install(id) {
       const add = plan(id, installed);
@@ -103,4 +107,29 @@ export function usePackages(): Packages {
       }, 600);
     },
   };
+}
+
+/** the host's package list; null while pending, "none" if there is no usable host */
+function useReal(): { packages: Pkg[]; canChange: boolean } | null | "none" {
+  const [real, setReal] = useState<{ packages: Pkg[]; canChange: boolean } | null | "none">(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/packages", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d) => alive && (Array.isArray(d.packages) ? setReal(d) : setReal("none")))
+      .catch(() => alive && setReal("none"));
+    return () => void (alive = false);
+  }, []);
+  return real;
+}
+
+export function usePackages(): Packages {
+  const real = useReal();
+  const sample = useSample();
+  if (real === null) return { ...sample, sample: false, canChange: false, catalog: [], byId: new Map(), installed: new Set(), manual: new Set() }; // first answer pending
+  if (real === "none") return sample;
+  const installed = new Set(real.packages.map((p) => p.id));
+  // "chosen" as far as we can tell: nothing installed needs it
+  const manual = new Set(real.packages.filter((p) => !requiredBy(p.id, installed, real.packages).length).map((p) => p.id));
+  return { sample: false, canChange: real.canChange, catalog: real.packages, byId: new Map(real.packages.map((p) => [p.id, p])), installed, manual, busy: new Map(), install() {}, remove() {} };
 }

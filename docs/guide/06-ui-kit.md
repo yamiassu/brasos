@@ -37,7 +37,7 @@ BrasOS is dark, neutral and quiet. The surface is flat grey; color is rare, so t
 - **Flat surfaces.** Panels, dialogs and windows are flat: a thin border and a soft shadow. Only the focused window gets a green edge.
 - **One gradient.** `--aurora` is the green-to-violet gradient, kept for the logo, the setup progress bar, avatars and code-block edges. `--sheen` is empty (no gradients on surfaces).
 - **Two colors, and danger.** Green (`--accent`) marks focus and selection, violet (`--accent-2`) marks secondary signals such as running apps and badges. Danger is a separate alarm red (`--danger`) and notices are pale gold (`--warn`), so neither looks decorative. Keep it rare: one bright thing per area, so it stands out.
-- **Icons.** `Icon` draws the OS's line icons (`about`, `browser`, `docs`, `files`, `folder`, `terminal`, `text`, `image`, `link`, `edit`, `restart`, `app`, ...) as inline SVG: grey strokes with a detail in the icon's own color; hover or selection brightens the main stroke. An app names its icon in the manifest (`"brasos": { "icon": "files" }`); any other text, such as an emoji, is shown as is.
+- **Icons.** `Icon` draws the OS's line icons (`about`, `browser`, `docs`, `files`, `folder`, `terminal`, `text`, `image`, `link`, `edit`, `restart`, `reload`, `plus`, `app`, ...) as inline SVG: grey strokes with a detail in the icon's own color; hover or selection brightens the main stroke. An app names its icon in the manifest (`"brasos": { "icon": "files" }`); any other text, such as an emoji, is shown as is.
 - **Cost.** Gradients, shadows, borders and a little blur behind the taskbar, the start menu and the lock screen: no images, almost no animation.
 
 ## Tokens

@@ -1,1 +1,1 @@
-{ "name": "Settings", "short_name": "Settings", "start_url": "/", "display": "standalone", "brasos": { "icon": "settings" } }
+{ "name": "Settings", "short_name": "Settings", "start_url": "/", "display": "standalone", "brasos": { "icon": "settings", "permissions": ["settings.read", "settings.write", "system.update"] } }

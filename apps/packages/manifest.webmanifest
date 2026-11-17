@@ -1,1 +1,1 @@
-{ "name": "Packages", "short_name": "Packages", "start_url": "/", "display": "standalone", "brasos": { "icon": "package" } }
+{ "name": "Packages", "short_name": "Packages", "start_url": "/", "display": "standalone", "brasos": { "icon": "package", "permissions": ["packages.read"] } }

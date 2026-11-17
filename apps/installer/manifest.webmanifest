@@ -1,0 +1,1 @@
+{ "name": "Install BrasOS", "short_name": "Installer", "start_url": "/", "display": "standalone", "brasos": { "icon": "app", "permissions": ["installer.run"] } }

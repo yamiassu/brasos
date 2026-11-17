@@ -4,7 +4,7 @@ import { os } from "@brasos/sdk";
 import { Button, Dialog, Icon } from "@brasos/ui";
 import "@brasos/ui/ui.css";
 import "./packages.css";
-import { BY_ID, CATALOG, KINDS, plan, requiredBy, usePackages, type Kind, type Pkg } from "./data";
+import { KINDS, plan, requiredBy, usePackages, type Kind, type Pkg } from "./data";
 
 const KIND_ICON: Record<Kind, string> = { App: "app", Driver: "chip", Library: "files", Tool: "terminal" };
 const KIND_PLURAL: Record<Kind, string> = { App: "Apps", Driver: "Drivers", Library: "Libraries", Tool: "Tools" };
@@ -19,13 +19,13 @@ function Packages() {
   const [selected, setSelected] = useState<string | null>(null);
   const [ask, setAsk] = useState<{ pkg: Pkg; action: "install" | "remove" } | null>(null);
 
-  const rows = CATALOG.filter((p) =>
+  const rows = pk.catalog.filter((p) =>
     (kind === "all" || p.kind === kind) &&
     (filter === "all" || (filter === "installed") === pk.installed.has(p.id)) &&
     `${p.name} ${p.id} ${p.summary}`.toLowerCase().includes(q.trim().toLowerCase()),
   );
-  const sel = selected ? BY_ID.get(selected) ?? null : null;
-  const count = (k: Kind | "all") => CATALOG.filter((p) => (k === "all" || p.kind === k) && pk.installed.has(p.id)).length;
+  const sel = selected ? pk.byId.get(selected) ?? null : null;
+  const count = (k: Kind | "all") => pk.catalog.filter((p) => (k === "all" || p.kind === k) && pk.installed.has(p.id)).length;
 
   const state = (p: Pkg) => (pk.busy.get(p.id) === "installing" ? "Installing…" : pk.busy.get(p.id) === "removing" ? "Removing…" : pk.installed.has(p.id) ? (pk.manual.has(p.id) ? "Installed" : "Dependency") : "Available");
 
@@ -38,7 +38,7 @@ function Packages() {
             <Icon name={k === "all" ? "package" : KIND_ICON[k]} size={18} />{k === "all" ? "Everything" : KIND_PLURAL[k]}<span className="count">{count(k)}</span>
           </button>
         ))}
-        {pk.sample && <span className="sample" title="No package data from the host yet: this catalog is made up, and nothing is really installed">Sample data</span>}
+        {pk.sample && <span className="sample" title="No host to ask here (Storybook or a plain browser): this catalog is made up, and nothing is really installed">Sample data</span>}
       </nav>
 
       <main>
@@ -68,16 +68,17 @@ function Packages() {
               <p>{sel.summary}</p>
 
               <h4>Needs</h4>
-              {sel.deps.length ? <ul>{sel.deps.map((d) => <li key={d} className={pk.installed.has(d) ? "have" : "missing"}>{BY_ID.get(d)?.name ?? d}<small>{pk.installed.has(d) ? "installed" : "will be installed"}</small></li>)}</ul> : <p className="note">Nothing else.</p>}
+              {sel.deps.length ? <ul>{sel.deps.map((d) => <li key={d} className={pk.installed.has(d) ? "have" : "missing"}>{pk.byId.get(d)?.name ?? d}<small>{pk.installed.has(d) ? "installed" : "will be installed"}</small></li>)}</ul> : <p className="note">Nothing else.</p>}
 
               <h4>Needed by</h4>
-              {(() => { const r = requiredBy(sel.id, pk.installed); return r.length ? <ul>{r.map((d) => <li key={d.id} className="have">{d.name}</li>)}</ul> : <p className="note">Nothing installed needs it.</p>; })()}
+              {(() => { const r = requiredBy(sel.id, pk.installed, pk.catalog); return r.length ? <ul>{r.map((d) => <li key={d.id} className="have">{d.name}</li>)}</ul> : <p className="note">Nothing installed needs it.</p>; })()}
 
               <div className="actions">
                 {pk.installed.has(sel.id)
-                  ? <Button variant="danger" disabled={pk.busy.has(sel.id)} onClick={() => setAsk({ pkg: sel, action: "remove" })}>Remove</Button>
-                  : <Button variant="primary" disabled={pk.busy.has(sel.id)} onClick={() => setAsk({ pkg: sel, action: "install" })}>Install</Button>}
+                  ? <Button variant="danger" disabled={pk.busy.has(sel.id) || !pk.canChange} onClick={() => setAsk({ pkg: sel, action: "remove" })}>Remove</Button>
+                  : <Button variant="primary" disabled={pk.busy.has(sel.id) || !pk.canChange} onClick={() => setAsk({ pkg: sel, action: "install" })}>Install</Button>}
               </div>
+              {!pk.canChange && !pk.sample && <p className="note">This system's software is fixed by its image, so packages cannot be installed or removed here.</p>}
             </aside>
           )}
         </div>
@@ -90,7 +91,7 @@ function Packages() {
 
 function Confirm({ pk, pkg, action, onClose }: { pk: ReturnType<typeof usePackages>; pkg: Pkg; action: "install" | "remove"; onClose(): void }) {
   if (action === "install") {
-    const all = plan(pkg.id, pk.installed);
+    const all = plan(pkg.id, pk.installed, pk.byId);
     const extra = all.filter((p) => p.id !== pkg.id);
     const size = all.reduce((a, p) => a + p.size, 0);
     return (
@@ -100,7 +101,7 @@ function Confirm({ pk, pkg, action, onClose }: { pk: ReturnType<typeof usePackag
       </Dialog>
     );
   }
-  const blockers = requiredBy(pkg.id, pk.installed);
+  const blockers = requiredBy(pkg.id, pk.installed, pk.catalog);
   return (
     <Dialog title={blockers.length ? `${pkg.name} can't be removed` : `Remove ${pkg.name}?`} onClose={onClose} actions={blockers.length ? <Button autoFocus onClick={onClose}>OK</Button> : <><Button onClick={onClose}>Cancel</Button><Button variant="danger" autoFocus onClick={() => (pk.remove(pkg.id), onClose())}>Remove</Button></>}>
       {blockers.length ? <><p>These installed packages need it:</p><ul className="plan">{blockers.map((p) => <li key={p.id}>{p.name}</li>)}</ul><p className="note">Remove them first.</p></> : <p>It frees {mb(pkg.size)}. Packages it pulled in stay until you remove them.</p>}

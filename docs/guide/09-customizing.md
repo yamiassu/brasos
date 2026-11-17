@@ -22,12 +22,14 @@ Put files and folders in `/Desktop` (use Files, or save there from an app) and t
 
 ## Change the interface itself
 
-On the dev image the operating system's own source is a normal folder in your home: **BrasOS** (`/BrasOS` in Files, `/var/lib/brasos/state/home/BrasOS` on disk). The tray at the right of the taskbar has two buttons for it:
+On the dev image the operating system's own source is a normal folder in your home: **BrasOS** (`/BrasOS` in Files, `/var/lib/brasos/state/home/BrasOS` on disk). The tray at the right of the taskbar has four buttons for it:
 
 1. **Edit interface** (the pencil) opens Files there. The shell is in `packages/shell/src` (colors and sizes in `shell.css`, your overrides in `user.css`), the components in `packages/ui/src`, each app in `apps/<id>`. Open a file to edit it and save.
-2. **Restart interface** (the circular arrow) rebuilds the shell and every app from those files and starts the server again. Open windows close and the screen reloads itself in a few seconds.
+2. **New app** (the plus) asks for a name, writes `apps/<id>/` (a manifest, a page and a script that already runs), builds it and adds it to the launcher. Edit its files, then reload.
+3. **Reload interface** (the two arrows) rebuilds the shell and every app from those files *without* restarting the server and reloads the page. Use it after editing a page or script. An app's `server.ts` is loaded only by a restart.
+4. **Restart interface** (the circular arrow) rebuilds everything and starts the server again. Open windows close and the screen reloads itself in a few seconds.
 
-An AI agent can do the same through the `system_restart` tool.
+An AI agent does the same through the `app_create`, `system_rebuild` and `system_restart` tools (all need the `system.restart` permission, which only the shell and agents hold; the hardened image has none of it).
 
 If you break it badly:
 
@@ -35,6 +37,8 @@ If you break it badly:
 - `brasos-reset-shell` replaces your edited copy with a fresh one from the image.
 
 The hardened image is immutable on purpose: you customize it by building a new image, not by editing a running one.
+
+To put your build on a PC, see [Installing BrasOS](10-installing.md).
 
 ## Build your own pieces
 

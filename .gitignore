@@ -3,5 +3,6 @@ dist/
 result
 *.qcow2
 .vm/
+.iso/
 .state/
 .tmp-*

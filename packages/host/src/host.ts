@@ -37,6 +37,8 @@ export type HostOptions = {
   audit?: Sink[];
   /** how this system restarts itself (the supervisor's command); without it there is no restart route or tool */
   restart?: () => void;
+  /** how this system powers off or reboots (the supervisor's command); without it there is no power route */
+  power?: (action: "poweroff" | "reboot") => void;
   /** a JSON file that provisions the first-boot account and preferences without the installer (see packages/setup) */
   setupPreseed?: string;
   /** development only: skip the installer and the lock screen (see packages/setup); ignored when any package is enabled */
@@ -50,7 +52,7 @@ export type HostOptions = {
 };
 
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
-const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "setup.write", "setup.login", "apps.install", "native.read", "native.control", "db.own", "db.shared"];
+const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "system.power", "setup.write", "setup.login", "apps.install", "native.read", "native.control", "db.own", "db.shared"];
 /** what a user can grant an installed PWA (never anything that controls the OS itself); a PWA window is a website to the host, so these are checked again at the gate */
 export const PWA_GRANTABLE = ["fs.read", "fs.write", "docs.read", "db.own", "db.shared", "window.control", "window.frameless", "apps.open"];
 /** what an authenticated AI agent may do (on top of each tool's own check and the enabled packages' policies) */
@@ -88,6 +90,12 @@ export async function startHost(o: HostOptions) {
   if (!o.prebuilt) {
     await build({ root, dist, appIds: registry.list().filter((a) => a.kind === "builtin").map((a) => a.id) });
   }
+  // dev: rebuild the shell and the apps from the source on disk (new apps included) without restarting
+  const rebuildApps = async () => {
+    const appIds = registry.list().filter((a) => a.kind === "builtin").map((a) => a.id);
+    await build({ root, dist, appIds });
+    return appIds;
+  };
   if (o.buildOnly) return { port: 0, stop() {} };
 
   // The composition root. Packages are listed here; an app contributes server code by shipping apps/<id>/server.ts
@@ -107,7 +115,7 @@ export async function startHost(o: HostOptions) {
     audit,
     ownerOf: (c) => (c.kind === "shell" ? "shell" : c.kind === "app" ? (registry.get(c.id) ? c.id : null) : (pwaForSite(c.id)?.id ?? null)),
   });
-  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice, createSystem({ restart: o.restart, audit }).slice, createSetup({ stateDir: o.stateDir, audit, preseed: o.setupPreseed, devSkip: !!o.setupDevSkip && policies.length === 0 }).slice, createNative({ socket: o.nativeSocket, apps: o.nativeApps, audit }).slice, db.slice];
+  const slices: Slice[] = [registry.slice, gateway.slice, files.slice, docs.slice, createSystem({ restart: o.restart, power: o.power, rebuild: o.prebuilt ? undefined : rebuildApps, appsDir: join(root, "apps"), audit }).slice, createSetup({ stateDir: o.stateDir, audit, preseed: o.setupPreseed, devSkip: !!o.setupDevSkip && policies.length === 0 }).slice, createNative({ socket: o.nativeSocket, apps: o.nativeApps, audit }).slice, db.slice];
   const agent = createAgent({ tools: () => slices.flatMap((s) => s.tools ?? []), stateDir: o.stateDir });
   slices.push(agent.slice, ...appSlices);
   const bySlice = new Map(slices.map((s) => [s.name, s]));
@@ -189,7 +197,12 @@ export async function startHost(o: HostOptions) {
       };
 
       if (target.kind === "shell" && url.pathname === "/os/info") {
-        return cors(json({ os: "brasos", packages: policies.map((p) => p.name), restart: !!o.restart && policies.every((p) => p.allowCapability?.("system.restart") ?? true) }), req, url);
+        return cors(json({ os: "brasos", packages: policies.map((p) => p.name), restart: !!o.restart && policies.every((p) => p.allowCapability?.("system.restart") ?? true), power: !!o.power && policies.every((p) => p.allowCapability?.("system.power") ?? true) }), req, url);
+      }
+      if (url.pathname === "/__brasos/devtools.js") {
+        // the in-page devtools (vendored Eruda): only to a website opened through the gateway, and never when a package (hardened) is on
+        if (target.kind !== "site" || policies.length) return text("not found", 404);
+        return new Response(Bun.file(join(root, "packages/web-gateway/vendor/eruda.js")), { headers: { "content-type": "text/javascript; charset=utf-8" } });
       }
       if (url.pathname === "/__brasos/sdk.js") {
         return new Response(Bun.file(join(dist, "__brasos/sdk.js")), { headers: { "content-type": "text/javascript; charset=utf-8" } });

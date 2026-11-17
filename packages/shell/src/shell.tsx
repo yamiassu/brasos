@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppInfo, FsEntry } from "@brasos/sdk";
-import { Button, Dialog, Icon, Menu, SearchField, Taskbar, TaskButton, Tray, TrayItem, WindowFrame, type MenuItem } from "@brasos/ui";
+import { isReloadKey, nativeMenu } from "@brasos/sdk";
+import { Button, Dialog, Icon, Menu, SearchField, Taskbar, TaskButton, TextField, Tray, TrayItem, WindowFrame, type MenuItem } from "@brasos/ui";
 import { connectAgent, type ShellApi } from "./agent";
 import { Desktop } from "./desktop";
 import { Launcher, search, type Hit } from "./launcher";
@@ -8,6 +9,7 @@ import { isPinned, loadUnpinned, saveUnpinned, setPinned, type Unpinned, type Wh
 import { Battery, Clock, Mode, Network } from "./tray";
 import { atTopEdge, Boundary, DEFAULT_W, Frame, restoreLeft, type Win } from "./windows";
 import { InstallPrompt, type Inspection } from "./install";
+import { NativeWindows, type NativeWin } from "./native";
 
 const post = (path: string, body: unknown) =>
   fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -21,6 +23,10 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
   const [packages, setPackages] = useState<string[] | null>(null);
   const [canRestart, setCanRestart] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [canPower, setCanPower] = useState(false);
+  const [confirmPower, setConfirmPower] = useState<"poweroff" | "reboot" | null>(null);
+  // dev: make an app from inside the OS (id + name), shown as a dialog
+  const [newApp, setNewApp] = useState<{ id: string; name: string; error?: string; busy?: boolean } | null>(null);
   const [note, setNote] = useState("");
   const [launcher, setLauncher] = useState(false);
   const [query, setQuery] = useState("");
@@ -47,7 +53,7 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
   useEffect(() => {
     loadApps();
     loadDesktop();
-    getJson("/os/info").then((i) => (setPackages(i.packages), setCanRestart(!!i.restart)));
+    getJson("/os/info").then((i) => (setPackages(i.packages), setCanRestart(!!i.restart), setCanPower(!!i.power)));
     // files also change from outside the shell (an agent, the terminal): look again now and then. Reads are audited quietly.
     const desktopTimer = setInterval(loadDesktop, 5000);
     // Server restarted or failed over to the safe copy: reload so the UI isn't left dead.
@@ -81,10 +87,33 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
     const files = apps.find((a) => a.id === "files");
     return files ? open(files, path) : (setNote("Files isn't available here"), Promise.resolve(false));
   };
+  const powerNow = async (action: "poweroff" | "reboot") => {
+    setConfirmPower(null);
+    const r = await post("/os/system/power", { action });
+    setNote(r.ok ? (action === "poweroff" ? "Shutting down…" : "Restarting the computer…") : "Refused");
+  };
   const restart = async () => {
     setConfirmRestart(false);
     const r = await post("/os/system/restart", {});
     setNote(r.ok ? "Restarting the interface…" : "Restart refused");
+  };
+  // rebuild the shell and the apps from the source on disk, then reload this page: edits show up without a restart
+  const reload = async () => {
+    setNote("Rebuilding…");
+    const r = await post("/os/system/rebuild", {});
+    if (!r.ok) return setNote(`Rebuild failed: ${(await r.json().catch(() => ({}))).error ?? r.status}`);
+    location.reload();
+  };
+  const createApp = async () => {
+    if (!newApp) return;
+    setNewApp({ ...newApp, busy: true, error: undefined });
+    const r = await post("/os/system/app", { id: newApp.id, name: newApp.name });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) return setNewApp({ ...newApp, busy: false, error: body.error ?? `failed (${r.status})` });
+    setNewApp(null);
+    await loadApps();
+    setNote(`Created ${body.name}: edit it in /BrasOS/apps/${body.id}, then Reload`);
+    openPath(`/BrasOS/apps/${body.id}`);
   };
   // files in the usual folders and the guides are fetched when the launcher opens (both are optional: hardened has no files)
   const openLauncher = () => {
@@ -168,7 +197,7 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
   const current = picked && results.find((h) => h.key === picked.key) ? picked : results[0] ?? null;
   const run = (h: Hit) => (closeLauncher(), h.run());
   // Native (non-PWA) windows owned by the compositor, where there is one (packages/native): listed once a second, focus on click
-  const [natives, setNatives] = useState<{ id: number; title: string; app: string; focused: boolean }[]>([]);
+  const [natives, setNatives] = useState<NativeWin[]>([]);
   useEffect(() => {
     let stop = false;
     const tick = () =>
@@ -177,13 +206,20 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
         .then((r) => !stop && setNatives((old) => (JSON.stringify(old) === JSON.stringify(r.windows) ? old : r.windows)))
         .catch(() => {});
     tick();
-    const t = setInterval(tick, 1000);
+    const t = setInterval(tick, 500);
     return () => (stop = true, clearInterval(t));
+  }, []);
+  // the browser's own right-click menu (with Reload and Inspect) never shows over the desktop
+  useEffect(() => {
+    const onMenu = (e: MouseEvent) => nativeMenu(e) && e.preventDefault();
+    addEventListener("contextmenu", onMenu);
+    return () => removeEventListener("contextmenu", onMenu);
   }, []);
   // Ctrl+K from anywhere in the shell (a window's iframe keeps its own keys)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") (e.preventDefault(), openLauncher(), searchBox.current?.focus());
+      if (isReloadKey(e)) e.preventDefault(); // a reload would close every window and lose unsaved work
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") (e.preventDefault(), openLauncher(), searchBox.current?.focus());
       else if (e.key === "Escape") closeLauncher();
     };
     addEventListener("keydown", onKey);
@@ -314,6 +350,7 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
           );
         })}
       </div>
+      <NativeWindows natives={natives} />
       <Taskbar>
         <div className="ui-task-left">
         <TaskButton icon="brasos" label="Start" active={launcher && !query} onClick={() => (launcher ? closeLauncher() : (setQuery(""), openLauncher()))} />
@@ -347,6 +384,8 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
         <Tray>
           {note && <TrayItem label={note}>{note}</TrayItem>}
           {canRestart && <TrayItem icon="edit" label="Edit the interface (opens its source in Files)" onClick={() => openPath("/BrasOS")} />}
+          {canRestart && <TrayItem icon="plus" label="New app" onClick={() => setNewApp({ id: "", name: "" })} />}
+          {canRestart && <TrayItem icon="reload" label="Reload the interface (rebuild from source, no restart)" onClick={reload} />}
           {canRestart && <TrayItem icon="restart" label="Restart the interface" onClick={() => setConfirmRestart(true)} />}
           {user && <TrayItem icon="user" label={`Signed in as ${user.display}`} />}
           {onLock && <TrayItem icon="lock" label="Lock the screen" onClick={onLock} />}
@@ -364,11 +403,32 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
             showAll={showAll} onToggleAll={() => setShowAll((v) => !v)}
             onContext={(h, e) => { const app = apps.find((a) => "a:" + a.id === h.key); if (app) setAppMenu({ x: e.clientX, y: e.clientY, app }); }}
             files={extra.files.slice(0, 5)} user={user?.display}
-            actions={[...(onLock ? [{ label: "Lock the screen", icon: "lock", onClick: () => (closeLauncher(), onLock()) }] : []), ...(canRestart ? [{ label: "Restart the interface", icon: "restart", onClick: () => (closeLauncher(), setConfirmRestart(true)) }] : [])]}
+            actions={[...(onLock ? [{ label: "Lock the screen", icon: "lock", onClick: () => (closeLauncher(), onLock()) }] : []), ...(canRestart ? [{ label: "Restart the interface", icon: "restart", onClick: () => (closeLauncher(), setConfirmRestart(true)) }] : []), ...(canPower ? [{ label: "Restart the computer", icon: "restart", onClick: () => (closeLauncher(), setConfirmPower("reboot")) }, { label: "Shut down", icon: "power", onClick: () => (closeLauncher(), setConfirmPower("poweroff")) }] : [])]}
           />
         </>
       )}
       {appMenu && <Menu items={appMenuItems(appMenu.app)} x={appMenu.x} y={appMenu.y} onClose={() => setAppMenu(null)} />}
+      {newApp && (
+        <Dialog
+          title="New app"
+          onClose={() => setNewApp(null)}
+          actions={<><Button onClick={() => setNewApp(null)}>Cancel</Button><Button variant="primary" disabled={newApp.busy || !newApp.id || !newApp.name} onClick={createApp}>{newApp.busy ? "Creating…" : "Create"}</Button></>}
+        >
+          <TextField label="Name" autoFocus value={newApp.name} onChange={(e) => setNewApp({ ...newApp, name: e.target.value, id: newApp.id || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) })} />
+          <TextField label="Id (lowercase, dashes)" value={newApp.id} onChange={(e) => setNewApp({ ...newApp, id: e.target.value.toLowerCase() })} />
+          <p className="muted">Creates apps/{newApp.id || "<id>"} in the OS source, builds it and adds it to the launcher.</p>
+          {newApp.error && <p role="alert" className="setup-error">{newApp.error}</p>}
+        </Dialog>
+      )}
+      {confirmPower && (
+        <Dialog
+          title={confirmPower === "poweroff" ? "Shut down?" : "Restart the computer?"}
+          onClose={() => setConfirmPower(null)}
+          actions={<><Button onClick={() => setConfirmPower(null)}>Cancel</Button><Button autoFocus variant="danger" onClick={() => powerNow(confirmPower)}>{confirmPower === "poweroff" ? "Shut down" : "Restart"}</Button></>}
+        >
+          <p>Open windows are closed. Anything not saved is lost.</p>
+        </Dialog>
+      )}
       {confirmRestart && (
         <Dialog
           title="Restart the interface?"

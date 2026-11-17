@@ -14,7 +14,15 @@ export const PERMISSIONS: Record<string, { label: string; risk: Risk }> = {
   "web.open": { label: "Load websites through BrasOS", risk: "medium" },
   "apps.install": { label: "Ask to install apps (you are always asked)", risk: "medium" },
   "apps.uninstall": { label: "Remove apps", risk: "high" },
+  "system.power": { label: "Shut down or restart the computer", risk: "high" },
   "system.restart": { label: "Restart the BrasOS interface", risk: "high" },
+  "system.update": { label: "Update, roll back and rebuild the whole system", risk: "high" },
+  "installer.run": { label: "Erase a disk and install BrasOS on it", risk: "high" },
+  "settings.read": { label: "See this computer's hardware, drivers and settings", risk: "low" },
+  "settings.write": { label: "Change the volume and airplane mode", risk: "medium" },
+  "packages.read": { label: "See the software installed on this system", risk: "low" },
+  "processes.read": { label: "See what is running and how much it uses", risk: "low" },
+  "processes.end": { label: "End running programs", risk: "high" },
   pty: { label: "Run commands as you (a full terminal)", risk: "high" },
 };
 

@@ -5,6 +5,7 @@
 let
   cfg = config.brasos.devtools;
   src = config.brasos.src;
+  nodeModules = import ../../nixos/node-modules.nix { inherit pkgs src; }; # dependencies pinned at build time: the first boot needs no network
   # PWAs installed through the browser app live here, next to the editable copy of the OS
   # The live copy of the OS sits in the user's home (/BrasOS in Files), so the interface can be edited from inside it.
   live = "/var/lib/brasos/state/home/BrasOS";
@@ -16,6 +17,7 @@ let
   env = {
     BRASOS_STATE_DIR = "/var/lib/brasos/state";
     BRASOS_RESTART_CMD = "${restartCmd}";
+    BRASOS_POWER_CMD = "/run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl"; # the host adds the action (poweroff or reboot)
   } // lib.optionalAttrs (config.brasos.setup.preseed != null) { BRASOS_SETUP_PRESEED = "${config.brasos.setup.preseed}"; }
     // lib.optionalAttrs config.brasos.setup.devSkip { BRASOS_SETUP_DEV_SKIP = "1"; };
   script = dir: ''
@@ -23,7 +25,9 @@ let
     ${lib.optionalString (dir == "os") ''if [ ! -d "$d" ]; then mkdir -p "$(dirname "$d")" && cp -r ${src} "$d" && chmod -R u+w "$d"; fi''}
     ${lib.optionalString (dir == "safe") ''rm -rf "$d" && cp -r ${src} "$d" && chmod -R u+w "$d"''}
     cd "$d"
-    bun install
+    # the first boot has no network on many PCs (Wi-Fi is not set up yet): start from the pinned dependencies, then refresh if online
+    if [ ! -d node_modules ]; then cp -r ${nodeModules} node_modules && chmod -R u+w node_modules; fi
+    timeout 30 bun install || true
     exec bun packages/host/src/main.ts
   '';
 in {
@@ -48,6 +52,13 @@ in {
     };
     # Full privilege for Claude Code.
     security.sudo.wheelNeedsPassword = false;
+    # `poweroff` and `reboot` work from the terminal without sudo (the person at the keyboard is the owner of this dev machine)
+    security.polkit.enable = true;
+    security.polkit.extraConfig = ''
+      polkit.addRule(function (action, subject) {
+        if (subject.isInGroup("wheel") && /^org\.freedesktop\.login1\.(power-off|reboot|halt)/.test(action.id)) return polkit.Result.YES;
+      });
+    '';
     nix.settings.trusted-users = [ "brasos" ];
 
     environment.systemPackages = (with pkgs; [ bun claude-code git curl vim chromium ]) ++ [
@@ -65,7 +76,7 @@ in {
       wantedBy = [ "multi-user.target" ];
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
-      path = with pkgs; [ bun bash coreutils ];
+      path = with pkgs; [ bun bash coreutils util-linux wireplumber ]; # coreutils: cp, timeout; util-linux: lsblk, rfkill; wireplumber: wpctl (Settings, Installer)
       environment = env;
       unitConfig = {
         Conflicts = [ "brasos-shell-safe.service" ];
@@ -82,7 +93,7 @@ in {
       script = script "os";
     };
     systemd.services.brasos-shell-safe = {
-      path = with pkgs; [ bun bash coreutils ];
+      path = with pkgs; [ bun bash coreutils util-linux wireplumber ]; # coreutils: cp, timeout; util-linux: lsblk, rfkill; wireplumber: wpctl (Settings, Installer)
       environment = env;
       serviceConfig = {
         User = "brasos";

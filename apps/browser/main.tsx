@@ -4,7 +4,7 @@
 // they really are (the frame URL is a gateway URL) through the SDK the gateway injects. See README.md.
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { os } from "@brasos/sdk";
+import { isDevtoolsKey, os } from "@brasos/sdk";
 import { BrandMark, Button, Dialog, Icon, IconButton, Menu, SelectField, TextField, useWindowDrag, WindowButtons, type MenuItem } from "@brasos/ui";
 import "@brasos/ui/ui.css";
 import "./browser.css";
@@ -163,6 +163,7 @@ function Religare() {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       const run = (f: () => void) => (e.preventDefault(), f());
+      if (isDevtoolsKey(e)) return run(() => { const f = tab && frames.current.get(tab.id); f?.getAttribute("src") && f.contentWindow?.postMessage({ brasos: "devtools" }, new URL(f.src).origin); });
       if (e.altKey && e.key === "ArrowLeft") run(() => go(-1));
       else if (e.altKey && e.key === "ArrowRight") run(() => go(1));
       else if (!(e.ctrlKey || e.metaKey)) return;

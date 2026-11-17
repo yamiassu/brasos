@@ -5,6 +5,7 @@ import { createMemoryFs, type MemoryFs } from "./memory-fs";
 
 export { createMemoryFs, type MemoryFs };
 export { PERMISSIONS, describePermission, type Risk } from "./permissions";
+export { isDevtoolsKey, isReloadKey, nativeMenu } from "./heartbeat";
 
 export type AppInfo = {
   id: string;

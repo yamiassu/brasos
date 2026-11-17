@@ -18,6 +18,7 @@ const SET: Record<string, { d: string; hi?: string; c?: string }> = {
   image: { d: "M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", hi: "M3 17l5-5l4 4l3-3l6 6M9 9.5v.01", c: "#ff8fb1" },
   link: { d: "M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1", hi: "M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1", c: "#4fd1c5" },
   edit: { d: "M4 20l1-4L16 5l3 3L8 19z", hi: "M14 7l3 3", c: "#f0b429" },
+  power: { d: "M7 6.5a8 8 0 1 0 10 0", hi: "M12 3v9", c: "#ff7a7a" },
   restart: { d: "M20 12a8 8 0 1 1-2.5-5.8", hi: "M20 4v5h-5", c: "#6cb6ff" },
   search: { d: "M11 5a6 6 0 1 0 0 12a6 6 0 0 0 0-12z", hi: "M16 16l5 5", c: "#ffb454" },
   start: { d: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z", c: "#9b87f5" },
@@ -39,6 +40,8 @@ const SET: Record<string, { d: string; hi?: string; c?: string }> = {
   user: { d: "M12 4a4 4 0 1 0 0 8a4 4 0 0 0 0-8z", hi: "M4 20c1-4 4-6 8-6s7 2 8 6", c: "#6cb6ff" },
   lock: { d: "M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z", hi: "M8 11V8a4 4 0 0 1 8 0v3", c: "#f0b429" },
   app: { d: "M12 3l8 4.5v9L12 21l-8-4.5v-9z", hi: "M4 7.5l8 4.5l8-4.5M12 12v9", c: "#9b87f5" },
+  plus: { d: "M12 5v14M5 12h14", c: "#5fd39a" },
+  reload: { d: "M4 12a8 8 0 0 1 14-5.3", hi: "M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4", c: "#6cb6ff" },
 };
 
 export const iconNames = Object.keys(SET);

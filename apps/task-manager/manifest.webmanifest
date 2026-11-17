@@ -1,1 +1,1 @@
-{ "name": "Task Manager", "short_name": "Tasks", "start_url": "/", "display": "standalone", "brasos": { "icon": "pulse" } }
+{ "name": "Task Manager", "short_name": "Tasks", "start_url": "/", "display": "standalone", "brasos": { "icon": "pulse", "permissions": ["processes.read", "processes.end"] } }

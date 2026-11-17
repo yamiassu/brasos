@@ -49,7 +49,7 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 .setup .linkish:hover { color: var(--text); }
 .setup-note { margin: 0; font-size: 12px; color: var(--muted); }
 
-.setup-card { width: min(860px, 100%); min-height: 520px; display: grid; grid-template-columns: 250px 1fr; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(18px); border: 1px solid var(--border-strong); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+.setup-card { width: min(860px, 100%); min-height: min(520px, calc(100vh - 32px)); max-height: calc(100vh - 32px); grid-template-rows: minmax(0, 1fr); display: grid; grid-template-columns: 250px 1fr; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(18px); border: 1px solid var(--border-strong); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
 .setup-side { display: flex; flex-direction: column; gap: 28px; padding: 28px 22px; background: var(--panel-2); border-right: 1px solid var(--border); }
 .setup-brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; letter-spacing: -0.4px; }
 .setup-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
@@ -61,7 +61,7 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 .setup-steps li[aria-current="step"] .dot { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .setup-side .setup-note { margin-top: auto; }
 
-.setup-main { display: flex; flex-direction: column; min-width: 0; }
+.setup-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .setup-progress { height: 3px; background: var(--hover); }
 .setup-progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .25s ease; }
 .setup-body { flex: 1; padding: 32px 40px 16px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
@@ -116,6 +116,12 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 /* OS installer: the same card as first-boot setup, plus drives, partition bars, the layout table and install phases */
 .os-install .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .os-install .what small, .os-install .mode small, .os-install .danger-box small { color: var(--muted); font-size: 12px; }
+.os-install .what small.found { color: var(--muted); }
+.os-install .what small.found.warn { color: #ffb454; }
+.os-install .explain { margin: 14px 0 0; font-size: 13px; line-height: 1.5; }
+.os-install .explain dt { font-weight: 600; margin-top: 10px; }
+.os-install .explain dd { margin: 2px 0 0; color: var(--muted); }
+.os-install .muted { color: var(--muted); }
 .os-install .mono { font: 12.5px ui-monospace, "Cascadia Code", monospace; }
 .os-install .pill { font-size: 12px; padding: 2px 10px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
 .os-install .pill.ok { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }

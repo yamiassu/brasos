@@ -40,12 +40,12 @@ test("path traversal never leaves the dist directory", async () => {
 });
 
 test("/os/info is public and lists enabled packages", async () => {
-  expect(await (await h.at("localhost", "/os/info", shell)).json()).toEqual({ os: "brasos", packages: [], restart: false });
+  expect(await (await h.at("localhost", "/os/info", shell)).json()).toEqual({ os: "brasos", packages: [], restart: false, power: false });
 });
 
 test("the app list comes from manifests, sorted, with permissions", async () => {
   const apps = await (await h.at("localhost", "/os/apps", shell)).json();
-  expect(apps.map((a: any) => a.id)).toEqual(["about", "browser", "crash-test", "docs", "files", "notes", "packages", "settings", "task-manager", "terminal"]);
+  expect(apps.map((a: any) => a.id)).toEqual(["about", "browser", "crash-test", "docs", "files", "installer", "notes", "packages", "settings", "task-manager", "terminal"]);
   expect(apps.find((a: any) => a.id === "terminal").permissions).toEqual(["pty"]);
 });
 
@@ -81,4 +81,19 @@ test("decisions are on the audit trail and the chain verifies", () => {
   expect(has("app.load", "allow")).toBe(true);
   expect(has("capability.apps.read", "deny")).toBe(true);
   expect(verifyAudit(h.lines.join("\n"))).toMatchObject({ ok: true, instances: 1 });
+});
+
+test("the in-page devtools are served to website origins only, and never with a package on", async () => {
+  const site = `${"a".repeat(32)}.web.localhost`;
+  const ok = await h.at(site, "/__brasos/devtools.js");
+  expect(ok.status).toBe(200);
+  expect((await ok.text()).length).toBeGreaterThan(100_000);
+  expect((await h.at("localhost", "/__brasos/devtools.js")).status).toBe(404); // the desktop
+  expect((await h.at("terminal.localhost", "/__brasos/devtools.js")).status).toBe(404); // an app
+  const hard = await testHost({ packages: ["hardened"] });
+  try {
+    expect((await hard.at(site, "/__brasos/devtools.js")).status).toBe(404);
+  } finally {
+    hard.stop();
+  }
 });

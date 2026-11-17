@@ -1,5 +1,7 @@
 // Runs inside a website loaded through the gateway: tells the framing browser app where it really is
 // (the page's own URL is a gateway URL) and whether it is an installable PWA.
+import { isDevtoolsKey } from "./heartbeat";
+
 export function installSiteReporter(w: any) {
   const site: string | undefined = w.__BRASOS_SITE__; // real origin, injected by the gateway
   const to: string | undefined = w.location?.ancestorOrigins?.[0]; // only report to whoever frames us
@@ -24,6 +26,20 @@ export function installSiteReporter(w: any) {
   }
   for (const ev of ["DOMContentLoaded", "load", "popstate", "hashchange"]) w.addEventListener(ev, report);
   if (w.document.readyState !== "loading") report();
+
+  // Devtools for this page: a page can't open Chromium's own, so the host serves a devtools panel (Eruda) that runs in the page. F12
+  // here, or the browser app forwarding F12 pressed in its own bar, toggles it. Where the host doesn't serve it (hardened), nothing happens.
+  let tools: { show(): void; hide(): void; init(): void } | null = null, open = false;
+  const toggleDevtools = () => {
+    const apply = () => ((open = !open), open ? tools!.show() : tools!.hide());
+    if (tools) return apply();
+    const s = w.document.createElement("script");
+    s.src = "/__brasos/devtools.js";
+    s.onload = () => w.eruda && ((tools = w.eruda), tools!.init(), apply());
+    w.document.documentElement.appendChild(s);
+  };
+  w.addEventListener("keydown", (e: any) => isDevtoolsKey(e) && (e.preventDefault(), toggleDevtools()), true);
+  w.addEventListener("message", (e: any) => e.source === w.parent && e.origin === to && e.data?.brasos === "devtools" && toggleDevtools());
 
   // The framing app can search this page (Ctrl+F in Religare). Only messages from the frame's parent, at the origin that
   // framed us, are heard; the page itself never sees the search. Matches that span several elements are not counted.

@@ -8,6 +8,7 @@ Loads websites through the host. It is the only way BrasOS touches the web, so i
 - **TypeScript instead of JavaScript.** A site may ship `.ts`/`.mts`/`.cts`; when the browser loads one as a script (`Sec-Fetch-Dest: script`, or no hint and not media) the gateway transpiles it with `Bun.Transpiler` and serves it as `text/javascript`, whatever MIME the site used (`.ts` is often `video/mp2t`). Syntax errors come back as a readable 502.
 - **Framing and CSP.** Strips `X-Frame-Options`, CSP, COOP/COEP/CORP, HSTS; removes CSP `<meta>` tags; rewrites absolute `href`/`src`/`action`/`poster`/`formaction` and `Location` so links stay inside the gateway.
 - **The SDK.** Injects `window.__BRASOS_SITE__` (the real origin) and `/__brasos/sdk.js`, which reports navigation and the PWA manifest to the framing browser app and answers the shell's heartbeat.
+- **Devtools.** F12 (or Ctrl+Shift+I/J/C) inside a website opens an in-page devtools panel: the vendored Eruda (`vendor/`, see its README for version, source and checksum), served at `/__brasos/devtools.js` to website origins only and never when a package (hardened) is on. A page cannot open Chromium's own devtools, so the desktop's F12 is left alone and the website gets its own.
 - **Cookies and POST** are forwarded (`Domain`, `Secure`, `Partitioned`, `SameSite=None` stripped so they store on the gateway origin).
 
 ## Safety

@@ -56,7 +56,7 @@ function TaskManager() {
         <div role="tablist" aria-label="View">
           {TABS.map(([t, l]) => <button key={t} role="tab" type="button" aria-selected={tab === t} onClick={() => setTab(t)}>{l}</button>)}
         </div>
-        {snap.sample && <span className="sample" title="No process data from the host yet: these numbers are made up">Sample data</span>}
+        {snap.sample && <span className="sample" title="No host to ask here (Storybook or a plain browser): these numbers are made up">Sample data</span>}
         <span className="grow" />
         {tab === "processes" && <Button variant="danger" disabled={!sel} onClick={() => sel && setConfirm(sel)}>End task</Button>}
       </header>
@@ -83,7 +83,7 @@ function TaskManager() {
         </div>
       ) : tab === "startup" ? (
         <div className="tm-table">
-          <p className="hint">These start by themselves when BrasOS starts. Turn one off to stop it without losing it, or remove it for good.</p>
+          <p className="hint">These start by themselves when BrasOS starts. Turn one off to stop it without losing it, or remove it for good.{snap.startupSample && " This list is an example: the system has no startup list to read yet."}</p>
           <table className="startup">
             <thead><tr><th>Name</th><th>Impact</th><th>Starts at boot</th><th><span className="sr">Remove</span></th></tr></thead>
             <tbody>

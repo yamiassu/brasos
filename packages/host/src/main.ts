@@ -18,6 +18,7 @@ const host = await startHost({
   stateDir: env.BRASOS_STATE_DIR,
   home: env.BRASOS_HOME,
   restart: env.BRASOS_RESTART_CMD ? () => void Bun.spawn([env.BRASOS_RESTART_CMD!], { stdio: ["ignore", "ignore", "ignore"] }) : undefined,
+  power: env.BRASOS_POWER_CMD ? (a) => void Bun.spawn([...env.BRASOS_POWER_CMD!.split(" ").filter(Boolean), a], { stdio: ["ignore", "ignore", "ignore"] }) : undefined, // the command takes the action as its last argument
   setupPreseed: env.BRASOS_SETUP_PRESEED,
   setupDevSkip: env.BRASOS_SETUP_DEV_SKIP === "1",
   nativeSocket: env.BRASOS_COMP_SOCKET,

@@ -123,7 +123,6 @@ in {
         IncognitoModeAvailability = 1;
         BrowserSignin = 0;
         SyncDisabled = true;
-        PasswordManagerEnabled = false;
         MetricsReportingEnabled = false;
       };
     };
