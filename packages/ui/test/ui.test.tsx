@@ -106,7 +106,7 @@ test("WindowFrame shows minimize and maximize only when the shell can do them, a
 test("TitleBar and WindowButtons: a draggable bar with labelled window buttons", () => {
   const w = { close() {}, minimize() {}, toggleMaximize() {}, moveBy() {}, moveEnd() {} };
   const out = html(<TitleBar window={w} title="Notes" icon="text" />);
-  for (const l of ["Minimize window", "Maximize or restore window", "Close window"]) expect(out).toContain(`aria-label="${l}"`);
+  for (const l of ["Minimize window", "Maximize window", "Close window"]) expect(out).toContain(`aria-label="${l}"`);
   expect(out).toContain("ui-titlebar");
   expect(out).toContain("ui-drag");
   expect(out).toContain("Notes");
