@@ -41,7 +41,7 @@ An installed BrasOS (dev profile) can update itself from inside: **Settings → 
 
 - **Update now** asks the update server named in the image (`brasos.updates.url`) for its manifest and switches to the build it names. It needs a network, because the new build's files are downloaded.
 - **Rebuild from this device** builds the editable copy of BrasOS at `/var/lib/brasos/flake` (a first run copies it from `/etc/brasos-flake`). Edit it, rebuild, and the change is part of the system, without leaving it.
-- **Roll back** returns to the previous generation. The boot menu keeps older generations too, so a bad update never traps you.
+- **Roll back** returns to the previous generation. After an update only the new version and the one before it stay on the computer; older ones are deleted to free space. If a new version fails to start 3 times, the computer starts the previous one by itself, and holding Space at power-on shows the list.
 
 The same three actions exist in a terminal as `sudo brasos-update`, `sudo brasos-update --local` and `sudo brasos-update --rollback`.
 

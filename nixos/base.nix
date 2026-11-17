@@ -68,6 +68,8 @@ in {
   system.nixos.vendorName = "BrasOS";
   system.nixos.vendorId = "brasos";
   system.nixos.extraOSReleaseArgs.LOGO = "brasos";
+  # Shutting down must not wait 90 s on a service that ignores SIGTERM (the desktop server, the browser): kill it after 10 s
+  systemd.settings.Manager = { DefaultTimeoutStopSec = "10s"; };
   services.getty.helpLine = lib.mkForce ""; # the stock help line points at the NixOS manual
 
   users.users.brasos = {
@@ -88,8 +90,15 @@ in {
       WLR_RENDERER_ALLOW_SOFTWARE = "1"; # no GPU in the VM yet
     };
   };
+  # tty1 belongs to the desktop. The login prompt (getty) Conflicts with it, so whenever the prompt's unit changed (any update that
+  # touches the login banner) or logind opened one on a VT switch, the switch stopped the desktop and left a text login. No prompt on tty1:
+  # the other consoles (Ctrl+Alt+F2...) keep theirs, and a crashed desktop restarts by itself.
+  systemd.services."getty@tty1".enable = false;
+  systemd.services."autovt@tty1".enable = false;
   # each profile defines brasos-shell.service
   systemd.services."cage-tty1" = {
+    serviceConfig.Restart = "always";
+    serviceConfig.RestartSec = 1;
     after = [ "brasos-shell.service" ];
     wants = [ "brasos-shell.service" ];
   };

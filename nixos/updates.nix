@@ -2,7 +2,8 @@
 #  - `brasos-update`            fetch the operator's manifest (brasos.updates.url) and switch to the system it names
 #  - `brasos-update --local`    rebuild from the editable on-device copy of the flake (/var/lib/brasos/flake), so a change made inside
 #                               BrasOS can be built without leaving it
-#  - `brasos-update --rollback` back to the previous generation (the bootloader keeps them too)
+#  - `brasos-update --rollback` back to the previous generation
+# After an update, only the new system and the previous one are kept; older generations and their store paths are deleted.
 # The script runs as root (sudo, dev profile) and validates the manifest itself: the host never passes it anything to run.
 # Building new store paths needs a network (cache.nixos.org, or brasos.updates.cache) unless they are already in the store.
 # Authenticity of an update is TLS to the manifest host plus the signature of the binary cache; there is no offline signing yet.
@@ -18,6 +19,12 @@ let
       attr=${lib.escapeShellArg (toString cfg.attr)}
       cache=${lib.escapeShellArg (toString cfg.cache)}
       key=${lib.escapeShellArg (toString cfg.publicKey)}
+      # After a successful update only this system and the one before it are kept (a rollback target); everything older, and the store
+      # paths only it used, is deleted from the disk and from the boot menu. A failure here never fails the update.
+      switch() {
+        nixos-rebuild switch "$@"
+        ( nix-env -p /nix/var/nix/profiles/system --delete-generations +2           && nix-collect-garbage           && /nix/var/nix/profiles/system/bin/switch-to-configuration boot ) || echo "cleaning up old versions failed; the update itself is applied" >&2
+      }
       extra=()
       if [ -n "$cache" ] && [ -n "$key" ]; then extra=(--option extra-substituters "$cache" --option extra-trusted-public-keys "$key"); fi
       case "''${1:-}" in
@@ -26,14 +33,14 @@ let
           if [ ! -f ${flake}/flake.nix ]; then
             mkdir -p ${flake} && cp -rL --no-preserve=mode,ownership /etc/brasos-flake/. ${flake}/
           fi
-          exec nixos-rebuild switch --flake "path:${flake}#$attr" "''${extra[@]}" ;;
+          switch --flake "path:${flake}#$attr" "''${extra[@]}" ;;
         "")
           url=${lib.escapeShellArg (toString cfg.url)}
           [ -n "$url" ] || { echo "no update server is configured" >&2; exit 2; }
           m=$(curl -fsS --max-time 20 --max-filesize 65536 --proto '=https' "$url")
           # the manifest names a flake to switch to; accept only a plain https reference
           flakeref=$(jq -er 'select(.flake | test("^https://[A-Za-z0-9._~:/?#=&%+-]{1,400}$")) | .flake' <<<"$m") || { echo "bad manifest" >&2; exit 3; }
-          exec nixos-rebuild switch --flake "$flakeref#$attr" "''${extra[@]}" ;;
+          switch --flake "$flakeref#$attr" "''${extra[@]}" ;;
         *) echo "usage: brasos-update [--local|--rollback]" >&2; exit 64 ;;
       esac
     '';
