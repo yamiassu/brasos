@@ -57,6 +57,8 @@ enum Cmd {
     Launch(String),
     /// an app that takes one web address (flag `u`): id, url
     Open(String, String),
+    /// an app id handed to an app that runs other apps by id (the Flatpak runner)
+    Run(String, String),
     /// id, x, y, w, h: where a window's content goes (the shell draws the frame around it)
     Place(u32, i32, i32, i32, i32),
 }
@@ -69,8 +71,22 @@ pub fn safe_url(u: &str) -> bool {
         && u.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._~:/?#[]@!$&'()*+,;=%".contains(&b))
 }
 
-/// `{"focus":3}`, `{"close":3}`, `{"launch":"foot"}`, `{"open":"web","url":"https://..."}`; anything else is ignored
+/// A Flatpak application id (reverse DNS: `com.valvesoftware.Steam`): at least three dot-separated parts of letters, digits, `_` and `-`,
+/// starting with a letter, so it can never be taken for an option or carry anything else onto the command line.
+pub fn safe_app_id(a: &str) -> bool {
+    a.len() <= 150
+        && a.bytes().next().is_some_and(|b| b.is_ascii_alphabetic())
+        && a.split('.').count() >= 3
+        && a.split('.').all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'))
+}
+
+/// `{"focus":3}`, `{"close":3}`, `{"launch":"foot"}`, `{"open":"web","url":"https://..."}`, `{"run":"flatpak","app":"com.x.Y"}`; anything else is ignored
 fn parse(line: &str) -> Option<Cmd> {
+    if let Some(r) = line.trim().strip_prefix("{\"run\":\"").and_then(|r| r.strip_suffix("\"}")) {
+        let (id, app) = r.split_once("\",\"app\":\"")?;
+        let id_ok = !id.is_empty() && id.len() <= 40 && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+        return (id_ok && safe_app_id(app)).then(|| Cmd::Run(id.to_string(), app.to_string()));
+    }
     if let Some(r) = line.trim().strip_prefix("{\"open\":\"").and_then(|r| r.strip_suffix("\"}")) {
         let (id, url) = r.split_once("\",\"url\":\"")?;
         let id_ok = !id.is_empty() && id.len() <= 40 && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
@@ -110,6 +126,8 @@ pub struct App {
     net: bool,
     open: bool,
     url: bool,
+    /// takes one application id as its last argument (the Flatpak runner); only for an `open` app
+    run: bool,
     argv: Vec<String>,
 }
 
@@ -124,7 +142,7 @@ fn parse_apps(text: &str) -> Vec<App> {
             let mut f = l.splitn(3, '\t');
             let (id, flags, argv) = (f.next()?, f.next()?, f.next()?);
             let argv: Vec<String> = argv.split('\x1f').map(String::from).collect();
-            (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: flags.contains('n'), open: flags.contains('o'), url: flags.contains('u'), argv })
+            (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: flags.contains('n'), open: flags.contains('o'), url: flags.contains('u'), run: flags.contains('a') && flags.contains('o'), argv })
         })
         .collect()
 }
@@ -155,7 +173,7 @@ fn without_ambient_caps(c: &mut std::process::Command) {
     }
 }
 
-fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>, url: Option<&str>) {
+fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>, url: Option<&str>, run: Option<&str>) {
     let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/run/user/1000".into());
     let home = std::env::var("HOME").unwrap_or_else(|_| "/home/brasos".into());
     let (out, err) = log_of(app);
@@ -165,6 +183,9 @@ fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>, url: Optio
         c.args(&app.argv[1..]).env("WAYLAND_DISPLAY", wayland_display).stdout(out).stderr(err);
         if let Some(u) = url {
             c.arg("--").arg(u); // after `--`: an address, never an option
+        }
+        if let Some(a) = run {
+            c.arg(a); // a checked application id (letters first, no `-` lead): never an option
         }
         without_ambient_caps(&mut c);
         if let Some(n) = xdisplay {
@@ -310,7 +331,7 @@ impl Smallvil {
             let id = match c {
                 Cmd::Launch(app) => {
                     if let Some(a) = ctl.apps.iter().find(|a| a.id == app) {
-                        spawn_app(a, &self.socket_name.to_string_lossy(), self.xdisplay, None);
+                        spawn_app(a, &self.socket_name.to_string_lossy(), self.xdisplay, None, None);
                         self.focus_next = true;
                     }
                     continue;
@@ -318,7 +339,15 @@ impl Smallvil {
                 Cmd::Open(app, url) => {
                     // only an app the image marked `u` takes an address, and only one that passed `safe_url`
                     if let Some(a) = ctl.apps.iter().find(|a| a.id == app && a.url) {
-                        spawn_app(a, &self.socket_name.to_string_lossy(), self.xdisplay, Some(&url));
+                        spawn_app(a, &self.socket_name.to_string_lossy(), self.xdisplay, Some(&url), None);
+                        self.focus_next = true;
+                    }
+                    continue;
+                }
+                Cmd::Run(app, id) => {
+                    // only an app the image marked `a` (and `o`) takes an application id, and only one that passed `safe_app_id`
+                    if let Some(a) = ctl.apps.iter().find(|a| a.id == app && a.run) {
+                        spawn_app(a, &self.socket_name.to_string_lossy(), self.xdisplay, None, Some(&id));
                         self.focus_next = true;
                     }
                     continue;
@@ -388,6 +417,16 @@ mod tests {
         assert!(parse("{\"open\":\"../x\",\"url\":\"https://a.b\"}").is_none());
         assert!(!safe_url(&format!("https://a.b/{}", "x".repeat(2100))));
         assert!(parse_apps("web	nou	/bin/chromium")[0].url);
+    }
+
+    #[test]
+    fn run_takes_only_a_reverse_dns_application_id() {
+        assert!(matches!(parse("{\"run\":\"flatpak\",\"app\":\"com.valvesoftware.Steam\"}"), Some(Cmd::Run(_, _))));
+        for bad in ["--help", "-x.y.z", "a.b", "a..b", "com.x.Y z", "com.x.Y;ls", "1com.x.Y", "com.x.Y/../z", ""] {
+            assert!(!safe_app_id(bad), "{bad}");
+        }
+        assert!(parse("{\"run\":\"flatpak\",\"app\":\"--user\"}").is_none());
+        assert!(!safe_app_id(&format!("com.x.{}", "y".repeat(160))));
     }
 
     #[test]

@@ -1,1 +1,1 @@
-export { createNative } from "./native";
+export { createNative, listFlatpaks, safeAppId } from "./native";

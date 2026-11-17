@@ -1,4 +1,5 @@
 import type { Bench } from "../../tools/bench-types";
+import { parseSearch, percentOf } from "./flatpak";
 import { buildPackages, parsePathInfo } from "./server";
 
 // walking a system's store graph (3000 paths, the top 150 linked into the profile): done once a minute at most while the app is open
@@ -13,6 +14,16 @@ const bench: Bench = async () => {
     buildPackages(info, top);
     samples.push(performance.now() - t);
   }
-  return [{ name: "packages.build", unit: "ms", samples }];
+  // a Flathub search answer (40 rows) and the install log's progress, read on every poll of a running install
+  const rows = Array.from({ length: 40 }, (_, i) => `org.example.App${i}${String.fromCharCode(9)}App ${i}${String.fromCharCode(9)}A short summary of the app`).join(String.fromCharCode(10));
+  const log = "Installing... 45%".repeat(20);
+  const parse: number[] = [];
+  for (let i = 0; i < 200; i++) {
+    const t = performance.now();
+    parseSearch(rows);
+    percentOf(log);
+    parse.push(performance.now() - t);
+  }
+  return [{ name: "packages.build", unit: "ms", samples }, { name: "packages.flatpak_parse", unit: "ms", samples: parse }];
 };
 export default bench;

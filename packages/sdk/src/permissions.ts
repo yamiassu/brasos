@@ -21,6 +21,7 @@ export const PERMISSIONS: Record<string, { label: string; risk: Risk }> = {
   "settings.read": { label: "See this computer's hardware, drivers and settings", risk: "low" },
   "settings.write": { label: "Change the volume and airplane mode", risk: "medium" },
   "packages.read": { label: "See the software installed on this system", risk: "low" },
+  "packages.install": { label: "Install and remove apps from the app store (Flathub)", risk: "high" },
   "processes.read": { label: "See what is running and how much it uses", risk: "low" },
   "processes.end": { label: "End running programs", risk: "high" },
   pty: { label: "Run commands as you (a full terminal)", risk: "high" },

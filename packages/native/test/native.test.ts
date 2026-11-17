@@ -127,3 +127,27 @@ test("an address goes only to an app that takes one, only as plain http(s), and 
   expect(JSON.stringify(ev)).not.toContain("x=1");
   h.stop();
 });
+
+test("installed Flatpak apps are listed and started by application id only, from the user's own list", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "brasos-fp-"));
+  const js = join(dir, "flatpak.js").split("\\").join("/");
+  await Bun.write(js, `if (process.argv[2] === "list") console.log(["com.valvesoftware.Steam", "Steam", "1.0"].join(String.fromCharCode(9)));`);
+  const saved = process.env.BRASOS_FLATPAK;
+  process.env.BRASOS_FLATPAK = `${process.execPath} ${js}`;
+  try {
+    const c = fakeCompositor([]);
+    const h = await testHost({ nativeSocket: c.path });
+    const asShellOrigin = { origin: h.origin("localhost") };
+    expect((await (await h.at("localhost", "/os/native/apps", { headers: asShellOrigin })).json()).apps).toEqual([{ id: "flatpak:com.valvesoftware.Steam", name: "Steam", icon: "app", takesUrl: false }]);
+    const launch = (id: string, headers: Record<string, string> = asShellOrigin) => h.at("localhost", "/os/native/launch", { method: "POST", headers, body: JSON.stringify({ id }) });
+    expect((await launch("flatpak:com.valvesoftware.Steam")).status).toBe(202);
+    for (const bad of ["flatpak:com.other.App", "flatpak:--help", "flatpak:com.x.Y z", "flatpak:"]) expect((await launch(bad)).status).toBe(404); // not installed, or not an id
+    expect((await launch("flatpak:com.valvesoftware.Steam", { origin: h.origin("about.localhost") })).status).toBe(403);
+    await Bun.sleep(100);
+    expect(c.got).toEqual(['{"run":"flatpak","app":"com.valvesoftware.Steam"}']);
+    h.stop();
+  } finally {
+    if (saved === undefined) delete process.env.BRASOS_FLATPAK;
+    else process.env.BRASOS_FLATPAK = saved;
+  }
+});

@@ -62,6 +62,10 @@ If a site is a PWA, **Install** lights up. Installing adds it to the taskbar and
 
 Limits: a site installed this way runs on a BrasOS address, not its real one, so sign-in flows and features that check the real address (OAuth redirects, passkeys, push notifications) may not work.
 
+## Getting apps
+
+In **Packages**, **Get apps** searches Flathub, the Linux app store, and installs or removes apps for you (Steam, Discord, VLC and many more). A progress bar shows what is happening, how long it has been going and when it last did anything, so a quiet stretch can be told from a stuck one. An installed app appears in Start like the others. This is on the dev image only: apps from the store run as you in their own sandbox, are not reviewed by BrasOS and are downloaded from the internet, so the hardened image never has it. Websites such as Steam's offer `.deb` files; those are for Debian-based systems and cannot be installed here, so use **Get apps** instead.
+
 ## Docs
 
 This app. Pick a page on the left. Links between pages work; links to the web are shown as text and are not clickable.

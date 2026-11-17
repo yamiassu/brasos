@@ -9,9 +9,9 @@ let
   # The native apps this image offers. The shell lists them and asks for one by id; the command line lives only in the file the
   # compositor reads, and the compositor runs it inside bubblewrap (see src/ctl.rs).
   us = builtins.fromJSON ''"\u001f"''; # the argv separator (Nix strings have no \x escape)
-  appsJson = pkgs.writeText "brasos-native-apps.json" (builtins.toJSON (lib.mapAttrsToList (id: a: { inherit id; inherit (a) name icon takesUrl; }) cfg.apps));
-  # flags column of the apps file: n = network, o = open (no sandbox), "-" = none
-  flagsOf = a: let f = (lib.optionalString a.network "n") + (lib.optionalString (a.sandbox == "open") "o") + (lib.optionalString a.takesUrl "u"); in if f == "" then "-" else f;
+  appsJson = pkgs.writeText "brasos-native-apps.json" (builtins.toJSON (lib.mapAttrsToList (id: a: { inherit id; inherit (a) name icon takesUrl; }) (lib.filterAttrs (_: a: !a.takesApp) cfg.apps))); # the Flatpak runner is not an app to list
+  # flags column of the apps file: n = network, o = open (no sandbox), u = takes a web address, a = takes an application id, "-" = none
+  flagsOf = a: let f = (lib.optionalString a.network "n") + (lib.optionalString (a.sandbox == "open") "o") + (lib.optionalString a.takesUrl "u") + (lib.optionalString a.takesApp "a"); in if f == "" then "-" else f;
   appsTsv = pkgs.writeText "brasos-native-apps.tsv"
     (lib.concatStrings (lib.mapAttrsToList (id: a: "${id}\t${flagsOf a}\t${lib.concatStringsSep us a.command}\n") cfg.apps));
 
@@ -27,7 +27,7 @@ let
       -c ${lib.escapeShellArg config.brasos.uiCommand} ${lib.concatMapStringsSep " " (c: "-c ${lib.escapeShellArg c}") cfg.clients}
   '';
 in {
-  imports = [ ./steam.nix ./browser.nix ];
+  imports = [ ./steam.nix ./browser.nix ./flatpak.nix ];
   options.brasos.compositor.enable = lib.mkEnableOption "the native-app compositor spike";
   # brasos-comp as the session itself (DRM/KMS, libinput), not a window inside cage. Reuses cage's tty/PAM/logind unit: the
   # unit runs `<package>/bin/cage -- <program>`, so a package whose `cage` runs the session script replaces it.
@@ -47,6 +47,7 @@ in {
         icon = lib.mkOption { type = lib.types.str; default = "app"; };
         command = lib.mkOption { type = lib.types.listOf lib.types.str; description = "argv; the first element is an absolute path."; };
         network = lib.mkOption { type = lib.types.bool; default = false; };
+        takesApp = lib.mkOption { type = lib.types.bool; default = false; description = "The host may start this app with one Flatpak application id as its last argument (the Flatpak runner; needs sandbox = \"open\"; not listed in Start)."; };
         takesUrl = lib.mkOption { type = lib.types.bool; default = false; description = "The shell may start this app with one http(s) address as its last argument (after `--`)."; };
         sandbox = lib.mkOption {
           type = lib.types.enum [ "strict" "open" ];

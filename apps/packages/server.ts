@@ -1,9 +1,11 @@
 // The Packages app's server side: the packages of the running system, read from the Nix store (`packages.read`). The system's
-// software is fixed by its image, so there is no install or remove here: the app says so rather than pretending. The list is the
+// software is fixed by its image, so there is no install or remove of those here: the app says so rather than pretending. Apps from
+// Flathub (install, remove, search) are the one thing it can change, in ./flatpak.ts. The list is the
 // set the system profile links (/run/current-system/sw); the dependencies shown between them are the store's own references.
 import { realpathSync } from "node:fs";
 import type { Slice } from "@brasos/host/types";
-import { json } from "@brasos/host/types";
+import { json, type AuditFn } from "@brasos/host/types";
+import { createFlatpak } from "./flatpak";
 
 export type Kind = "App" | "Driver" | "Library" | "Tool";
 export type Pkg = { id: string; name: string; kind: Kind; version: string; size: number; summary: string; deps: string[] }; // size in MB
@@ -90,11 +92,13 @@ const run = async (cmd: string[]): Promise<string | null> => {
   }
 };
 
-export const createSlice = (_: unknown): Slice => {
+export const createSlice = ({ audit }: { audit: AuditFn }): Slice => {
+  const flatpak = createFlatpak(audit);
   let cache: { at: number; pkgs: Pkg[] } | null = null; // the closure walk is the expensive part; the system does not change under us
   return {
     name: "packages",
     async handle(req, ctx) {
+      if (ctx.target.kind === "app" && ctx.target.id === "packages" && ctx.url.pathname.startsWith("/flatpak")) return flatpak(req, ctx); // apps from Flathub (dev image)
       if (ctx.target.kind !== "app" || ctx.target.id !== "packages" || ctx.url.pathname !== "/packages" || req.method !== "GET") return;
       const g = ctx.gate("packages.read"); // a same-origin GET carries no Origin: the gate identifies it by Sec-Fetch-Site
       if (!g.ok) return g.res;

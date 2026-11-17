@@ -30,7 +30,10 @@ let
     text = ''
       src=$1 d=$2
       stamp=$d/.brasos-seed
-      tree() { (cd "$1" && find . -path ./node_modules -prune -o -type f ! -name .brasos-seed -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1); }
+      # what counts as "edited": the source files. Not node_modules, and not what the running host writes into its own folder (dist: the
+      # built apps, created at every start; bun.lock: bun install may rewrite it). Counting those made every copy look edited after its
+      # first start, so no update was ever applied.
+      tree() { (cd "$1" && find . \( -path ./node_modules -o -path ./dist \) -prune -o -type f ! -name .brasos-seed ! -name 'bun.lock*' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1); }
       seed() {
         keep=""
         if [ -d "$d/node_modules" ]; then keep=$(mktemp -d) && mv "$d/node_modules" "$keep/"; fi
@@ -45,7 +48,7 @@ let
           else echo "BrasOS: the new build is not applied because $d has your edits; run brasos-reset-shell to start from the new build"; fi
         fi
       else
-        if ! diff -rq -x node_modules -x .brasos-seed "$src" "$d" >/dev/null 2>&1; then
+        if ! diff -rq -x node_modules -x dist -x 'bun.lock*' -x .brasos-seed "$src" "$d" >/dev/null 2>&1; then
           b="$d.backup-$(date +%Y%m%d-%H%M%S)"; mkdir -p "$b"; cp -r --no-preserve=ownership "$d"/. "$b"/ 2>/dev/null || true; rm -rf "$b/node_modules"
           echo "BrasOS: the old interface copy was saved to $b"
         fi

@@ -5,6 +5,23 @@ import { readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { json, type AuditFn, type Slice } from "@brasos/host/types";
 
+/** a Flatpak application id (reverse DNS), the rule the compositor checks again */
+export const safeAppId = (a: unknown): a is string => typeof a === "string" && a.length <= 150 && /^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){2,}$/.test(a);
+
+/** the Flatpak apps this user installed (`flatpak list --user --app`), where the image has Flatpak (BRASOS_FLATPAK); [] otherwise. Reading only. */
+export async function listFlatpaks(bin = process.env.BRASOS_FLATPAK): Promise<{ id: string; name: string; version: string }[]> {
+  const cmd = (bin ?? "").split(" ").filter(Boolean);
+  if (!cmd.length) return [];
+  try {
+    const p = Bun.spawn([...cmd, "list", "--user", "--app", "--columns=application,name,version"], { stdout: "pipe", stderr: "ignore", stdin: "ignore" });
+    const out = await new Response(p.stdout).text();
+    if ((await p.exited) !== 0) return [];
+    return out.split("\n").map((l) => l.trim().split("\t")).filter((c) => safeAppId(c[0])).map((c) => ({ id: c[0], name: (c[1] || c[0]).slice(0, 80), version: (c[2] ?? "").slice(0, 40) }));
+  } catch {
+    return [];
+  }
+}
+
 export type NativeApp = { id: string; name: string; icon: string; takesUrl: boolean };
 
 /** the one address an app that takes one may be started with (the compositor checks the same rule again): http(s), bounded, URL characters only */
@@ -76,13 +93,25 @@ export function createNative({ socket, apps: appsFile, audit }: { socket?: strin
       }
       if (req.method === "GET" && p === "/os/native/apps") {
         const g = ctx.gate("native.read");
-        return g.ok ? json({ apps: socket ? apps : [] }) : g.res;
+        if (!g.ok) return g.res;
+        // the image's apps, then the Flatpak apps the user installed (ids `flatpak:<application id>`)
+        const fp = socket ? (await listFlatpaks()).map((f) => ({ id: `flatpak:${f.id}`, name: f.name, icon: "app", takesUrl: false })) : [];
+        return json({ apps: socket ? [...apps, ...fp] : [] });
       }
       if (req.method === "POST" && p === "/os/native/launch") {
         const g = ctx.gate("native.control", { sameOrigin: true });
         if (!g.ok) return g.res;
         const b = (await req.json().catch(() => null)) as any;
         const id = b?.id;
+        if (typeof id === "string" && id.startsWith("flatpak:")) {
+          // an installed Flatpak app: the id is checked as an application id and must be in the user's own list; the runner is fixed
+          const appId = id.slice(8);
+          if (!socket || !safeAppId(appId) || !(await listFlatpaks()).some((f) => f.id === appId)) return json({ error: "unknown native app" }, 404);
+          audit("native.launch", "info", { id }, { flatpak: appId });
+          await send(socket, `{"run":"flatpak","app":"${appId}"}
+`).catch(() => {});
+          return json({ ok: true }, 202);
+        }
         // only ids from the image's list: no request can name a command
         const app = typeof id === "string" && socket ? apps.find((a) => a.id === id) : undefined;
         if (!app) return json({ error: "unknown native app" }, 404);

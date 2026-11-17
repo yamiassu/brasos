@@ -4,6 +4,7 @@ import { os } from "@brasos/sdk";
 import { Button, Dialog, Icon } from "@brasos/ui";
 import "@brasos/ui/ui.css";
 import "./packages.css";
+import { Store } from "./store";
 import { KINDS, plan, requiredBy, usePackages, type Kind, type Pkg } from "./data";
 
 const KIND_ICON: Record<Kind, string> = { App: "app", Driver: "chip", Library: "files", Tool: "terminal" };
@@ -13,6 +14,7 @@ const mb = (v: number) => (v >= 1024 ? `${(v / 1024).toFixed(1)} GB` : `${v} MB`
 
 function Packages() {
   const pk = usePackages();
+  const [view, setView] = useState<"system" | "store">("system");
   const [kind, setKind] = useState<Kind | "all">("all");
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
@@ -33,15 +35,17 @@ function Packages() {
     <div className="pk">
       <nav aria-label="Categories">
         <h1>Packages</h1>
+        <button type="button" aria-current={view === "store" ? "page" : undefined} onClick={() => setView("store")}><Icon name="plus" size={18} />Get apps</button>
+        <h4>This system</h4>
         {(["all", ...KINDS] as const).map((k) => (
-          <button key={k} type="button" aria-current={kind === k ? "page" : undefined} onClick={() => setKind(k)}>
+          <button key={k} type="button" aria-current={view === "system" && kind === k ? "page" : undefined} onClick={() => (setView("system"), setKind(k))}>
             <Icon name={k === "all" ? "package" : KIND_ICON[k]} size={18} />{k === "all" ? "Everything" : KIND_PLURAL[k]}<span className="count">{count(k)}</span>
           </button>
         ))}
         {pk.sample && <span className="sample" title="No host to ask here (Storybook or a plain browser): this catalog is made up, and nothing is really installed">Sample data</span>}
       </nav>
 
-      <main>
+      {view === "store" ? <Store /> : <main>
         <div className="bar">
           <label className="find"><Icon name="search" size={16} /><input type="search" placeholder="Search packages" aria-label="Search packages" value={q} onChange={(e) => setQ(e.target.value)} /></label>
           <div role="tablist" aria-label="Show">
@@ -82,7 +86,7 @@ function Packages() {
             </aside>
           )}
         </div>
-      </main>
+      </main>}
 
       {ask && <Confirm pk={pk} pkg={ask.pkg} action={ask.action} onClose={() => setAsk(null)} />}
     </div>
