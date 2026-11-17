@@ -1,1 +1,1 @@
-{ "name": "Files", "short_name": "Files", "start_url": "/", "display": "standalone", "brasos": { "icon": "files", "permissions": ["fs.read", "fs.write"] } }
+{ "name": "Files", "short_name": "Files", "start_url": "/", "display": "standalone", "brasos": { "icon": "files", "window": { "frame": false }, "permissions": ["fs.read", "fs.write", "drives.read", { "id": "window.control", "reason": "Move, resize and close its own window (it draws its own title bar)" }] } }

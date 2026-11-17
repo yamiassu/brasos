@@ -71,7 +71,8 @@ export function List<T>({ items, selected, marked, onSelect, onOpen, render, get
   selected: T | null;
   /** more keys shown as selected (a multiple selection); `selected` stays the one the keyboard moves from */
   marked?: string[];
-  onSelect(item: T): void;
+  /** `mods` says whether Ctrl/Cmd or Shift was held during a click so the parent can extend a selection */
+  onSelect(item: T, mods?: { ctrl: boolean; shift: boolean }): void;
   onOpen?(item: T): void;
   render(item: T): ReactNode;
   getKey(item: T): string;
@@ -85,7 +86,7 @@ export function List<T>({ items, selected, marked, onSelect, onOpen, render, get
   }, [index]);
 
   const onKey = (e: KeyboardEvent) => {
-    const go = (i: number) => (e.preventDefault(), items[i] && onSelect(items[i]));
+    const go = (i: number) => (e.preventDefault(), items[i] && onSelect(items[i], { ctrl: false, shift: false }));
     if (e.key === "ArrowDown") go(Math.min(items.length - 1, index + 1));
     else if (e.key === "ArrowUp") go(Math.max(0, index < 0 ? 0 : index - 1));
     else if (e.key === "Home") go(0);
@@ -101,7 +102,7 @@ export function List<T>({ items, selected, marked, onSelect, onOpen, render, get
           aria-selected={(!!selected && getKey(item) === getKey(selected)) || !!marked?.includes(getKey(item))}
           data-key={getKey(item)}
           className="ui-item"
-          onClick={() => onSelect(item)}
+          onClick={(e) => onSelect(item, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })}
           onDoubleClick={() => onOpen?.(item)}
         >
           {render(item)}
@@ -112,7 +113,7 @@ export function List<T>({ items, selected, marked, onSelect, onOpen, render, get
 }
 
 /** A glyph with a label: desktop icons and file grids. A button, so it is focusable; Enter or double-click opens. */
-export function IconTile({ icon, label, selected, itemKey, onSelect, onOpen }: { icon: ReactNode; label: string; selected?: boolean; /** what a box selection reports for this tile */ itemKey?: string; onSelect?(e: ReactMouseEvent): void; onOpen?(): void }) {
+export function IconTile({ icon, label, editor, selected, itemKey, onSelect, onOpen }: { icon: ReactNode; label: string; /** shown in place of the label while it is being edited */ editor?: ReactNode; selected?: boolean; /** what a box selection reports for this tile */ itemKey?: string; onSelect?(e: ReactMouseEvent): void; onOpen?(): void }) {
   return (
     <button
       type="button"
@@ -125,7 +126,7 @@ export function IconTile({ icon, label, selected, itemKey, onSelect, onOpen }: {
       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onOpen?.())}
     >
       <span className="glyph" aria-hidden="true">{typeof icon === "string" ? <Icon name={icon} size={36} /> : icon}</span>
-      <span className="label">{label}</span>
+      <span className="label">{editor ?? label}</span>
     </button>
   );
 }

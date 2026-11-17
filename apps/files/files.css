@@ -14,7 +14,7 @@ html, body, #root { height: 100%; margin: 0; }
 .files .places .ui-btn { justify-content: center; margin-top: 4px; }
 
 /* the folder */
-.files .browse { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.files .browse { flex: 1; min-width: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); }
 .files .cols { display: flex; gap: var(--gap); padding: 4px 10px 4px 36px; border-bottom: 1px solid var(--border); font-size: 12px; }
 .files .cols button { background: transparent; border: 0; color: var(--muted); font: inherit; cursor: pointer; padding: 2px 0; }
 .files .cols button:hover, .files .cols button[aria-pressed="true"] { color: var(--text); }
@@ -35,3 +35,39 @@ html, body, #root { height: 100%; margin: 0; }
 .files .preview .note { color: var(--muted); font-size: 12px; margin: 0; }
 .files .preview .actions { display: flex; gap: var(--gap); }
 .files .status { padding: 3px 10px; font-size: 12px; color: var(--muted); background: var(--panel); border-top: 1px solid var(--border); min-height: 18px; }
+
+/* drives */
+.files .drives { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.files .drive { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); padding: 12px 14px; }
+.files .drive header { display: flex; align-items: center; gap: 12px; }
+.files .drive h3 { margin: 0; font-size: 1em; }
+.files .drive p, .files .drives .note { margin: 0; }
+.files .drive ul { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.files .drive .vol { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.files .drive .muted, .files .drives .muted { color: var(--muted); font-size: 12px; }
+.files .drive .bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-bottom: 4px; }
+.files .drive .bar span { display: block; height: 100%; background: var(--accent); }
+.files .drive .bar span[data-high] { background: var(--danger, #e5534b); }
+.files .drives .sample { margin: 0; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--selected); color: var(--muted); font-size: 12px; }
+.files .find[hidden] { display: none; }
+
+/* the app's own title bar: title, then back/forward/up, the path filling the middle, then filter and view */
+.files .ui-titlebar > .ui-drag:first-child { flex: none; margin-right: 8px; }
+.files .ui-titlebar .grow { flex: 1; min-width: 0; }
+.files .ui-list, .files .grid { user-select: none; } /* Shift-click would otherwise select text */
+.files input.rename { width: 100%; min-width: 0; margin: 0; padding: 0 4px; border: 0; box-shadow: 0 0 0 1px var(--accent); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; line-height: inherit; outline: 0; }
+.files .ui-tile input.rename { text-align: center; }
+.files .places .pinned { margin: 10px 10px 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.files .places .pin-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* properties bar */
+.files .props { display: flex; flex-direction: column; gap: 8px; }
+.files .props dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 12px; }
+.files .props dt { color: var(--muted); }
+.files .props dd { margin: 0; overflow-wrap: anywhere; }
+.files .pane-title { margin: 8px 0 0; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* draggable dividers: a wide invisible hit area over the pane border */
+.files .splitter { flex: none; width: 7px; margin: 0 -3px; z-index: 1; cursor: col-resize; touch-action: none; background: transparent; outline: 0; }
+.files .splitter:hover, .files .splitter:focus-visible { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.files .preview { flex: none; width: auto; }

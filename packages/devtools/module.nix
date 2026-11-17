@@ -18,6 +18,7 @@ let
     BRASOS_STATE_DIR = "/var/lib/brasos/state";
     BRASOS_NMCLI = "${pkgs.networkmanager}/bin/nmcli"; # the taskbar network panel (packages/network)
     BRASOS_RESTART_CMD = "${restartCmd}";
+    BRASOS_DRIVES_LSBLK = "${pkgs.util-linux}/bin/lsblk -J -b -o NAME,PATH,SIZE,MODEL,TYPE,RM,ROTA,FSTYPE,LABEL,MOUNTPOINTS,FSUSED"; # the Files app's Drives view (the service's PATH has no util-linux)
     BRASOS_POWER_CMD = "/run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl"; # the host adds the action (poweroff or reboot)
   } // lib.optionalAttrs (config.brasos.setup.preseed != null) { BRASOS_SETUP_PRESEED = "${config.brasos.setup.preseed}"; }
     // lib.optionalAttrs config.brasos.setup.devSkip { BRASOS_SETUP_DEV_SKIP = "1"; };
