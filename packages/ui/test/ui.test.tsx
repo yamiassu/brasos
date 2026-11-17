@@ -111,3 +111,9 @@ test("TitleBar and WindowButtons: a draggable bar with labelled window buttons",
   expect(out).toContain("ui-drag");
   expect(out).toContain("Notes");
 });
+
+test("WindowFrame draws a resize grip only when it can be resized and is not maximized", () => {
+  expect(html(<WindowFrame title="A" onClose={() => {}} onResize={() => {}}>x</WindowFrame>)).toContain("ui-resize");
+  expect(html(<WindowFrame title="A" maximized onClose={() => {}} onResize={() => {}}>x</WindowFrame>)).not.toContain("ui-resize");
+  expect(html(<WindowFrame title="A" onClose={() => {}}>x</WindowFrame>)).not.toContain("ui-resize");
+});

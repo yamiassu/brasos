@@ -105,7 +105,7 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 /* window and dock (used by the shell): a grey panel; only the focused window glows */
 .ui-window {
   position: absolute; width: 640px; height: 420px; min-width: 240px; min-height: 120px; display: flex; flex-direction: column;
-  resize: both; overflow: hidden; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow);
+  overflow: hidden; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow);
 }
 .ui-window--focused {
   /* the one lit edge on screen */
@@ -121,7 +121,9 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px va
 /* a title bar an app draws itself (window.frame: false): see window.tsx. .ui-drag is the part that drags the window. */
 .ui-titlebar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 12px; background: var(--panel); user-select: none; flex: none; }
 .ui-drag { display: flex; align-items: center; gap: 8px; flex: 1; align-self: stretch; min-width: 48px; }
-.ui-window--max { border-radius: 0; resize: none; }
+.ui-window--max { border-radius: 0; }
+/* the resize grip: above the app's iframe, so the corner can be dragged */
+.ui-resize { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; z-index: 5; }
 .ui-window--max > header { cursor: default; }
 .ui-window--min { display: none; }
 .ui-window--bare { border: 0; background: transparent; box-shadow: none; border-radius: 0; }
