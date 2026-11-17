@@ -7,7 +7,7 @@
 //   <div className="ui-titlebar" {...drag}> ...your tabs or title... <span className="ui-drag" /> <WindowButtons window={os.window} /> </div>
 //
 // or simply `<TitleBar window={os.window} title="Notes" />`.
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { IconButton } from "./components";
 import { Icon } from "./icons";
 
@@ -19,6 +19,8 @@ export type WindowControls = {
   moveBy(dx: number, dy: number, at?: { x: number; y: number }): unknown;
   moveEnd(): unknown;
   focus?(): unknown;
+  /** optional: lets the maximize button show "restore" while the window is maximized (`os.window` has it) */
+  watchMaximized?(fn: (maximized: boolean) => void): () => void;
 };
 
 /** how far (px) the pointer must travel before a press on the bar is a drag: a click, or the first half of a double click, is not */
@@ -73,10 +75,12 @@ export const useWindowDrag = (w: WindowControls) => useMemo(() => createWindowDr
 
 /** minimize, maximize and close, in the same style as the shell's own window frame */
 export function WindowButtons({ window: w }: { window: WindowControls }) {
+  const [max, setMax] = useState(false);
+  useEffect(() => w.watchMaximized?.(setMax), [w]);
   return (
     <span className="ui-winctl">
       <IconButton label="Minimize window" onClick={() => w.minimize()}>–</IconButton>
-      <IconButton label="Maximize or restore window" onClick={() => w.toggleMaximize()}>□</IconButton>
+      <IconButton label={max ? "Restore window" : "Maximize window"} onClick={() => w.toggleMaximize()}>{max ? "❐" : "□"}</IconButton>
       <IconButton label="Close window" onClick={() => w.close()}>✕</IconButton>
     </span>
   );

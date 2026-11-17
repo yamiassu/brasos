@@ -1,6 +1,6 @@
 // @brasos/sdk: talk to BrasOS from a web page. Inside BrasOS it calls the host; anywhere else it degrades to
 // polyfills so the same code also runs on a plain browser. Importing it also makes the window answer the shell's heartbeat.
-import { installHeartbeat } from "./heartbeat";
+import { installHeartbeat, windowState } from "./heartbeat";
 import { createMemoryFs, type MemoryFs } from "./memory-fs";
 
 export { createMemoryFs, type MemoryFs };
@@ -170,6 +170,8 @@ export function createOS(env: Env) {
       /** the drag is over (pointerup): a window dropped on the top edge of the page is maximized, and its preview goes away */
       moveEnd: () => send({ op: "moveEnd" }),
       resize: (w: number, h: number) => send({ op: "resize", w, h }),
+      /** calls back with true while the shell shows this window maximized, and with false when it is restored; returns the unsubscribe. Calls back at once with the current state. */
+      watchMaximized: (fn: (maximized: boolean) => void) => (windowState.subs.add(fn), fn(windowState.max), () => void windowState.subs.delete(fn)),
     },
     /**
      * The OS database: JSON documents in collections, private to this app ("own") or shared between apps that hold `db.shared`.

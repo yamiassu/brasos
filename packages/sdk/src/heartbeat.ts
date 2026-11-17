@@ -8,6 +8,9 @@ export const isDevtoolsKey = (e: { key: string; ctrlKey?: boolean; metaKey?: boo
 
 /** the browser's own context menu (Back, Reload, View source, Inspect) over a BrasOS surface: not wanted. Text fields keep theirs (cut, copy, paste). */
 export const nativeMenu = (e: { target: any }) => !/^(INPUT|TEXTAREA)$/.test(e.target?.tagName ?? "") && !e.target?.isContentEditable;
+/** whether the shell shows this window maximized (the shell tells us), so an app's own window buttons can show the right icon */
+
+export const windowState = { max: false, subs: new Set<(max: boolean) => void>() };
 
 export function installHeartbeat(w: any) {
   if (!w.addEventListener || !w.parent || w.parent === w) return;
@@ -20,6 +23,7 @@ export function installHeartbeat(w: any) {
     if (e.source !== w.parent) return;
     if (e.data === "ping") w.parent.postMessage("pong", e.origin);
     else if (e.data?.brasos === "prefs") applyPrefs(w, e.data);
+    else if (e.data?.brasos === "window-state" && typeof e.data.max === "boolean") (windowState.max = e.data.max, windowState.subs.forEach((f) => f(windowState.max)));
   });
 }
 

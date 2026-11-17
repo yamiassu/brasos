@@ -67,6 +67,10 @@ export function Frame({ win, palette, shield, onRestart, onClose, onRef }: { win
       clearInterval(t);
     };
   }, [win.app.id, win.reload, win.src]);
+  // an app that draws its own window buttons shows restore instead of maximize while maximized
+  useEffect(() => {
+    if (!win.src) ref.current?.contentWindow?.postMessage({ brasos: "window-state", max: !!win.max }, new URL(frameSrc(win)).origin);
+  }, [win.max]);
   return (
     <>
       <iframe
@@ -76,6 +80,7 @@ export function Frame({ win, palette, shield, onRestart, onClose, onRef }: { win
         onLoad={(e) => {
           e.currentTarget.focus();
           // built-in apps follow the user's accent color; websites are never told anything
+          if (!win.src) e.currentTarget.contentWindow?.postMessage({ brasos: "window-state", max: !!win.max }, new URL(frameSrc(win)).origin);
           if (!win.src && palette) e.currentTarget.contentWindow?.postMessage({ brasos: "prefs", vars: (palettes as Record<string, { vars: object }>)[palette]?.vars ?? {} }, new URL(frameSrc(win)).origin);
         }}
         src={frameSrc(win)}
