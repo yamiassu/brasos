@@ -188,3 +188,21 @@ test("without a compositor there is no picture", async () => {
   expect((await h.at("localhost", "/os/native/thumb?id=5", { headers: { origin: h.origin("localhost") } })).status).toBe(404);
   h.stop();
 });
+
+test("a web app that runs in the real browser is started by id with its address, and never offered in Start", async () => {
+  const c = fakeCompositor([]);
+  const list = join(mkdtempSync(join(tmpdir(), "brasos-apps-")), "apps.json");
+  await Bun.write(list, JSON.stringify([{ id: "web", name: "Browser", icon: "browser", takesUrl: true }, { id: "webapp", name: "Web app", icon: "globe", takesUrl: true, listed: false }, { id: "foot", name: "Terminal" }]));
+  const h = await testHost({ nativeSocket: c.path, nativeApps: list });
+  const as = (from: string) => ({ origin: h.origin(from) });
+  expect((await (await h.at("localhost", "/os/native/apps", { headers: as("localhost") })).json()).apps.map((a: any) => a.id)).toEqual(["web", "foot"]); // webapp is not listed
+  const launch = (id: string, url: unknown, from = "localhost") => h.at("localhost", "/os/native/launch", { method: "POST", headers: as(from), body: JSON.stringify({ id, url }) });
+  expect((await launch("webapp", "https://notes.example.com/app/")).status).toBe(202);
+  expect((await launch("webapp", "javascript:alert(1)")).status).toBe(400);
+  expect((await launch("webapp", "https://a b")).status).toBe(400);
+  expect((await launch("foot", "https://notes.example.com/")).status).toBe(400); // an app that takes no address
+  expect((await launch("webapp", "https://notes.example.com/", "about.localhost")).status).toBe(403);
+  await Bun.sleep(100);
+  expect(c.got).toEqual(['{"open":"webapp","url":"https://notes.example.com/app/"}']);
+  h.stop();
+});

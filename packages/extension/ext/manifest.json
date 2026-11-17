@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "BrasOS",
+  "version": "1.0.0",
+  "description": "Adds a web app you install in this browser to BrasOS.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs8zyf/zfOny/vd6VImzEh3ccADco76nHqYVGr6IHR2ckElton47H+3fjF1iue5/8MVBVD0bUzkHrhqnuZnQMJuut5DvxX/+TKuUC0FZZm2Hsq0TgQcb6FZWanljNrZQZGn+NGfIlPBw/uzuv9fiDkBIqJ9HgLdPZKYHa/7hoMGVbZFRbxvwcQiLh7mhHUSVfJGDiQmtRQaxYYCDzaZNEibp3ONNVYWv0Mf96UZ0FtCa9fpY6awnKRetOva7P5r+jeSgQ00t8ljPlQcni0ZsUPaHFE7lnh77fVNDWWmjPC1BeqU8RUW/yfq41MB64lItnLPc9Ru9C7CKcYUS6wa7GQQIDAQAB",
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Add this site to BrasOS" },
+  "content_scripts": [{ "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_idle" }],
+  "host_permissions": ["http://localhost/*"]
+}

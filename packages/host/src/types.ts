@@ -33,7 +33,9 @@ export type Policy = {
 };
 
 /** Which origin a request is addressed to (shell: localhost; app: <id>.localhost; website: <id>.web.localhost) */
-export type Target = { kind: "shell" } | { kind: "app"; id: string } | { kind: "site"; id: string };
+export type Target = { kind: "shell" } | { kind: "app"; id: string } | { kind: "site"; id: string }
+  /** the BrasOS browser extension in the real browser (recognised by its fixed id in the Origin header); it can only ask for an app to be installed */
+  | { kind: "extension" };
 
 export type Gate = { ok: true; caller: Target } | { ok: false; res: Response };
 

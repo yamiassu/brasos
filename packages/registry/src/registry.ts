@@ -95,7 +95,7 @@ export function createRegistry(o: RegistryOptions) {
   }
 
   /** `grant` is what the user ticked in the prompt; it is cut down to what the manifest asked for and what a website may hold */
-  async function install(manifestUrl: string, grant: string[] = []): Promise<AppInfo> {
+  async function install(manifestUrl: string, grant: string[] = [], runIn: "brasos" | "browser" = "brasos"): Promise<AppInfo> {
     const { m, name, start, requests } = await inspectRaw(manifestUrl);
     const id = "pwa-" + createHash("sha256").update(start.origin + String(m.scope ?? "")).digest("hex").slice(0, 12);
     // a manifest can only ask: the user grants. shortcut: manifest icons are ignored; every PWA gets the same icon
@@ -103,6 +103,7 @@ export function createRegistry(o: RegistryOptions) {
     const app: AppInfo = {
       id, kind: "pwa", name, icon: "globe", start_url: start.href, permissions: granted,
       requested: requests,
+      runIn: runIn === "browser" ? "browser" : "brasos",
       window: { frame: !(m.brasos?.window?.frame === false && granted.includes("window.frameless")) },
     };
     mkdirSync(pwaDir!, { recursive: true });
@@ -115,11 +116,46 @@ export function createRegistry(o: RegistryOptions) {
     rmSync(join(pwaDir, id + ".json"), { force: true });
   }
 
+  // Apps the BrasOS browser extension asks to add (a site was installed in the real browser): a short queue the shell reads and shows its own
+  // install prompt for. Asking installs nothing; the user decides there. In memory only, and a request goes stale after 15 minutes.
+  const asked: { id: string; manifestUrl: string; at: number }[] = [];
+  const fresh = () => {
+    const t = Date.now();
+    while (asked.length && t - asked[0].at > 15 * 60_000) asked.shift();
+    return asked;
+  };
+
   const slice: Slice = {
     name: "registry",
     async handle(req, ctx) {
       if (ctx.target.kind !== "shell") return;
       const path = ctx.url.pathname;
+      if (path === "/os/apps/requests" && req.method === "POST") {
+        const g = ctx.gate("apps.request"); // the extension: its own Origin identifies it (no same-origin check: it isn't this origin)
+        if (!g.ok) return g.res;
+        const b = (await req.json().catch(() => null)) as { manifestUrl?: unknown } | null;
+        const u = b?.manifestUrl;
+        if (typeof u !== "string" || u.length > 2048 || !/^https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+$/.test(u)) return json({ error: "manifestUrl must be a plain http(s) address" }, 400);
+        const q = fresh();
+        if (!q.some((x) => x.manifestUrl === u)) {
+          if (q.length >= 20) return json({ error: "too many waiting" }, 429);
+          q.push({ id: crypto.randomUUID(), manifestUrl: u, at: Date.now() });
+          ctx.audit("apps.request", "info", { app: "extension" }, { host: new URL(u).hostname.slice(0, 100) }); // the site, never the path
+        }
+        return json({ ok: true }, 202);
+      }
+      if (path === "/os/apps/requests" && req.method === "GET") {
+        const g = ctx.gate("apps.install", { quiet: true });
+        return g.ok ? json({ requests: fresh().map(({ id, manifestUrl }) => ({ id, manifestUrl })) }) : g.res;
+      }
+      if (path === "/os/apps/requests/dismiss" && req.method === "POST") {
+        const g = ctx.gate("apps.install", { sameOrigin: true });
+        if (!g.ok) return g.res;
+        const id = String(((await req.json().catch(() => null)) as { id?: unknown } | null)?.id);
+        const i = asked.findIndex((x) => x.id === id);
+        if (i >= 0) asked.splice(i, 1);
+        return json({ ok: true });
+      }
       if (path === "/os/apps" && req.method === "GET") {
         const g = ctx.gate("apps.read", { quiet: true });
         return g.ok ? json(list()) : g.res;
@@ -135,8 +171,8 @@ export function createRegistry(o: RegistryOptions) {
           if (op === "uninstall") return uninstall(String(body?.id)), json({ ok: true });
           if (op === "inspect") return json(await inspect(String(body?.manifestUrl)));
           const grant = Array.isArray(body?.grant) ? body.grant.filter((x: unknown) => typeof x === "string") : [];
-          const app = await install(String(body?.manifestUrl), grant);
-          ctx.audit("apps.install", "info", { app: app.id }, { name: app.name, start_url: app.start_url, granted: app.permissions, requested: (app.requested ?? []).map((r) => r.id) });
+          const app = await install(String(body?.manifestUrl), grant, body?.runIn === "browser" ? "browser" : "brasos");
+          ctx.audit("apps.install", "info", { app: app.id }, { name: app.name, start_url: app.start_url, runIn: app.runIn, granted: app.permissions, requested: (app.requested ?? []).map((r) => r.id) });
           return json(app);
         } catch (e) {
           return json({ error: (e as Error).message }, 400);

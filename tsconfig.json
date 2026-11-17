@@ -20,6 +20,7 @@
       "@brasos/files": ["packages/files/src/index.ts"],
       "@brasos/setup": ["packages/setup/src/index.ts"],
       "@brasos/system": ["packages/system/src/index.ts"],
+      "@brasos/extension": ["packages/extension/src/index.ts"],
       "@brasos/network": ["packages/network/src/index.ts"],
       "@brasos/native": ["packages/native/src/index.ts"],
       "@brasos/db": ["packages/db/src/index.ts"],

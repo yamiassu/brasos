@@ -19,6 +19,8 @@ export type AppInfo = {
   requested?: { id: string; reason?: string }[];
   /** frame: false = the app draws its own window frame (see `window.frameless`) */
   window?: { frame: boolean };
+  /** where an installed PWA runs: in a BrasOS window on the web gateway (default, sandboxed) or in the real browser as an app window (not isolated) */
+  runIn?: "brasos" | "browser";
 };
 
 export type FsEntry = { name: string; kind: "dir" | "file" | "link"; size: number; mtime: number };

@@ -22,7 +22,7 @@ export async function listFlatpaks(bin = process.env.BRASOS_FLATPAK): Promise<{ 
   }
 }
 
-export type NativeApp = { id: string; name: string; icon: string; takesUrl: boolean };
+export type NativeApp = { id: string; name: string; icon: string; takesUrl: boolean; /** false: started by the shell for something else (a web app), never offered in Start */ listed: boolean };
 
 /** the one address an app that takes one may be started with (the compositor checks the same rule again): http(s), bounded, URL characters only */
 export const safeUrl = (u: unknown): u is string => typeof u === "string" && u.length <= 2048 && /^https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+$/.test(u);
@@ -97,7 +97,7 @@ function loadApps(path?: string): NativeApp[] {
   try {
     return (JSON.parse(readFileSync(path, "utf8")) as any[])
       .filter((a) => /^[a-z0-9-]{1,40}$/.test(a?.id))
-      .map((a) => ({ id: a.id, name: String(a.name ?? a.id).slice(0, 80), icon: String(a.icon ?? "app").slice(0, 40), takesUrl: a.takesUrl === true }));
+      .map((a) => ({ id: a.id, name: String(a.name ?? a.id).slice(0, 80), icon: String(a.icon ?? "app").slice(0, 40), takesUrl: a.takesUrl === true, listed: a.listed !== false }));
   } catch {
     return [];
   }
@@ -134,7 +134,7 @@ export function createNative({ socket, apps: appsFile, audit }: { socket?: strin
         if (!g.ok) return g.res;
         // the image's apps, then the Flatpak apps the user installed (ids `flatpak:<application id>`)
         const fp = socket ? (await listFlatpaks()).map((f) => ({ id: `flatpak:${f.id}`, name: f.name, icon: "app", takesUrl: false })) : [];
-        return json({ apps: socket ? [...apps, ...fp] : [] });
+        return json({ apps: socket ? [...apps.filter((a) => a.listed).map(({ listed: _l, ...a }) => a), ...fp] : [] });
       }
       if (req.method === "POST" && p === "/os/native/launch") {
         const g = ctx.gate("native.control", { sameOrigin: true });

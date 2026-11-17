@@ -9,9 +9,9 @@ let
   # The native apps this image offers. The shell lists them and asks for one by id; the command line lives only in the file the
   # compositor reads, and the compositor runs it inside bubblewrap (see src/ctl.rs).
   us = builtins.fromJSON ''"\u001f"''; # the argv separator (Nix strings have no \x escape)
-  appsJson = pkgs.writeText "brasos-native-apps.json" (builtins.toJSON (lib.mapAttrsToList (id: a: { inherit id; inherit (a) name icon takesUrl; }) (lib.filterAttrs (_: a: !a.takesApp) cfg.apps))); # the Flatpak runner is not an app to list
+  appsJson = pkgs.writeText "brasos-native-apps.json" (builtins.toJSON (lib.mapAttrsToList (id: a: { inherit id; inherit (a) name icon takesUrl; listed = !a.urlAsApp; }) (lib.filterAttrs (_: a: !a.takesApp) cfg.apps))); # the Flatpak runner is not an app to list
   # flags column of the apps file: n = network, o = open (no sandbox), u = takes a web address, a = takes an application id, "-" = none
-  flagsOf = a: let f = (lib.optionalString a.network "n") + (lib.optionalString (a.sandbox == "open") "o") + (lib.optionalString a.takesUrl "u") + (lib.optionalString a.takesApp "a"); in if f == "" then "-" else f;
+  flagsOf = a: let f = (lib.optionalString a.network "n") + (lib.optionalString (a.sandbox == "open") "o") + (lib.optionalString a.takesUrl "u") + (lib.optionalString a.takesApp "a") + (lib.optionalString a.urlAsApp "w"); in if f == "" then "-" else f;
   appsTsv = pkgs.writeText "brasos-native-apps.tsv"
     (lib.concatStrings (lib.mapAttrsToList (id: a: "${id}\t${flagsOf a}\t${lib.concatStringsSep us a.command}\n") cfg.apps));
 
@@ -49,6 +49,7 @@ in {
         network = lib.mkOption { type = lib.types.bool; default = false; };
         takesApp = lib.mkOption { type = lib.types.bool; default = false; description = "The host may start this app with one Flatpak application id as its last argument (the Flatpak runner; needs sandbox = \"open\"; not listed in Start)."; };
         takesUrl = lib.mkOption { type = lib.types.bool; default = false; description = "The shell may start this app with one http(s) address as its last argument (after `--`)."; };
+        urlAsApp = lib.mkOption { type = lib.types.bool; default = false; description = "With takesUrl: the address is given as `--app=<address>` (a Chromium app window) and the app is not listed in Start (the shell starts it for an installed web app that runs in the real browser)."; };
         sandbox = lib.mkOption {
           type = lib.types.enum [ "strict" "open" ];
           default = "strict";

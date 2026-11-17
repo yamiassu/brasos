@@ -55,7 +55,7 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
   const searchBox = useRef<HTMLInputElement>(null);
   const frames = useRef(new Map<number, HTMLIFrameElement>()); // window key -> its iframe, to tell which window a message came from
   // an app asked to install a PWA: the shell shows what it wants and the user decides; the answer goes back to the asking window
-  const [install, setInstall] = useState<{ info: Inspection; manifestUrl: string; reply(r: unknown): void; busy?: boolean; error?: string } | null>(null);
+  const [install, setInstall] = useState<{ info: Inspection; manifestUrl: string; reply(r: unknown): void; busy?: boolean; error?: string; /** set when the browser's extension asked: its place in the host's queue */ requestId?: string } | null>(null);
   const seq = useRef(1);
 
   const loadApps = () => getJson("/os/apps").then(setApps).catch(() => {});
@@ -101,6 +101,12 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
   const open = async (app: AppInfo, hash?: string, opts: { sandbox?: boolean } = {}) => {
     if (app.id === "browser" && realBrowser && !opts.sandbox) return openReal(hash?.startsWith("url=") ? decodeURI(hash.slice(4)) : undefined);
     let src: string | undefined;
+    // an installed web app the person chose to run in the real browser: an app window of that browser (not isolated; the prompt said so)
+    if (app.kind === "pwa" && app.runIn === "browser" && realBrowser && app.start_url) {
+      const r = await post("/os/native/launch", { id: "webapp", url: app.start_url });
+      if (r.ok) return setNote(""), true;
+      setNote(`Could not open ${app.name} in the browser: opening it in BrasOS`);
+    }
     if (app.kind === "pwa") {
       // PWAs run on the web gateway: the host mints the (per-site) origin for the app's start URL
       const r = await post("/os/web/open", { url: app.start_url });
@@ -114,6 +120,34 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
     setWins((w) => [...w, { key, app, x: 60 + 30 * (w.length % 8), y: 30 + 30 * (w.length % 8), z, reload: 0, src, hash }]);
     return true;
   };
+  // Web apps installed in the real browser: its extension asks the host, which queues the request; the shell shows its own install prompt
+  // for the first one (the same prompt an app's install request gets), then tells the host it was handled. Only where the real browser is.
+  const installOpen = useRef(false);
+  installOpen.current = !!install;
+  useEffect(() => {
+    if (!realBrowser) return;
+    const tick = async () => {
+      if (installOpen.current || document.hidden) return;
+      try {
+        const r = await fetch("/os/apps/requests", { cache: "no-store" });
+        const q = r.ok ? ((await r.json()) as { requests?: { id: string; manifestUrl: string }[] }).requests?.[0] : undefined;
+        if (!q || installOpen.current) return;
+        installOpen.current = true;
+        const ri = await post("/os/apps/inspect", { manifestUrl: q.manifestUrl });
+        if (!ri.ok) {
+          installOpen.current = false;
+          void post("/os/apps/requests/dismiss", { id: q.id });
+          return setNote("A web app from the browser could not be read");
+        }
+        setInstall({ info: await ri.json(), manifestUrl: q.manifestUrl, reply: () => {}, requestId: q.id });
+      } catch {
+        installOpen.current = false;
+      }
+    };
+    void tick();
+    const t = setInterval(() => void tick(), 3000);
+    return () => clearInterval(t);
+  }, [realBrowser]);
   const openPath = (path: string) => {
     const files = apps.find((a) => a.id === "files");
     return files ? open(files, path) : (setNote("Files isn't available here"), Promise.resolve(false));
@@ -631,13 +665,16 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
           info={install.info}
           busy={install.busy}
           error={install.error}
-          onCancel={() => (install.reply({ error: "cancelled" }), setInstall(null))}
-          onInstall={async (grant) => {
+          canRunInBrowser={realBrowser}
+          fromBrowser={!!install.requestId}
+          onCancel={() => (install.reply({ error: "cancelled" }), install.requestId && void post("/os/apps/requests/dismiss", { id: install.requestId }), setInstall(null))}
+          onInstall={async (grant, runIn) => {
             setInstall({ ...install, busy: true });
-            const r = await post("/os/apps/install", { manifestUrl: install.manifestUrl, grant });
+            const r = await post("/os/apps/install", { manifestUrl: install.manifestUrl, grant, runIn });
             const body = await r.json().catch(() => ({}));
             if (!r.ok) return setInstall({ ...install, error: body.error ?? `failed (${r.status})` });
             install.reply({ app: body });
+            if (install.requestId) void post("/os/apps/requests/dismiss", { id: install.requestId });
             setInstall(null);
             loadApps();
           }}

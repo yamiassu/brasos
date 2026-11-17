@@ -12,6 +12,7 @@ import { createSetup } from "@brasos/setup";
 import { createSystem } from "@brasos/system";
 import { createNative } from "@brasos/native";
 import { createNetwork } from "@brasos/network";
+import { extensionOrigin } from "@brasos/extension";
 import { createDb } from "@brasos/db";
 import { createGateway, readText } from "@brasos/web-gateway";
 import { build } from "./build";
@@ -55,6 +56,8 @@ export type HostOptions = {
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
 const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "system.power", "setup.write", "setup.login", "apps.install", "native.read", "native.control", "network.read", "network.control", "db.own", "db.shared"];
 /** what a user can grant an installed PWA (never anything that controls the OS itself); a PWA window is a website to the host, so these are checked again at the gate */
+/** the BrasOS browser extension may only ask for an app to be added (the shell shows the prompt and decides) */
+const EXTENSION_CAPS = ["apps.request"];
 export const PWA_GRANTABLE = ["fs.read", "fs.write", "docs.read", "db.own", "db.shared", "window.control", "window.frameless", "apps.open"];
 /** what an authenticated AI agent may do (on top of each tool's own check and the enabled packages' policies) */
 const AGENT_CAPS = ["agent.call", "apps.read", "fs.read", "fs.write", "docs.read", "ui.control", "system.restart"];
@@ -125,6 +128,7 @@ export async function startHost(o: HostOptions) {
   function callerOf(req: Request, url: URL): Target | null {
     const origin = req.headers.get("origin");
     if (origin) {
+      if (origin === extensionOrigin) return { kind: "extension" }; // exactly this id: a page can't send it, and no other extension matches
       try {
         const u = new URL(origin);
         return u.protocol === "http:" && u.port === url.port ? targetOf(u.hostname) : null;
@@ -153,7 +157,8 @@ export async function startHost(o: HostOptions) {
       const label = !caller ? "unknown" : caller.kind === "app" ? (registry.has(caller.id) ? caller.id : "unknown-app") : caller.kind;
       const permitted =
         caller?.kind === "shell" ? SHELL_CAPS.includes(cap) : caller?.kind === "app" ? !!registry.get(caller.id)?.permissions.includes(cap)
-          : caller?.kind === "site" ? PWA_GRANTABLE.includes(cap) && !!pwaForSite(caller.id)?.permissions.includes(cap) : false;
+          : caller?.kind === "site" ? PWA_GRANTABLE.includes(cap) && !!pwaForSite(caller.id)?.permissions.includes(cap)
+          : caller?.kind === "extension" ? EXTENSION_CAPS.includes(cap) : false;
       const ok =
         !!caller && permitted && policies.every((p) => p.allowCapability?.(cap) ?? true) &&
         (!opts?.sameOrigin || req.headers.get("origin") === url.origin);

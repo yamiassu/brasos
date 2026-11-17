@@ -72,6 +72,8 @@ Limits: a site installed this way runs on a BrasOS address, not its real one, so
 
 In **Packages**, **Get apps** searches Flathub, the Linux app store, and installs or removes apps for you (Steam, Discord, VLC and many more). A progress bar shows what is happening, how long it has been going and when it last did anything, so a quiet stretch can be told from a stuck one. An installed app appears in Start like the others. This is on the dev image only: apps from the store run as you in their own sandbox, are not reviewed by BrasOS and are downloaded from the internet, so the hardened image never has it. Websites such as Steam's offer `.deb` files; those are for Debian-based systems and cannot be installed here, so use **Get apps** instead.
 
+**Websites as apps.** In the real browser, install a site as an app the way you always do (the install icon in the address bar). BrasOS notices and shows its own prompt: what the app may do, and **where it should run**. *In BrasOS* is a sandboxed BrasOS window (the safest choice; sign-in with passkeys and some notifications may not work). *In the real browser* is an app window of your browser: everything works like on the web, but it is not isolated from your other browsing and gets no access to your files. If the prompt doesn't appear, press the BrasOS button in the browser's toolbar while on the site.
+
 ## Docs
 
 This app. Pick a page on the left. Links between pages work; links to the web are shown as text and are not clickable.

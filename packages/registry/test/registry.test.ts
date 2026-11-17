@@ -118,3 +118,11 @@ test("built-in apps may ask for a frameless window and describe permissions with
   expect(a.permissions).toEqual(["fs.read", "window.control", "window.frameless"]);
   expect(a.window).toEqual({ frame: false });
 });
+
+test("an installed PWA remembers where it runs: in BrasOS unless the person chose the real browser", async () => {
+  const r = createRegistry({ appsDir: fixture(), stateDir: tmp(), fetchManifest: manifestAt({ name: "Notes", start_url: "/app/" }) });
+  expect((await r.install("https://notes.example.com/m.json")).runIn).toBe("brasos");
+  expect((await r.install("https://notes.example.com/m.json", [], "browser")).runIn).toBe("browser");
+  expect(r.list().find((a) => a.kind === "pwa")!.runIn).toBe("browser"); // reinstalling replaced it, and the choice is stored
+  expect((await r.install("https://notes.example.com/m.json", [], "anything-else" as any)).runIn).toBe("brasos"); // only the two values exist
+});

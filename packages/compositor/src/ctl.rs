@@ -129,6 +129,8 @@ pub struct App {
     net: bool,
     open: bool,
     url: bool,
+    /// the address is given as `--app=<address>` (a Chromium app window) instead of after `--` (flag `w`); only with `url`
+    appmode: bool,
     /// takes one application id as its last argument (the Flatpak runner); only for an `open` app
     run: bool,
     argv: Vec<String>,
@@ -145,7 +147,7 @@ fn parse_apps(text: &str) -> Vec<App> {
             let mut f = l.splitn(3, '\t');
             let (id, flags, argv) = (f.next()?, f.next()?, f.next()?);
             let argv: Vec<String> = argv.split('\x1f').map(String::from).collect();
-            (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: flags.contains('n'), open: flags.contains('o'), url: flags.contains('u'), run: flags.contains('a') && flags.contains('o'), argv })
+            (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: flags.contains('n'), open: flags.contains('o'), url: flags.contains('u'), appmode: flags.contains('w') && flags.contains('u'), run: flags.contains('a') && flags.contains('o'), argv })
         })
         .collect()
 }
@@ -176,6 +178,12 @@ fn without_ambient_caps(c: &mut std::process::Command) {
     }
 }
 
+/// How a web address reaches the command line: after `--` (a plain address, never an option), or as the single argument `--app=<address>` for
+/// an app window. The address has already passed `safe_url`, so it can't carry a space, a quote or a second option either way.
+fn url_args(app: &App, u: &str) -> Vec<String> {
+    if app.appmode { vec![format!("--app={u}")] } else { vec!["--".into(), u.into()] }
+}
+
 fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>, url: Option<&str>, run: Option<&str>) {
     let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/run/user/1000".into());
     let home = std::env::var("HOME").unwrap_or_else(|_| "/home/brasos".into());
@@ -185,7 +193,7 @@ fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>, url: Optio
         let mut c = std::process::Command::new(&app.argv[0]);
         c.args(&app.argv[1..]).env("WAYLAND_DISPLAY", wayland_display).stdout(out).stderr(err);
         if let Some(u) = url {
-            c.arg("--").arg(u); // after `--`: an address, never an option
+            c.args(url_args(app, u)); // after `--`: an address, never an option (or the one `--app=` argument)
         }
         if let Some(a) = run {
             c.arg(a); // a checked application id (letters first, no `-` lead): never an option
@@ -208,7 +216,7 @@ fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>, url: Optio
         .args(["--setenv", "XDG_RUNTIME_DIR", &xdg, "--setenv", "WAYLAND_DISPLAY", wayland_display, "--setenv", "HOME", &home])
         .args(["--setenv", "PATH", "/run/current-system/sw/bin", "--setenv", "TERM", "xterm-256color", "--"])
         .args(&app.argv)
-        .args(url.map(|u| vec!["--", u]).unwrap_or_default())
+        .args(url.map(|u| url_args(app, u)).unwrap_or_default())
         .stdout(out)
         .stderr(err);
     without_ambient_caps(&mut c);
@@ -453,6 +461,15 @@ mod tests {
         assert!(matches!(parse("{\"thumb\":7}"), Some(Cmd::Thumb(7))));
         assert!(parse("{\"thumb\":0}").is_none());
         assert!(parse("{\"thumb\":\"7; rm\"}").is_none());
+    }
+
+    #[test]
+    fn an_app_window_gets_its_address_as_one_app_argument() {
+        let apps = parse_apps("web\tnou\t/bin/chromium\nwebapp\tnouw\t/bin/chromium\nfoot\tnw\t/bin/foot");
+        assert_eq!(url_args(&apps[0], "https://a.b/c"), ["--", "https://a.b/c"]);
+        assert_eq!(url_args(&apps[1], "https://a.b/c"), ["--app=https://a.b/c"]);
+        assert!(apps[1].appmode && !apps[0].appmode);
+        assert!(!apps[2].appmode); // `w` means nothing without `u`
     }
 
     #[test]
