@@ -1,7 +1,11 @@
 mod compositor;
 mod xdg_shell;
+mod xwayland;
 
 use crate::Smallvil;
+
+/// set on a toplevel's surface once the client negotiated server-side decoration: the shell draws its frame
+pub struct SsdMarker;
 
 //
 // Wl Seat

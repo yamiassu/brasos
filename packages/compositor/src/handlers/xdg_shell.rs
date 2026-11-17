@@ -26,6 +26,25 @@ use crate::{
     grabs::{MoveSurfaceGrab, ResizeSurfaceGrab},
 };
 
+// The shell draws every native window's frame, so a client is asked not to draw its own (server-side decoration).
+impl smithay::wayland::shell::xdg::decoration::XdgDecorationHandler for Smallvil {
+    fn new_decoration(&mut self, toplevel: ToplevelSurface) {
+        use smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode;
+        smithay::wayland::compositor::with_states(toplevel.wl_surface(), |s| {
+            s.data_map.insert_if_missing_threadsafe(|| super::SsdMarker);
+        });
+        toplevel.with_pending_state(|s| s.decoration_mode = Some(Mode::ServerSide));
+        toplevel.send_configure();
+    }
+    fn request_mode(&mut self, toplevel: ToplevelSurface, _mode: smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode) {
+        self.new_decoration(toplevel);
+    }
+    fn unset_mode(&mut self, toplevel: ToplevelSurface) {
+        self.new_decoration(toplevel);
+    }
+    fn decoration_destroyed(&mut self, _toplevel: ToplevelSurface) {}
+}
+
 impl XdgShellHandler for Smallvil {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
         &mut self.xdg_shell_state
@@ -34,7 +53,7 @@ impl XdgShellHandler for Smallvil {
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let window = Window::new_wayland_window(surface);
         let new = window.clone();
-        self.space.map_element(window, (0, 0), false);
+        self.space.map_element(window, (60, 60), true); // above the shell (retile puts the shell back below if this is it)
         self.retile();
         if std::mem::take(&mut self.focus_next) {
             if let (Some(kb), Some(t)) = (self.seat.get_keyboard(), new.toplevel()) {
@@ -66,6 +85,7 @@ impl XdgShellHandler for Smallvil {
             s.data_map.get::<XdgToplevelSurfaceData>().and_then(|d| d.lock().unwrap().app_id.clone()).is_some_and(|id| id.starts_with("chromium"))
         });
         if shell {
+            self.retile();
             if let Some(kb) = self.seat.get_keyboard() {
                 kb.set_focus(self, Some(surface.wl_surface().clone()), smithay::utils::SERIAL_COUNTER.next_serial());
             }
@@ -106,7 +126,7 @@ impl XdgShellHandler for Smallvil {
             let window = self
                 .space
                 .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == wl_surface)
+                .find(|w| crate::state::is_surface(w, wl_surface))
                 .unwrap()
                 .clone();
             let initial_window_location = self.space.element_location(&window).unwrap();
@@ -138,7 +158,7 @@ impl XdgShellHandler for Smallvil {
             let window = self
                 .space
                 .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == wl_surface)
+                .find(|w| crate::state::is_surface(w, wl_surface))
                 .unwrap()
                 .clone();
             let initial_window_location = self.space.element_location(&window).unwrap();
@@ -194,7 +214,7 @@ pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: 
     // Handle toplevel commits.
     if let Some(window) = space
         .elements()
-        .find(|w| w.toplevel().unwrap().wl_surface() == surface)
+        .find(|w| w.toplevel().is_some_and(|t| t.wl_surface() == surface))
         .cloned()
     {
         let initial_configure_sent = with_states(surface, |states| {
@@ -229,26 +249,27 @@ pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: 
 }
 
 impl Smallvil {
-    /// side by side, equal columns across the output: the first tiling policy, enough to show Chromium beside a native app
-    fn retile(&mut self) {
+    /// The shell (Chromium) fills the output; native windows are left where the shell placed them (see ctl `place`).
+    pub fn retile(&mut self) {
         let Some(geo) = self.space.outputs().next().and_then(|o| self.space.output_geometry(o)) else { return };
-        let wins: Vec<Window> = self.space.elements().cloned().collect();
-        if wins.is_empty() {
-            return;
-        }
-        let w = geo.size.w / wins.len() as i32;
-        for (i, win) in wins.into_iter().enumerate() {
+        let shells: Vec<Window> = self.space.elements().filter(|w| crate::state::is_shell(w)).cloned().collect();
+        for win in shells {
             if let Some(t) = win.toplevel() {
-                t.with_pending_state(|s| s.size = Some((w, geo.size.h).into()));
+                t.with_pending_state(|s| s.size = Some(geo.size));
                 t.send_pending_configure();
             }
-            self.space.map_element(win, (i as i32 * w, 0), false);
+            self.space.map_element(win, geo.loc, false);
+        }
+        // the shell is the bottom layer: lift every other window above it, keeping their order
+        let others: Vec<Window> = self.space.elements().filter(|w| !crate::state::is_shell(w)).cloned().collect();
+        for w in others {
+            self.space.raise_element(&w, false);
         }
         // keyboard focus defaults to the first window (the shell); a click or the shell's `focus` command moves it
-        let first = self.space.elements().next().and_then(|w| w.toplevel()).cloned();
+        let first = self.space.elements().next().and_then(crate::state::wl_of);
         if let (Some(kb), Some(first)) = (self.seat.get_keyboard(), first) {
             if kb.current_focus().is_none() {
-                kb.set_focus(self, Some(first.wl_surface().clone()), smithay::utils::SERIAL_COUNTER.next_serial());
+                kb.set_focus(self, Some(first), smithay::utils::SERIAL_COUNTER.next_serial());
             }
         }
     }
@@ -260,7 +281,7 @@ impl Smallvil {
         let Some(window) = self
             .space
             .elements()
-            .find(|w| w.toplevel().unwrap().wl_surface() == &root)
+            .find(|w| crate::state::is_surface(w, &root))
         else {
             return;
         };

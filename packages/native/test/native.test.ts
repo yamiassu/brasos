@@ -21,10 +21,10 @@ function fakeCompositor(windows: unknown[]) {
 const asShell = (h: { origin(host: string): string }) => ({ origin: h.origin("localhost") });
 
 test("lists native windows for the shell, keeping only known fields", async () => {
-  const c = fakeCompositor([{ id: 3, title: "foot", app: "foot", focused: true, secret: "x" }]);
+  const c = fakeCompositor([{ id: 3999999999, title: "foot", app: "foot", focused: true, w: 800, h: 600.7, secret: "x" }]);
   const h = await testHost({ nativeSocket: c.path });
   const r = await (await h.at("localhost", "/os/native", { headers: asShell(h) })).json();
-  expect(r).toEqual({ available: true, windows: [{ id: 3, title: "foot", app: "foot", focused: true }] });
+  expect(r).toEqual({ available: true, windows: [{ id: 3999999999, title: "foot", app: "foot", focused: true, w: 800, h: 600, ssd: true, x: 0, y: 0 }] });
   h.stop();
 });
 
@@ -88,4 +88,21 @@ test("the shell's own page can read (a same-origin GET carries Sec-Fetch-Site, n
   expect((await r.json()).windows.length).toBe(1);
   expect((await h.at("localhost", "/os/native", { headers: { "sec-fetch-site": "cross-site" } })).status).toBe(403);
   h.stop();
+});
+
+test("place: the shell positions a window's content; bad numbers are refused; an app may not", async () => {
+  const c = fakeCompositor([]);
+  const h = await testHost({ nativeSocket: c.path });
+  const place = (body: unknown, headers: Record<string, string> = asShell(h)) => h.at("localhost", "/os/native/place", { method: "POST", headers, body: JSON.stringify(body) });
+  expect((await place({ id: 5, x: 10, y: -20, w: 800, h: 600 })).status).toBe(200);
+  for (const bad of [{ id: 5, x: 1.5, y: 0, w: 800, h: 600 }, { id: 5, x: 0, y: 0, w: 10, h: 600 }, { id: 0, x: 0, y: 0, w: 800, h: 600 }, { id: 5, x: "1", y: 0, w: 800, h: 600 }, { id: 5, x: 99999, y: 0, w: 800, h: 600 }, null]) {
+    expect((await place(bad)).status).toBe(400);
+  }
+  expect((await place({ id: 5, x: 0, y: 0, w: 800, h: 600 }, { origin: h.origin("about.localhost") })).status).toBe(403);
+  await Bun.sleep(100);
+  expect(c.got).toEqual(['{"place":[5,10,-20,800,600]}']);
+  h.stop();
+  const hard = await testHost({ packages: ["hardened"], nativeSocket: c.path });
+  expect((await hard.at("localhost", "/os/native/place", { method: "POST", headers: asShell(hard), body: '{"id":5,"x":0,"y":0,"w":800,"h":600}' })).status).toBe(403);
+  hard.stop();
 });

@@ -5,6 +5,7 @@ mod handlers;
 mod ctl;
 mod drm;
 mod grabs;
+mod headless;
 mod input;
 mod state;
 mod winit;
@@ -30,10 +31,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // `--drm` (or BRASOS_BACKEND=drm): own the display. Otherwise a nested window, for running inside cage or another compositor.
-    if std::env::args().any(|a| a == "--drm") || std::env::var("BRASOS_BACKEND").as_deref() == Ok("drm") {
+    if std::env::var("BRASOS_BACKEND").as_deref() == Ok("headless") {
+        crate::headless::init(&mut state);
+    } else if std::env::args().any(|a| a == "--drm") || std::env::var("BRASOS_BACKEND").as_deref() == Ok("drm") {
         crate::drm::init(&mut event_loop, &mut state)?;
     } else {
         crate::winit::init_winit(&mut event_loop, &mut state)?;
+    }
+
+    // X11 apps (BRASOS_XWAYLAND=1, set by the image when an app needs it): Xwayland's output goes next to the control socket
+    if std::env::var("BRASOS_XWAYLAND").as_deref() == Ok("1") {
+        let log = std::env::var("BRASOS_COMP_SOCKET")
+            .ok()
+            .and_then(|p| std::path::Path::new(&p).parent().map(|d| d.join("xwayland.log")))
+            .and_then(|p| std::fs::File::create(p).ok());
+        state.start_xwayland(log);
     }
 
     // Set WAYLAND_DISPLAY to our socket name, so child processes connect to Smallvil rather

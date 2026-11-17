@@ -16,7 +16,6 @@ use smithay::{
         timer::{TimeoutAction, Timer},
     },
     reexports::wayland_server::Resource,
-    utils::SERIAL_COUNTER,
     wayland::{compositor::with_states, shell::xdg::XdgToplevelSurfaceData},
 };
 
@@ -27,6 +26,7 @@ pub struct Ctl {
     listener: UnixListener,
     clients: Vec<(UnixStream, Vec<u8>)>,
     last: String,
+    tick: u32,
 }
 
 fn esc(s: &str) -> String {
@@ -45,9 +45,9 @@ fn esc(s: &str) -> String {
 /// unique across clients (protocol ids restart at 1 per client): a hash of the full object id, never 0
 fn id_of(w: &Window) -> u32 {
     use std::hash::{Hash, Hasher};
-    let Some(t) = w.toplevel() else { return 0 };
+    let Some(s) = crate::state::wl_of(w) else { return 0 };
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    t.wl_surface().id().hash(&mut h);
+    s.id().hash(&mut h);
     (h.finish() as u32).max(1)
 }
 
@@ -55,10 +55,22 @@ enum Cmd {
     Focus(u32),
     Close(u32),
     Launch(String),
+    /// id, x, y, w, h: where a window's content goes (the shell draws the frame around it)
+    Place(u32, i32, i32, i32, i32),
 }
 
 /// `{"focus":3}`, `{"close":3}`, `{"launch":"foot"}`; anything else is ignored
 fn parse(line: &str) -> Option<Cmd> {
+    if let Some(v) = line.trim().strip_prefix("{\"place\":[").and_then(|r| r.strip_suffix("]}")) {
+        // window ids are u32 hashes (more than i32 can hold)
+        let n: Vec<i64> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+        return match n[..] {
+            [id, x, y, w, h] if (1..=u32::MAX as i64).contains(&id) && (64..=16384).contains(&w) && (48..=16384).contains(&h) && x.abs() <= 16384 && y.abs() <= 16384 => {
+                Some(Cmd::Place(id as u32, x as i32, y as i32, w as i32, h as i32))
+            }
+            _ => None,
+        };
+    }
     let l = line.trim().strip_prefix('{')?.strip_suffix('}')?;
     let (k, v) = l.split_once(':')?;
     let (k, v) = (k.trim().trim_matches('"'), v.trim());
@@ -73,30 +85,75 @@ fn parse(line: &str) -> Option<Cmd> {
     }
 }
 
-/// A native app from the image: started only by id, inside bubblewrap (no home, no network unless the image says so, no access
-/// to the control socket or the rest of /run). The list is a file the image owns (BRASOS_NATIVE_APPS): `id<TAB>net<TAB>argv`,
-/// argv separated by 0x1f. The host never sends a command line, only an id.
+/// A native app from the image: started only by id. By default inside bubblewrap (no home, no network unless the image says so,
+/// no access to the control socket or the rest of /run); an app the image marks `open` (Steam: it needs a persistent home, GPU
+/// devices and its own sandboxing) runs as a plain user process. The list is a file the image owns (BRASOS_NATIVE_APPS):
+/// `id<TAB>flags<TAB>argv`, flags a string of `n` (network) and `o` (open: no sandbox) or `-`, argv separated by 0x1f.
+/// The host never sends a command line, only an id.
 pub struct App {
     id: String,
     net: bool,
+    open: bool,
     argv: Vec<String>,
 }
 
 pub fn load_apps() -> Vec<App> {
     let Ok(text) = std::env::var("BRASOS_NATIVE_APPS").map(std::fs::read_to_string).unwrap_or(Ok(String::new())) else { return vec![] };
+    parse_apps(&text)
+}
+
+fn parse_apps(text: &str) -> Vec<App> {
     text.lines()
         .filter_map(|l| {
             let mut f = l.splitn(3, '\t');
-            let (id, net, argv) = (f.next()?, f.next()?, f.next()?);
+            let (id, flags, argv) = (f.next()?, f.next()?, f.next()?);
             let argv: Vec<String> = argv.split('\x1f').map(String::from).collect();
-            (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: net == "1", argv })
+            (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: flags.contains('n'), open: flags.contains('o'), argv })
         })
         .collect()
 }
 
-fn spawn_sandboxed(app: &App, wayland_display: &str) {
+/// where an app's stdout/stderr go: next to the control socket (a directory only the session user can enter), one file per app
+fn log_of(app: &App) -> (std::process::Stdio, std::process::Stdio) {
+    let dir = std::env::var("BRASOS_COMP_SOCKET").ok().and_then(|p| std::path::Path::new(&p).parent().map(|d| d.to_path_buf()));
+    match dir.and_then(|d| std::fs::File::create(d.join(format!("{}.log", app.id))).ok()) {
+        Some(f) => match f.try_clone() {
+            Ok(g) => (f.into(), g.into()),
+            Err(_) => (f.into(), std::process::Stdio::null()),
+        },
+        None => (std::process::Stdio::null(), std::process::Stdio::null()),
+    }
+}
+
+/// NixOS logins carry an ambient capability (CAP_WAKE_ALARM, from pam_cap) that children inherit; bubblewrap refuses to start
+/// with any ("Unexpected capabilities but not setuid"), and so does the bubblewrap Steam runs inside. A native app needs none:
+/// clear the ambient set in the child, so after exec it holds no capabilities.
+fn without_ambient_caps(c: &mut std::process::Command) {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: only async-signal-safe work (one prctl) between fork and exec
+    unsafe {
+        c.pre_exec(|| {
+            libc::prctl(libc::PR_CAP_AMBIENT, libc::PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0);
+            Ok(())
+        });
+    }
+}
+
+fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>) {
     let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/run/user/1000".into());
     let home = std::env::var("HOME").unwrap_or_else(|_| "/home/brasos".into());
+    let (out, err) = log_of(app);
+    if app.open {
+        // not sandboxed: the app sees the user's home and processes, so the image must opt in and hardened never ships one
+        let mut c = std::process::Command::new(&app.argv[0]);
+        c.args(&app.argv[1..]).env("WAYLAND_DISPLAY", wayland_display).stdout(out).stderr(err);
+        without_ambient_caps(&mut c);
+        if let Some(n) = xdisplay {
+            c.env("DISPLAY", format!(":{n}"));
+        }
+        reaped(c.spawn(), &app.id);
+        return;
+    }
     let sock = format!("{xdg}/{wayland_display}");
     let mut c = std::process::Command::new(std::env::var("BRASOS_BWRAP").unwrap_or_else(|_| "bwrap".into()));
     c.args(["--unshare-all", "--die-with-parent", "--new-session", "--clearenv"]);
@@ -107,9 +164,22 @@ fn spawn_sandboxed(app: &App, wayland_display: &str) {
         .args(["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", &home, "--dir", &xdg, "--bind", &sock, &sock])
         .args(["--setenv", "XDG_RUNTIME_DIR", &xdg, "--setenv", "WAYLAND_DISPLAY", wayland_display, "--setenv", "HOME", &home])
         .args(["--setenv", "PATH", "/run/current-system/sw/bin", "--setenv", "TERM", "xterm-256color", "--"])
-        .args(&app.argv);
-    if let Err(e) = c.spawn() {
-        eprintln!("brasos-comp: launch {}: {e}", app.id);
+        .args(&app.argv)
+        .stdout(out)
+        .stderr(err);
+    without_ambient_caps(&mut c);
+    reaped(c.spawn(), &app.id);
+}
+
+/// a child nobody waits for stays a zombie: wait for it on its own thread
+fn reaped(child: std::io::Result<std::process::Child>, id: &str) {
+    match child {
+        Ok(mut c) => {
+            std::thread::spawn(move || {
+                let _ = c.wait();
+            });
+        }
+        Err(e) => eprintln!("brasos-comp: launch {id}: {e}"),
     }
 }
 
@@ -120,12 +190,12 @@ pub fn init(event_loop: &mut EventLoop<Smallvil>, path: &str) -> std::io::Result
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
     event_loop
         .handle()
-        .insert_source(Timer::from_duration(Duration::from_millis(100)), |_, _, state| {
+        .insert_source(Timer::from_duration(Duration::from_millis(8)), |_, _, state| {
             state.poll_ctl();
-            TimeoutAction::ToDuration(Duration::from_millis(100))
+            TimeoutAction::ToDuration(Duration::from_millis(8))
         })
         .expect("ctl timer");
-    Ok(Ctl { apps: load_apps(), listener, clients: vec![], last: String::new() })
+    Ok(Ctl { apps: load_apps(), listener, clients: vec![], last: String::new(), tick: 0 })
 }
 
 impl Smallvil {
@@ -135,16 +205,47 @@ impl Smallvil {
             .space
             .elements()
             .filter_map(|w| {
-                let t = w.toplevel()?;
-                let (title, app) = with_states(t.wl_surface(), |s| {
-                    let a = s.data_map.get::<XdgToplevelSurfaceData>().unwrap().lock().unwrap();
-                    (a.title.clone().unwrap_or_default(), a.app_id.clone().unwrap_or_default())
-                });
-                let focused = focus.as_ref() == Some(t.wl_surface());
-                Some(format!("{{\"id\":{},\"title\":\"{}\",\"app\":\"{}\",\"focused\":{}}}", id_of(w), esc(&title), esc(&app), focused))
+                let surface = crate::state::wl_of(w)?;
+                let (title, app) = if let Some(x) = w.x11_surface() {
+                    if x.is_override_redirect() {
+                        return None; // menus and tooltips are not windows to list
+                    }
+                    (x.title(), x.class())
+                } else {
+                    with_states(&surface, |s| {
+                        let a = s.data_map.get::<XdgToplevelSurfaceData>().unwrap().lock().unwrap();
+                        (a.title.clone().unwrap_or_default(), a.app_id.clone().unwrap_or_default())
+                    })
+                };
+                let focused = focus.as_ref() == Some(&surface);
+                if crate::state::is_shell(w) {
+                    return None; // the shell is not an app window
+                }
+                let size = w.geometry().size;
+                let at = self.space.element_location(w).unwrap_or_default();
+                // does the shell draw this window's title bar? Only if the app doesn't: an X11 app says so in its hints, a Wayland app
+                // by negotiating server-side decoration (xdg-decoration); GTK, Qt and Electron apps without it draw their own
+                let ssd = match w.x11_surface() {
+                    Some(x) => !x.is_decorated(),
+                    None => with_states(&surface, |s| s.data_map.get::<crate::handlers::SsdMarker>().is_some()),
+                };
+                Some(format!("{{\"id\":{},\"title\":\"{}\",\"app\":\"{}\",\"focused\":{},\"w\":{},\"h\":{},\"ssd\":{},\"x\":{},\"y\":{}}}", id_of(w), esc(&title), esc(&app), focused, size.w, size.h, ssd, at.x + w.geometry().loc.x, at.y + w.geometry().loc.y))
             })
             .collect();
         format!("{{\"windows\":[{}]}}\n", items.join(","))
+    }
+
+    /// move a native window and give it the size the shell's frame leaves for its content
+    fn place_window(&mut self, win: &Window, x: i32, y: i32, w: i32, h: i32) {
+        if let Some(t) = win.toplevel() {
+            t.with_pending_state(|s| s.size = Some((w, h).into()));
+            t.send_pending_configure();
+        } else if let Some(x11) = win.x11_surface() {
+            let _ = x11.configure(smithay::utils::Rectangle::new((x, y).into(), (w, h).into()));
+        }
+        // `map_element` places the surface origin; a client that draws shadows around itself has its geometry offset inside it
+        let off = win.geometry().loc;
+        self.space.map_element(win.clone(), (x - off.x, y - off.y), false);
     }
 
     fn poll_ctl(&mut self) {
@@ -180,28 +281,43 @@ impl Smallvil {
             }
             open
         });
+        // commands are read every 8 ms (a drag sends many `place`s and the window must follow the frame); the window list that
+        // goes back to the shell is rebuilt every ~100 ms and right after a command
+        ctl.tick = ctl.tick.wrapping_add(1);
+        let rebuild = !cmds.is_empty() || ctl.tick % 12 == 0 || ctl.last.is_empty();
         for c in cmds {
             let close = matches!(c, Cmd::Close(_));
             let id = match c {
                 Cmd::Launch(app) => {
                     if let Some(a) = ctl.apps.iter().find(|a| a.id == app) {
-                        spawn_sandboxed(a, &self.socket_name.to_string_lossy());
+                        spawn_app(a, &self.socket_name.to_string_lossy(), self.xdisplay);
                         self.focus_next = true;
+                    }
+                    continue;
+                }
+                Cmd::Place(id, x, y, w, h) => {
+                    let found = self.space.elements().find(|e| id_of(e) == id && !crate::state::is_shell(e)).cloned();
+                    if let Some(win) = found {
+                        self.place_window(&win, x, y, w, h);
                     }
                     continue;
                 }
                 Cmd::Focus(id) | Cmd::Close(id) => id,
             };
-            let Some(w) = self.space.elements().find(|w| id_of(w) == id).cloned() else { continue };
-            let t = w.toplevel().unwrap().clone();
+            let Some(w) = self.space.elements().find(|w| id_of(w) == id && !crate::state::is_shell(w)).cloned() else { continue };
             if close {
-                t.send_close();
-            } else {
-                self.space.raise_element(&w, true);
-                if let Some(kb) = self.seat.get_keyboard() {
-                    kb.set_focus(self, Some(t.wl_surface().clone()), SERIAL_COUNTER.next_serial());
+                if let Some(t) = w.toplevel() {
+                    t.send_close();
+                } else if let Some(x) = w.x11_surface() {
+                    let _ = x.close();
                 }
+            } else {
+                self.focus_window(&w);
             }
+        }
+        if !rebuild {
+            self.ctl = Some(ctl);
+            return;
         }
         let now = self.windows_json();
         if now != ctl.last || ctl.clients.is_empty() {
@@ -211,5 +327,39 @@ impl Smallvil {
             ctl.last = now;
         }
         self.ctl = Some(ctl);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apps_file_flags() {
+        let apps = parse_apps("foot\t-\t/bin/foot\nsteam\tno\t/bin/steam\x1f-bigpicture\nbad\n\tn\t\n");
+        assert_eq!(apps.len(), 2);
+        assert!(!apps[0].net && !apps[0].open);
+        assert!(apps[1].net && apps[1].open);
+        assert_eq!(apps[1].argv, ["/bin/steam", "-bigpicture"]);
+    }
+
+    #[test]
+    fn commands_only_by_known_shape() {
+        assert!(matches!(parse("{\"launch\":\"steam\"}"), Some(Cmd::Launch(_))));
+        assert!(parse("{\"launch\":\"../x\"}").is_none());
+        assert!(parse("{\"launch\":\"a b\"}").is_none());
+        assert!(matches!(parse("{\"focus\":7}"), Some(Cmd::Focus(7))));
+    }
+
+    #[test]
+    fn place_is_five_bounded_integers() {
+        assert!(matches!(parse("{\"place\":[5,10,-20,800,600]}"), Some(Cmd::Place(5, 10, -20, 800, 600))));
+        assert!(parse("{\"place\":[5,10,-20,800]}").is_none());
+        assert!(parse("{\"place\":[0,1,1,800,600]}").is_none());
+        assert!(parse("{\"place\":[5,1,1,10,600]}").is_none());
+        assert!(parse("{\"place\":[5,1,1,800,600,7]}").is_none());
+        assert!(parse("{\"place\":[5,x,1,800,600]}").is_none());
+        // an id above i32::MAX is a normal window id
+        assert!(matches!(parse("{\"place\":[3999999999,1,2,800,600]}"), Some(Cmd::Place(3999999999, 1, 2, 800, 600))));
     }
 }

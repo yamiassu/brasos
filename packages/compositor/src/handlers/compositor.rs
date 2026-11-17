@@ -22,6 +22,10 @@ impl CompositorHandler for Smallvil {
     }
 
     fn client_compositor_state<'a>(&self, client: &'a Client) -> &'a CompositorClientState {
+        // Xwayland is a client too, with its own client data
+        if let Some(x) = client.get_data::<smithay::xwayland::XWaylandClientData>() {
+            return &x.compositor_state;
+        }
         &client.get_data::<ClientState>().unwrap().compositor_state
     }
 
@@ -35,7 +39,7 @@ impl CompositorHandler for Smallvil {
             if let Some(window) = self
                 .space
                 .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == &root)
+                .find(|w| crate::state::is_surface(w, &root))
             {
                 window.on_commit();
             }

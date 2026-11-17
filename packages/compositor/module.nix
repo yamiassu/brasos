@@ -10,21 +10,29 @@ let
   # compositor reads, and the compositor runs it inside bubblewrap (see src/ctl.rs).
   us = builtins.fromJSON ''"\u001f"''; # the argv separator (Nix strings have no \x escape)
   appsJson = pkgs.writeText "brasos-native-apps.json" (builtins.toJSON (lib.mapAttrsToList (id: a: { inherit id; inherit (a) name icon; }) cfg.apps));
+  # flags column of the apps file: n = network, o = open (no sandbox), "-" = none
+  flagsOf = a: let f = (lib.optionalString a.network "n") + (lib.optionalString (a.sandbox == "open") "o"); in if f == "" then "-" else f;
   appsTsv = pkgs.writeText "brasos-native-apps.tsv"
-    (lib.concatStrings (lib.mapAttrsToList (id: a: "${id}\t${if a.network then "1" else "0"}\t${lib.concatStringsSep us a.command}\n") cfg.apps));
+    (lib.concatStrings (lib.mapAttrsToList (id: a: "${id}\t${flagsOf a}\t${lib.concatStringsSep us a.command}\n") cfg.apps));
 
   session = pkgs.writeShellScript "brasos-session" ''
     export BRASOS_COMP_SOCKET=${socket}
     export BRASOS_NATIVE_APPS=${appsTsv}
     export BRASOS_BWRAP=${pkgs.bubblewrap}/bin/bwrap
+    ${lib.optionalString cfg.xwayland ''
+      export BRASOS_XWAYLAND=1
+      export PATH=${pkgs.xwayland}/bin:$PATH
+    ''}
     exec ${comp}/bin/brasos-comp ${lib.optionalString cfg.drm "--drm"} \
       -c ${lib.escapeShellArg config.brasos.uiCommand} ${lib.concatMapStringsSep " " (c: "-c ${lib.escapeShellArg c}") cfg.clients}
   '';
 in {
+  imports = [ ./steam.nix ];
   options.brasos.compositor.enable = lib.mkEnableOption "the native-app compositor spike";
   # brasos-comp as the session itself (DRM/KMS, libinput), not a window inside cage. Reuses cage's tty/PAM/logind unit: the
   # unit runs `<package>/bin/cage -- <program>`, so a package whose `cage` runs the session script replaces it.
   options.brasos.compositor.drm = lib.mkEnableOption "brasos-comp owning the display (no cage)";
+  options.brasos.compositor.xwayland = lib.mkEnableOption "Xwayland, so X11 apps (Steam) can run";
   options.brasos.compositor.clients = lib.mkOption {
     type = lib.types.listOf lib.types.str;
     default = [ ];
@@ -32,13 +40,18 @@ in {
   };
   options.brasos.compositor.apps = lib.mkOption {
     default = { };
-    description = "Native apps the launcher offers, by id. Each runs in bubblewrap: no home, no network unless `network`, no access to BrasOS's own sockets.";
+    description = "Native apps the launcher offers, by id. By default each runs in bubblewrap: no home, no network unless `network`, no access to BrasOS's own sockets (see `sandbox`).";
     type = lib.types.attrsOf (lib.types.submodule {
       options = {
         name = lib.mkOption { type = lib.types.str; };
         icon = lib.mkOption { type = lib.types.str; default = "app"; };
         command = lib.mkOption { type = lib.types.listOf lib.types.str; description = "argv; the first element is an absolute path."; };
         network = lib.mkOption { type = lib.types.bool; default = false; };
+        sandbox = lib.mkOption {
+          type = lib.types.enum [ "strict" "open" ];
+          default = "strict";
+          description = "strict: bubblewrap, empty home. open: a plain user process (the app sees the user's home and processes); only for apps that cannot run confined, like Steam. Never in hardened.";
+        };
       };
     });
   };

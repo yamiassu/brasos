@@ -4,7 +4,7 @@ use smithay::{
     desktop::{PopupManager, Space, Window, WindowSurfaceType},
     input::{Seat, SeatState},
     reexports::{
-        calloop::{EventLoop, Interest, LoopSignal, Mode, PostAction, generic::Generic},
+        calloop::{EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction, generic::Generic},
         wayland_server::{
             Display, DisplayHandle,
             backend::{ClientData, ClientId, DisconnectReason},
@@ -17,10 +17,36 @@ use smithay::{
         output::OutputManagerState,
         selection::data_device::DataDeviceState,
         shell::xdg::XdgShellState,
+        seat::WaylandFocus,
+        shell::xdg::decoration::XdgDecorationState,
         shm::ShmState,
         socket::ListeningSocketSource,
+        xwayland_shell::XWaylandShellState,
     },
+    xwayland::{X11Wm, XWayland, XWaylandEvent},
 };
+
+/// the wl_surface of a window, Wayland or X11 (an X11 window has one once Xwayland has associated it)
+pub fn wl_of(w: &Window) -> Option<WlSurface> {
+    w.wl_surface().map(|s| s.into_owned())
+}
+
+/// The shell is the Chromium window: it fills the output and stays at the bottom. Every other window is a native app window,
+/// floating above it; the shell draws their frames and says where their content goes (`place` on the control socket).
+pub fn is_shell(w: &Window) -> bool {
+    w.toplevel().is_some_and(|t| {
+        smithay::wayland::compositor::with_states(t.wl_surface(), |s| {
+            s.data_map
+                .get::<smithay::wayland::shell::xdg::XdgToplevelSurfaceData>()
+                .and_then(|d| d.lock().unwrap().app_id.clone())
+                .is_some_and(|id| id.starts_with("chromium"))
+        })
+    })
+}
+
+pub fn is_surface(w: &Window, s: &WlSurface) -> bool {
+    w.wl_surface().is_some_and(|x| &*x == s)
+}
 
 pub struct Smallvil {
     pub start_time: std::time::Instant,
@@ -39,6 +65,13 @@ pub struct Smallvil {
     pub data_device_state: DataDeviceState,
     pub popups: PopupManager,
 
+    pub xwayland_shell_state: XWaylandShellState,
+    pub xdg_decoration_state: XdgDecorationState,
+    /// the X11 window manager once Xwayland is up, and the display number apps get as DISPLAY=:N
+    pub xwm: Option<X11Wm>,
+    pub xdisplay: Option<u32>,
+    pub handle: LoopHandle<'static, Smallvil>,
+
     pub seat: Seat<Self>,
     pub ctl: Option<crate::ctl::Ctl>,
     /// an app the shell just launched: its first window takes the keyboard
@@ -46,7 +79,7 @@ pub struct Smallvil {
 }
 
 impl Smallvil {
-    pub fn new(event_loop: &mut EventLoop<Self>, display: Display<Self>) -> Self {
+    pub fn new(event_loop: &mut EventLoop<'static, Self>, display: Display<Self>) -> Self {
         let start_time = std::time::Instant::now();
 
         let dh = display.handle();
@@ -60,6 +93,8 @@ impl Smallvil {
         let xdg_shell_state = XdgShellState::new::<Self>(&dh);
         let shm_state = ShmState::new::<Self>(&dh, vec![]);
         let popups = PopupManager::default();
+        let xwayland_shell_state = XWaylandShellState::new::<Self>(&dh);
+        let xdg_decoration_state = XdgDecorationState::new::<Self>(&dh);
 
         let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
 
@@ -106,6 +141,11 @@ impl Smallvil {
             seat_state,
             data_device_state,
             popups,
+            xwayland_shell_state,
+            xdg_decoration_state,
+            xwm: None,
+            xdisplay: None,
+            handle: event_loop.handle(),
             seat,
             ctl: None,
             focus_next: false,
@@ -149,6 +189,80 @@ impl Smallvil {
             .unwrap();
 
         socket_name
+    }
+
+    /// raise a window and give it the keyboard (an X11 window is also told it is the active one)
+    pub fn focus_window(&mut self, window: &Window) {
+        if !is_shell(window) {
+            self.space.raise_element(window, true); // the shell stays below the native windows
+        }
+        let Some(s) = wl_of(window) else { return };
+        if let Some(kb) = self.seat.get_keyboard() {
+            kb.set_focus(self, Some(s), smithay::utils::SERIAL_COUNTER.next_serial());
+        }
+        for w in self.space.elements() {
+            if let Some(x) = w.x11_surface() {
+                let _ = x.set_activated(w == window);
+            } else if let Some(t) = w.toplevel() {
+                t.send_pending_configure();
+            }
+        }
+        if let (Some(x), Some(wm)) = (window.x11_surface(), self.xwm.as_mut()) {
+            let _ = wm.raise_window(x);
+        }
+    }
+
+    /// the next window in the space (focusing raises it, so repeated presses walk through all of them) takes the keyboard
+    pub fn cycle_focus(&mut self) {
+        let wins: Vec<Window> = self
+            .space
+            .elements()
+            .filter(|w| wl_of(w).is_some() && !w.x11_surface().is_some_and(|x| x.is_override_redirect()))
+            .cloned()
+            .collect();
+        if wins.is_empty() {
+            return;
+        }
+        let cur = self.seat.get_keyboard().and_then(|k| k.current_focus());
+        let i = wins.iter().position(|w| cur.as_ref().is_some_and(|c| is_surface(w, c))).map_or(0, |i| i + 1);
+        self.focus_window(&wins[i % wins.len()].clone());
+    }
+
+    /// Start Xwayland (X11 apps such as Steam). Its output goes to `log`; X11 apps are then given DISPLAY=:<n>.
+    pub fn start_xwayland(&mut self, log: Option<std::fs::File>) {
+        use std::process::Stdio;
+        let out = |l: &Option<std::fs::File>| l.as_ref().and_then(|f| f.try_clone().ok()).map(Stdio::from).unwrap_or_else(Stdio::null);
+        let spawned = XWayland::spawn(
+            &self.display_handle,
+            None,
+            std::iter::empty::<(String, String)>(),
+            std::iter::empty::<String>(),
+            true,
+            out(&log),
+            out(&log),
+            |_| (),
+        );
+        let (xwayland, client) = match spawned {
+            Ok(x) => x,
+            Err(e) => return eprintln!("brasos-comp: xwayland: {e}"),
+        };
+        let dh = self.display_handle.clone();
+        let r = self.handle.insert_source(xwayland, move |event, _, state| match event {
+            XWaylandEvent::Ready { x11_socket, display_number } => {
+                match X11Wm::start_wm(state.handle.clone(), &dh, x11_socket, client.clone()) {
+                    Ok(wm) => {
+                        state.xwm = Some(wm);
+                        state.xdisplay = Some(display_number);
+                        eprintln!("brasos-comp: xwayland ready on :{display_number}");
+                    }
+                    Err(e) => eprintln!("brasos-comp: x11 wm: {e}"),
+                }
+            }
+            XWaylandEvent::Error => eprintln!("brasos-comp: xwayland failed to start"),
+        });
+        if let Err(e) = r {
+            eprintln!("brasos-comp: xwayland source: {e}");
+        }
     }
 
     pub fn surface_under(&self, pos: Point<f64, Logical>) -> Option<(WlSurface, Point<f64, Logical>)> {

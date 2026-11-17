@@ -1,10 +1,10 @@
 use smithay::{
     backend::input::{
-        AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, InputBackend, InputEvent,
+        AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, InputBackend, InputEvent, KeyState,
         KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent, PointerMotionEvent,
     },
     input::{
-        keyboard::FilterResult,
+        keyboard::{FilterResult, Keysym},
         pointer::{AxisFrame, ButtonEvent, MotionEvent},
     },
     reexports::wayland_server::protocol::wl_surface::WlSurface,
@@ -20,14 +20,31 @@ impl Smallvil {
                 let serial = SERIAL_COUNTER.next_serial();
                 let time = Event::time(&event);
 
-                self.seat.get_keyboard().unwrap().input::<(), _>(
+                // Alt+Tab moves the keyboard to the next window (the pointer can't always be used, and a window that
+                // grabbed focus must never trap it); the compositor keeps that key for itself
+                let pressed = event.state() == KeyState::Pressed;
+                let action = self.seat.get_keyboard().unwrap().input::<u8, _>(
                     self,
                     event.key_code(),
                     event.state(),
                     serial,
                     time,
-                    |_, _, _| FilterResult::Forward,
+                    |_, m, h| match (m.alt, h.modified_sym()) {
+                        (true, Keysym::Tab) => FilterResult::Intercept(if pressed { 1 } else { 0 }),
+                        (true, Keysym::Escape) => FilterResult::Intercept(if pressed { 2 } else { 0 }), // Alt+Esc: back to the shell
+                        _ => FilterResult::Forward,
+                    },
                 );
+                match action {
+                    Some(1) => self.cycle_focus(),
+                    Some(2) => {
+                        let shell = self.space.elements().find(|w| crate::state::is_shell(w)).cloned();
+                        if let Some(s) = shell {
+                            self.focus_window(&s);
+                        }
+                    }
+                    _ => {}
+                }
             }
             // a mouse (libinput): move the pointer by the delta, kept inside the output
             InputEvent::PointerMotion { event, .. } => {
@@ -80,19 +97,13 @@ impl Smallvil {
                         .element_under(pointer.current_location())
                         .map(|(w, l)| (w.clone(), l))
                     {
-                        self.space.raise_element(&window, true);
-                        keyboard.set_focus(
-                            self,
-                            Some(window.toplevel().unwrap().wl_surface().clone()),
-                            serial,
-                        );
-                        self.space.elements().for_each(|window| {
-                            window.toplevel().unwrap().send_pending_configure();
-                        });
+                        self.focus_window(&window);
                     } else {
                         self.space.elements().for_each(|window| {
                             window.set_activated(false);
-                            window.toplevel().unwrap().send_pending_configure();
+                            if let Some(t) = window.toplevel() {
+                                t.send_pending_configure();
+                            }
                         });
                         keyboard.set_focus(self, Option::<WlSurface>::None, serial);
                     }

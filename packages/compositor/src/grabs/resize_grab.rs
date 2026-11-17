@@ -322,7 +322,7 @@ impl ResizeSurfaceState {
 pub fn handle_commit(space: &mut Space<Window>, surface: &WlSurface) -> Option<()> {
     let window = space
         .elements()
-        .find(|w| w.toplevel().unwrap().wl_surface() == surface)
+        .find(|w| crate::state::is_surface(w, surface))
         .cloned()?;
 
     let mut window_loc = space.element_location(&window)?;
