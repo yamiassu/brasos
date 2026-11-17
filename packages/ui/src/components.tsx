@@ -165,7 +165,7 @@ export function Dialog({ title, children, actions, onClose }: { title: string; c
 }
 
 /** Window chrome (title bar and body). Dragging and focus are the shell's business: pass pointer handlers in `headerProps`. */
-export function WindowFrame({ title, icon, focused, bare, maximized, minimized, onClose, onMinimize, onMaximize, headerProps, style, children }: {
+export function WindowFrame({ title, icon, focused, bare, maximized, minimized, onClose, onMinimize, onMaximize, onResize, headerProps, style, children }: {
   title: string;
   /** the window with the user's attention glows brighter */
   focused?: boolean;
@@ -179,12 +179,16 @@ export function WindowFrame({ title, icon, focused, bare, maximized, minimized, 
   /** when given, the title bar shows the button, and a double click on the bar toggles maximize */
   onMinimize?(): void;
   onMaximize?(): void;
+  /** when given, a grip in the lower right corner resizes the window (it sits above the app's frame, so it works over an iframe too) */
+  onResize?(w: number, h: number): void;
   headerProps?: HTMLAttributes<HTMLElement>;
   style?: CSSProperties;
   children: ReactNode;
 }) {
+  const ref = useRef<HTMLElement>(null);
+  const grab = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   return (
-    <section className={cx("ui-window", focused && !bare && "ui-window--focused", bare && "ui-window--bare", maximized && "ui-window--max", minimized && "ui-window--min")} style={style} aria-label={title} hidden={minimized}>
+    <section ref={ref} className={cx("ui-window", focused && !bare && "ui-window--focused", bare && "ui-window--bare", maximized && "ui-window--max", minimized && "ui-window--min")} style={style} aria-label={title} hidden={minimized}>
       {!bare && (
         <header {...headerProps} onDoubleClick={onMaximize && ((e) => !(e.target as HTMLElement).closest("button") && onMaximize())}>
           <span className="title">{typeof icon === "string" ? <Icon name={icon} size={18} /> : icon} {title}</span>
@@ -196,6 +200,21 @@ export function WindowFrame({ title, icon, focused, bare, maximized, minimized, 
         </header>
       )}
       <div className="body">{children}</div>
+      {onResize && !maximized && !minimized && (
+        <div
+          className="ui-resize"
+          aria-hidden="true"
+          onPointerDown={(e) => {
+            const r = ref.current?.getBoundingClientRect();
+            if (e.button !== 0 || !r) return;
+            grab.current = { x: e.clientX, y: e.clientY, w: r.width, h: r.height };
+            try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+          }}
+          onPointerMove={(e) => grab.current && onResize(Math.max(240, Math.round(grab.current.w + e.clientX - grab.current.x)), Math.max(120, Math.round(grab.current.h + e.clientY - grab.current.y)))}
+          onPointerUp={() => (grab.current = null)}
+          onPointerCancel={() => (grab.current = null)}
+        />
+      )}
     </section>
   );
 }
