@@ -163,6 +163,25 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
   const closeLauncher = () => (setLauncher(false), setQuery(""), setPicked(null), setShowAll(false));
   const patch = (key: number, f: (w: Win) => Partial<Win>) => setWins((ws) => ws.map((w) => (w.key === key ? { ...w, ...f(w) } : w)));
   const close = (key: number) => setWins((ws) => ws.filter((w) => w.key !== key));
+  // A drag or a resize reports the pointer on every event, usually faster than the screen is drawn, and each state change re-renders the
+  // whole shell. So the movement is summed and applied once per frame (a timer backs up requestAnimationFrame, which a hidden page pauses).
+  const queued = useRef(new Map<number, { dx: number; dy: number; w?: number; h?: number }>());
+  const flushing = useRef(false);
+  const flushMoves = () => {
+    flushing.current = false;
+    const q = new Map(queued.current);
+    if (!q.size) return;
+    queued.current.clear();
+    setWins((ws) => ws.map((w) => { const m = q.get(w.key); return m ? { ...w, x: w.x + m.dx, y: Math.max(0, w.y + m.dy), ...(m.w !== undefined ? { w: m.w, h: m.h } : {}) } : w; }));
+  };
+  const queueMove = (key: number, m: { dx?: number; dy?: number; w?: number; h?: number }) => {
+    const o = queued.current.get(key) ?? { dx: 0, dy: 0 };
+    queued.current.set(key, { dx: o.dx + (m.dx ?? 0), dy: o.dy + (m.dy ?? 0), w: m.w ?? o.w, h: m.h ?? o.h });
+    if (flushing.current) return;
+    flushing.current = true;
+    requestAnimationFrame(() => flushing.current && flushMoves());
+    setTimeout(() => flushing.current && flushMoves(), 32);
+  };
   // which kind of window is in front: native windows are drawn by the compositor above the whole shell, so while a BrasOS window is
   // in front, the native windows it overlaps are hidden (NativeWindows `cover`); focusing a native window shows them again
   const [front, setFront] = useState<"pwa" | "native">("native");
@@ -245,8 +264,21 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
     lastNative.current = f;
   }, [natives]);
   const frameEl = focused && frames.current.get(focused.key);
+  // Measuring the focused window forces a layout, which a drag would pay on every move. While dragging, the last measurement is
+  // moved and resized by what the state says changed since.
+  const measured = useRef<{ r: { left: number; top: number; width: number; height: number }; x: number; y: number; w?: number; h?: number } | null>(null);
+  let box: { left: number; top: number; width: number; height: number } | null = null;
+  if (front === "pwa" && focused && frameEl && !focused.max) {
+    const m = measured.current;
+    if (dragging && m) box = { left: m.r.left + focused.x - m.x, top: m.r.top + focused.y - m.y, width: m.r.width + (focused.w ?? m.w ?? DEFAULT_W) - (m.w ?? DEFAULT_W), height: m.r.height + (focused.h ?? m.h ?? 420) - (m.h ?? 420) };
+    else {
+      const r = frameEl.getBoundingClientRect();
+      measured.current = { r: { left: r.left, top: r.top, width: r.width, height: r.height }, x: focused.x, y: focused.y, w: focused.w, h: focused.h };
+      box = measured.current.r;
+    }
+  }
   const cover = front === "pwa" && focused && frameEl
-    ? focused.max ? { x: 0, y: 0, w: innerWidth, h: innerHeight } : (({ left, top, width, height }) => ({ x: left, y: top - 40, w: width, h: height + 40 }))(frameEl.getBoundingClientRect())
+    ? focused.max ? { x: 0, y: 0, w: innerWidth, h: innerHeight } : box && { x: box.left, y: box.top - 40, w: box.width, h: box.height + 40 }
     : null;
   // the browser's own right-click menu (with Reload and Inspect) never shows over the desktop
   useEffect(() => {
@@ -307,14 +339,15 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
           if (dx === null || dy === null) return;
           const ax = num(e.data.x, -20000, 20000), ay = num(e.data.y, -20000, 20000); // the app says where its pointer is, in its own window
           if (!w.max) {
-            patch(w.key, (c) => ({ x: c.x + dx, y: Math.max(0, c.y + dy) }));
+            queueMove(w.key, { dx, dy });
             if (ay !== null) setSnap(atTopEdge(Math.max(0, w.y + dy) + ay) ? w.key : null);
           } else if (ax !== null) unmaxAt(w, ax);
         } else if (op === "moveEnd") {
+          flushMoves();
           dropSnap(w.key);
         } else if (op === "resize") {
           const ww = num(e.data.w, 200, 8000), hh = num(e.data.h, 120, 8000);
-          if (ww !== null && hh !== null) patch(w.key, () => ({ w: ww, h: hh }));
+          if (ww !== null && hh !== null) queueMove(w.key, { w: ww, h: hh });
         }
       }
       else if (kind === "open") {
@@ -353,7 +386,7 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
   }, [packages]);
 
   return (
-    <div className="ui-root">
+    <div className={dragging ? "ui-root ui-root--dragging" : "ui-root"}>
       <div className="layer windows">
         {snap !== null && <div className="snap-preview" aria-hidden="true" style={{ zIndex: (wins.find((x) => x.key === snap)?.z ?? 0) + 1 }} />}
         {wins.map((w) => {
@@ -373,9 +406,9 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
                 onClose={() => close(w.key)}
                 onMinimize={() => minimize(w.key)}
                 onMaximize={() => toggleMax(w.key)}
-                onResize={(ww, hh) => patch(w.key, () => ({ w: ww, h: hh }))}
+                onResize={(ww, hh) => queueMove(w.key, { w: ww, h: hh })}
                 onResizeStart={() => (setDragging(true), focus(w.key))}
-                onResizeEnd={() => setDragging(false)}
+                onResizeEnd={() => (flushMoves(), setDragging(false))}
                 headerProps={{
                   onPointerDown: (e) => {
                     dragFrom.current = { x: e.clientX, y: e.clientY };
@@ -387,13 +420,13 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
                     if (!e.buttons) return;
                     if (!w.max) {
                       setSnap(atTopEdge(e.clientY) ? w.key : null);
-                      return patch(w.key, (c) => ({ x: c.x + e.movementX, y: Math.max(0, c.y + e.movementY) }));
+                      return queueMove(w.key, { dx: e.movementX, dy: e.movementY });
                     }
                     // a click or a double click must not un-maximize: only a real drag (more than a few pixels) does
                     if (Math.hypot(e.clientX - dragFrom.current.x, e.clientY - dragFrom.current.y) > 4) unmaxAt(w, e.clientX);
                   },
-                  onPointerUp: () => (setDragging(false), dropSnap(w.key)),
-                  onPointerCancel: () => (setDragging(false), setSnap(null)),
+                  onPointerUp: () => (flushMoves(), setDragging(false), dropSnap(w.key)),
+                  onPointerCancel: () => (flushMoves(), setDragging(false), setSnap(null)),
                 }}
               >
                 <Frame win={w} onRef={(el) => (el ? frames.current.set(w.key, el) : frames.current.delete(w.key))} vars={windowVars} shield={dragging} onRestart={() => patch(w.key, (c) => ({ reload: c.reload + 1 }))} onClose={() => close(w.key)} />
