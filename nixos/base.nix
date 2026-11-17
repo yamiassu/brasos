@@ -2,17 +2,39 @@
 { config, pkgs, lib, ... }:
 let
   port = "7000";
-  # wait for the shell server, then launch the UI
+  # Wait for the shell server, then show the UI. Where the image has a recovery page (brasos.recoveryUrl), the browser is moved to it
+  # when the server stays unreachable (about 12 s, or 40 s after boot) and back to the UI when it answers again.
   ui = pkgs.writeShellScript "brasos-ui" ''
-    until ${pkgs.curl}/bin/curl -sf http://localhost:${port}/ >/dev/null; do sleep 0.5; done
-    exec ${pkgs.chromium}/bin/chromium --kiosk --ozone-platform=wayland --site-per-process --disable-features=Translate,TranslateUI,DownloadBubble,DownloadBubbleV2,GlobalMediaControls,MediaRouter,ReadAnything,SidePanelPinning \
-      --password-store=basic --disable-infobars --noerrdialogs --disable-session-crashed-bubble \
-      --no-first-run --user-data-dir=/home/brasos/.config/brasos-chromium ${config.brasos.uiUrl}
+    up() { ${pkgs.curl}/bin/curl -sf --max-time 2 http://localhost:${port}/ >/dev/null; }
+    launch() {
+      ${pkgs.chromium}/bin/chromium --kiosk --ozone-platform=wayland --site-per-process --disable-features=Translate,TranslateUI,DownloadBubble,DownloadBubbleV2,GlobalMediaControls,MediaRouter,ReadAnything,SidePanelPinning \
+        --password-store=basic --disable-infobars --noerrdialogs --disable-session-crashed-bubble \
+        --no-first-run --user-data-dir=/home/brasos/.config/brasos-chromium "$1" &
+      pid=$!
+    }
+    rec=${if config.brasos.recoveryUrl == null then "" else lib.escapeShellArg config.brasos.recoveryUrl}
+    if [ -n "$rec" ]; then for _ in $(seq 80); do up && break; sleep 0.5; done; else until up; do sleep 0.5; done; fi
+    if up || [ -z "$rec" ]; then mode=ui; launch ${lib.escapeShellArg config.brasos.uiUrl}; else mode=rec; launch "$rec"; fi
+    fails=0
+    while kill -0 $pid 2>/dev/null; do
+      sleep 3
+      [ -n "$rec" ] || continue
+      if up; then
+        fails=0
+        if [ $mode = rec ]; then kill $pid; wait $pid 2>/dev/null; mode=ui; launch ${lib.escapeShellArg config.brasos.uiUrl}; fi
+      else
+        fails=$((fails + 1))
+        if [ $fails -ge 4 ] && [ $mode = ui ]; then kill $pid; wait $pid 2>/dev/null; mode=rec; launch "$rec"; fi
+      fi
+    done
+    wait $pid
   '';
 in {
   # the command that shows the shell (Chromium, kiosk); a compositor module can launch it among other clients
   # what the kiosk browser shows: the desktop, or (the live install image) the installer app alone, fullscreen
   options.brasos.uiUrl = lib.mkOption { type = lib.types.str; default = "http://localhost:${port}/"; };
+  # the page the kiosk falls back to when the desktop's server doesn't answer (null: none, as in hardened)
+  options.brasos.recoveryUrl = lib.mkOption { type = lib.types.nullOr lib.types.str; default = null; };
   options.brasos.uiCommand = lib.mkOption { type = lib.types.str; default = "${ui}"; internal = true; };
 
   config = {

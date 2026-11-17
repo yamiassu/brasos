@@ -30,6 +30,10 @@ impl Smallvil {
                     serial,
                     time,
                     |_, m, h| match (m.alt, h.modified_sym()) {
+                        // Ctrl+Alt+F1..F12 arrive as XF86Switch_VT_1..12: only the compositor can act on them
+                        (_, k) if (0x1008FE01..=0x1008FE0C).contains(&k.raw()) => {
+                            FilterResult::Intercept(if pressed { 100 + (k.raw() - 0x1008FE01) as u8 } else { 0 })
+                        }
                         (true, Keysym::Tab) => FilterResult::Intercept(if pressed { 1 } else { 0 }),
                         (true, Keysym::Escape) => FilterResult::Intercept(if pressed { 2 } else { 0 }), // Alt+Esc: back to the shell
                         _ => FilterResult::Forward,
@@ -41,6 +45,11 @@ impl Smallvil {
                         let shell = self.space.elements().find(|w| crate::state::is_shell(w)).cloned();
                         if let Some(s) = shell {
                             self.focus_window(&s);
+                        }
+                    }
+                    Some(n) if n >= 100 => {
+                        if let Some(f) = self.switch_vt.as_mut() {
+                            f(n as i32 - 99);
                         }
                     }
                     _ => {}

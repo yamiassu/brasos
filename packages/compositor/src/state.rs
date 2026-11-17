@@ -76,6 +76,8 @@ pub struct Smallvil {
     pub ctl: Option<crate::ctl::Ctl>,
     /// an app the shell just launched: its first window takes the keyboard
     pub focus_next: bool,
+    /// Ctrl+Alt+F1..F12: switch to a text console (set by the DRM backend, which owns the seat session; None when nested)
+    pub switch_vt: Option<Box<dyn FnMut(i32)>>,
 }
 
 impl Smallvil {
@@ -149,6 +151,7 @@ impl Smallvil {
             seat,
             ctl: None,
             focus_next: false,
+            switch_vt: None,
         }
     }
 

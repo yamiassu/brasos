@@ -183,6 +183,12 @@ pub fn init(event_loop: &mut EventLoop<Smallvil>, state: &mut Smallvil) -> Resul
     li.udev_assign_seat(&seat).map_err(|_| "libinput could not take the seat")?;
     handle.insert_source(LibinputInputBackend::new(li.clone()), |event, _, state| state.process_input_event(event))?;
 
+    // Ctrl+Alt+F1..F12 ask the seat for that console (the session then pauses us, below)
+    let mut vt_session = session.clone();
+    state.switch_vt = Some(Box::new(move |vt| {
+        let _ = vt_session.change_vt(vt);
+    }));
+
     // switching away (another VT) pauses the display and input; coming back resumes them
     let b = be.clone();
     handle.insert_source(notifier, move |event, _, state| match event {

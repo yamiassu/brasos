@@ -53,6 +53,22 @@ let
       fi
     '';
   };
+  resetShell = pkgs.writeShellScriptBin "brasos-reset-shell" ''
+    sudo systemctl stop brasos-shell brasos-shell-safe
+    sudo rm -rf /var/lib/brasos/state/home/BrasOS
+    sudo systemctl reset-failed brasos-shell
+    sudo systemctl start brasos-shell
+  '';
+  sudo = "/run/wrappers/bin/sudo";
+  systemctl = "${pkgs.systemd}/bin/systemctl";
+  # what the recovery page may do (fixed commands; see packages/recovery)
+  recoveryActions = {
+    restart = [ "${restartCmd}" ];
+    safe = [ sudo systemctl "start" "brasos-shell-safe" ];
+    reset = [ "${resetShell}/bin/brasos-reset-shell" ];
+    reboot = [ sudo systemctl "reboot" ];
+    logs = [ "${pkgs.systemd}/bin/journalctl" "-u" "brasos-shell" "-u" "brasos-shell-safe" "-n" "80" "--no-pager" "-o" "cat" ];
+  };
   script = dir: ''
     d=${if dir == "os" then live else "/var/lib/brasos/safe"}
     ${lib.optionalString (dir == "os") ''${seed}/bin/brasos-seed ${src} "$d"''}
@@ -95,13 +111,18 @@ in {
     nix.settings.trusted-users = [ "brasos" ];
 
     environment.systemPackages = (with pkgs; [ bun claude-code git curl vim chromium ]) ++ [
-      (pkgs.writeShellScriptBin "brasos-reset-shell" ''
-        sudo systemctl stop brasos-shell brasos-shell-safe
-        sudo rm -rf /var/lib/brasos/state/home/BrasOS
-        sudo systemctl reset-failed brasos-shell
-        sudo systemctl start brasos-shell
-      '')
+      resetShell
     ];
+
+    # The recovery page (packages/recovery): a separate service from the pristine store copy, so a broken desktop can't take it down.
+    brasos.recoveryUrl = "http://localhost:7001/";
+    systemd.services.brasos-recovery = {
+      wantedBy = [ "multi-user.target" ];
+      path = with pkgs; [ bun coreutils systemd "/run/wrappers" ]; # the reset script calls sudo, systemctl and rm by name
+      environment = { BRASOS_RECOVERY_ACTIONS = builtins.toJSON recoveryActions; };
+      serviceConfig = { User = "brasos"; Restart = "always"; RestartSec = 2; WorkingDirectory = "${src}"; };
+      script = "exec bun packages/recovery/src/main.ts";
+    };
 
     # The live copy (/var/lib/brasos/os) is user-editable. If it keeps failing, systemd starts the pristine copy
     # from the Nix store on the same port. `brasos-reset-shell` re-seeds the live copy.
