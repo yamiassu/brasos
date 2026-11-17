@@ -15,7 +15,7 @@ As a plain script on any page inside BrasOS: `<script src="/__brasos/sdk.js"></s
 | `os.available` | none | `false` |
 | `await os.info()` | none | `{ os: null, packages: [] }` |
 | `await os.apps.list()` | `apps.read` | `[]` |
-| `await os.apps.open(id)` | `apps.open` (checked by the shell) | `false` |
+| `await os.apps.open(id, { url? })` (`url`: only for `browser`, an http(s) address) | `apps.open` (checked by the shell) | `false` |
 | `await os.apps.install(manifestUrl)` | `apps.install` (to ask; **you are always asked** and choose the permissions) | rejects `UnsupportedError` |
 | `await os.apps.uninstall(id)` | `apps.uninstall` | rejects `UnsupportedError` |
 | `await os.fs.list(path)` | `fs.read` | an in-memory file tree |

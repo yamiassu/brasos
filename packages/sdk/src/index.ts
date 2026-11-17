@@ -122,10 +122,10 @@ export function createOS(env: Env) {
     apps: {
       /** polyfill: no apps */
       list: () => (inside() ? call<AppInfo[]>("/os/apps") : Promise.resolve([] as AppInfo[])),
-      /** asks the shell to open an app window; polyfill: resolves false */
-      open: async (id: string) => {
+      /** asks the shell to open an app window (`url`, for the browser app, is the web address to show); polyfill: resolves false */
+      open: async (id: string, opts: { url?: string } = {}) => {
         if (!inside() || !env.parent) return false;
-        env.parent.postMessage({ brasos: "open", id }, base);
+        env.parent.postMessage({ brasos: "open", id, ...(opts.url ? { url: String(opts.url) } : {}) }, base);
         return true;
       },
       /**

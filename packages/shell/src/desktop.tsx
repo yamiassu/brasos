@@ -91,11 +91,12 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
               if (e.button !== 0) return;
               dragged.current = false;
               grab.current = { key: it.key, x: e.clientX, y: e.clientY, ...pixel(cells[it.key]), moved: false };
-              try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} // a pointer that is already gone can't be captured
             }}
             onPointerMove={(e) => {
               const g = grab.current;
               if (!g || (!g.moved && Math.hypot(e.clientX - g.x, e.clientY - g.y) < DRAG_START)) return;
+              // captured only once it is a drag: a captured press would send the click and double click to this wrapper instead of the icon
+              if (!g.moved) try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
               g.moved = dragged.current = true;
               setSelected(it.key);
               setMoving({ key: it.key, left: g.left + e.clientX - g.x, top: g.top + e.clientY - g.y });

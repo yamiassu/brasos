@@ -70,6 +70,8 @@ This app. Pick a page on the left. Links between pages work; links to the web ar
 
 Dev image only. A real shell on the machine, as the `brasos` user. Each tab is its own session: **+** (or **Ctrl+Shift+T**) opens one, **×** (or **Ctrl+Shift+W**, or a middle click) closes it, and **Ctrl+Shift+Left/Right** switches. A tab whose shell has exited stays, crossed out, until you close it.
 
+**Copy and paste:** with text selected, **Ctrl+C** copies it (with nothing selected it is the usual interrupt for the running program); **Ctrl+Shift+C** always copies. **Ctrl+V** or **Ctrl+Shift+V** pastes. **Ctrl+click** or **Ctrl+right-click** on a web address (or on a selected one) opens it in the browser app.
+
 ## Using only the keyboard
 
 Press **Tab** to move through the taskbar and the desktop icons, **Enter** to open one. Inside an app, **Tab** and the arrow keys work as you would expect. A mouse is never required.
