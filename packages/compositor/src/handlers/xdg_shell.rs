@@ -81,7 +81,7 @@ impl XdgShellHandler for Smallvil {
     // The shell is Chromium: when it identifies itself it takes the keyboard, whichever window mapped first (a native app is
     // often faster). A click or the shell's `focus` command moves focus from there.
     fn app_id_changed(&mut self, surface: ToplevelSurface) {
-        let shell = smithay::wayland::compositor::with_states(surface.wl_surface(), |s| {
+        let shell = surface.parent().is_none() && smithay::wayland::compositor::with_states(surface.wl_surface(), |s| {
             s.data_map.get::<XdgToplevelSurfaceData>().and_then(|d| d.lock().unwrap().app_id.clone()).is_some_and(|id| id.starts_with("chromium"))
         });
         if shell {
@@ -89,6 +89,20 @@ impl XdgShellHandler for Smallvil {
             if let Some(kb) = self.seat.get_keyboard() {
                 kb.set_focus(self, Some(surface.wl_surface().clone()), smithay::utils::SERIAL_COUNTER.next_serial());
             }
+        }
+    }
+
+    // A dialog (a window with a parent: the browser's file picker, a save dialog) opens above everything and takes the keyboard, so it can be
+    // seen and typed into at once; it is an app window, not the shell (see `is_shell`).
+    fn parent_changed(&mut self, surface: ToplevelSurface) {
+        if surface.parent().is_none() {
+            return;
+        }
+        let Some(me) = self.space.elements().find(|w| w.toplevel() == Some(&surface)).cloned() else { return };
+        self.space.raise_element(&me, true);
+        self.retile();
+        if let Some(kb) = self.seat.get_keyboard() {
+            kb.set_focus(self, Some(surface.wl_surface().clone()), smithay::utils::SERIAL_COUNTER.next_serial());
         }
     }
 

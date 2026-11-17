@@ -33,9 +33,11 @@ pub fn wl_of(w: &Window) -> Option<WlSurface> {
 
 /// The shell is the Chromium window: it fills the output and stays at the bottom. Every other window is a native app window,
 /// floating above it; the shell draws their frames and says where their content goes (`place` on the control socket).
+/// A window with a parent (a dialog, such as the browser's file picker) is never the shell, whatever its app id says: Chromium's
+/// dialogs carry its app id, and they were made as big as the screen and put under everything, so nothing seemed to happen.
 pub fn is_shell(w: &Window) -> bool {
     w.toplevel().is_some_and(|t| {
-        smithay::wayland::compositor::with_states(t.wl_surface(), |s| {
+        t.parent().is_none() && smithay::wayland::compositor::with_states(t.wl_surface(), |s| {
             s.data_map
                 .get::<smithay::wayland::shell::xdg::XdgToplevelSurfaceData>()
                 .and_then(|d| d.lock().unwrap().app_id.clone())
