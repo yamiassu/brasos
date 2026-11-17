@@ -276,7 +276,9 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
       else if (kind === "open") {
         const from = apps.find((a) => a.id === new URL(e.origin).hostname.replace(/\.localhost$/, "").split("--")[0]);
         const target = apps.find((a) => a.id === e.data.id);
-        if (from?.permissions.includes("apps.open") && target) open(target);
+        // a web address is only passed to the browser app, and only http(s)
+        const url = typeof e.data.url === "string" && e.data.url.length <= 2048 && /^https?:\/\//i.test(e.data.url) ? e.data.url : undefined;
+        if (from?.permissions.includes("apps.open") && target) open(target, url && target.id === "browser" ? "url=" + url : undefined);
       }
     };
     addEventListener("message", onMsg);

@@ -186,7 +186,13 @@ function Religare() {
   });
   const zoomBy = (d: number) => tab && patch(tab.id, (t) => ({ zoom: ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(t.zoom) + d))] }));
 
-  useEffect(() => { newTab(); }, []);
+  // opened with an address (from the Terminal, say): the shell puts it in the window hash
+  useEffect(() => {
+    let h = "";
+    try { h = decodeURI(location.hash.slice(1)); } catch {}
+    const u = h.startsWith("url=") ? h.slice(4) : "";
+    newTab(/^https?:\/\//i.test(u) ? { url: u } : {});
+  }, []);
 
   // ---- menus ----
   const openMenu = (e: { clientX: number; clientY: number }, items: MenuItem[]) => setMenu({ x: e.clientX, y: e.clientY, items });

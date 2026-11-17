@@ -3,6 +3,8 @@
 import "@brasos/sdk";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
+import { os } from "@brasos/sdk";
+import { urlAt, urlOf } from "./links";
 import "@xterm/xterm/css/xterm.css";
 import "@brasos/ui/ui.css";
 import "./terminal.css";
@@ -110,8 +112,40 @@ function newTab() {
     else if (e.key === "Delete") closeTab(t);
   });
 
+  // Copy: Ctrl+C copies when something is selected (otherwise it is the usual interrupt), Ctrl+Shift+C always copies.
+  // Paste is the browser's own Ctrl+V or Ctrl+Shift+V. Ctrl+click, or Ctrl+right-click, on a web address (or on a selected one) opens it in the browser app.
+  const copy = () => {
+    const text = term.getSelection();
+    if (!text) return false;
+    (navigator.clipboard?.writeText(text) ?? Promise.reject()).catch(() => {
+      const a = document.createElement("textarea"); // a frame without the clipboard permission: the older way
+      a.value = text;
+      document.body.append(a);
+      a.select();
+      document.execCommand("copy");
+      a.remove();
+      term.focus();
+    });
+    return true;
+  };
+  const openAt = (e: MouseEvent) => {
+    let url = urlOf(term.getSelection());
+    if (!url) {
+      const screen = pane.querySelector(".xterm-screen")?.getBoundingClientRect();
+      if (!screen) return;
+      const col = Math.floor(((e.clientX - screen.left) / screen.width) * term.cols);
+      const row = Math.floor(((e.clientY - screen.top) / screen.height) * term.rows);
+      const buf = term.buffer.active;
+      url = urlAt(buf.getLine(buf.viewportY + row)?.translateToString(true) ?? "", col);
+    }
+    if (url) (e.preventDefault(), void os.apps.open("browser", { url }));
+  };
+  pane.addEventListener("contextmenu", (e) => e.ctrlKey && (e.preventDefault(), openAt(e)));
+  pane.addEventListener("click", (e) => e.ctrlKey && !e.shiftKey && openAt(e));
+
   // Ctrl+Shift+T new tab, Ctrl+Shift+W close it, Ctrl+Shift+Left/Right switch. Plain Ctrl keys stay with the shell program.
   term.attachCustomKeyEventHandler((e) => {
+    if (e.type === "keydown" && e.ctrlKey && !e.altKey && e.code === "KeyC" && (e.shiftKey || term.hasSelection())) return !copy(); // handled: not sent to the program
     if (e.type !== "keydown" || !e.ctrlKey || !e.shiftKey) return true;
     const run = { KeyT: newTab, KeyW: () => closeTab(t), ArrowLeft: () => step(-1), ArrowRight: () => step(1) }[e.code];
     if (!run) return true;

@@ -7,6 +7,7 @@ import "./notes.css";
 import { join, parent, validName } from "../files/paths";
 import { Markdown, splitBlocks } from "./markdown";
 import { canDrop, remap } from "./tree";
+import { caretBox, posNear } from "./caret";
 
 type Node = { name: string; path: string; dir: boolean; kids?: Node[] };
 type Ask = { title: string; label: string; initial: string; confirm: string; run(v: string): Promise<unknown> };
@@ -41,7 +42,7 @@ function Notes() {
   const [sidebar, setSidebar] = useState(true);
   const dragPath = useRef<string | null>(null); // the file or folder being dragged in the tree
   const [dropOn, setDropOn] = useState<string | null>(null); // the folder (or root) it would land in
-  const caretAt = useRef<"start" | "end">("end"); // where the caret goes when arrow keys move into another block
+  const caretAt = useRef<{ x: number; dir: -1 | 1 } | null>(null); // the horizontal position to keep when an arrow key moves into another block
   const [hist, setHist] = useState({ stack: [] as string[], i: -1 }); // back and forward through opened notes
   const root = settings.root;
   const [tree, setTree] = useState<Node[]>([]);
@@ -221,8 +222,8 @@ function Notes() {
                   onChange={(v) => setBlocks((bs) => bs.map((x, j) => (j === i ? v : x)))}
                   onSplit={() => (setBlocks((bs) => [...bs.slice(0, i + 1), "", ...bs.slice(i + 1)]), setAt(i + 1))}
                   onRemove={() => (setBlocks((bs) => bs.filter((_, j) => j !== i)), setAt(i - 1))}
-                  caret={caretAt.current}
-                  onMove={(d) => i + d >= 0 && i + d < blocks.length && ((caretAt.current = d > 0 ? "start" : "end"), setAt(i + d))}
+                  caret={at === i ? caretAt.current : null}
+                  onMove={(d, x) => i + d >= 0 && i + d < blocks.length && ((caretAt.current = { x, dir: d }), setAt(i + d))}
                   onBlur={() => setAt((a) => (a === i ? null : a))}
                 />
               ) : (
@@ -248,13 +249,15 @@ function Notes() {
 }
 
 /** one block as raw markdown: Enter at its end starts the next block (or the next list item), Backspace on an empty block removes it */
-function BlockEditor({ value, first, caret, onChange, onSplit, onRemove, onMove, onBlur }: { value: string; first: boolean; caret: "start" | "end"; onChange(v: string): void; onSplit(): void; onRemove(): void; onMove(d: -1 | 1): void; onBlur(): void }) {
+function BlockEditor({ value, first, caret, onChange, onSplit, onRemove, onMove, onBlur }: { value: string; first: boolean; caret: { x: number; dir: -1 | 1 } | null; onChange(v: string): void; onSplit(): void; onRemove(): void; onMove(d: -1 | 1, x: number): void; onBlur(): void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fit = () => ref.current && ((ref.current.style.height = "0"), (ref.current.style.height = ref.current.scrollHeight + "px"));
   useEffect(() => {
     ref.current?.focus();
-    const at = caret === "start" ? 0 : value.length;
-    ref.current?.setSelectionRange(at, at);
+    const ta = ref.current;
+    if (!ta) return;
+    const at = caret ? posNear(ta, caret.x, caret.dir) : value.length;
+    ta.setSelectionRange(at, at);
   }, []);
   useEffect(() => void fit(), [value]);
   const key = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -262,8 +265,11 @@ function BlockEditor({ value, first, caret, onChange, onSplit, onRemove, onMove,
     if (e.key === "Backspace" && v === "" && !first) return e.preventDefault(), onRemove();
     // the arrow keys cross into the neighbouring block from its first or last line
     if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
-      const { selectionStart: a, selectionEnd: b } = e.currentTarget;
-      if (e.key === "ArrowUp" ? !v.slice(0, a).includes("\n") : !v.slice(b).includes("\n")) return e.preventDefault(), onMove(e.key === "ArrowUp" ? -1 : 1);
+      const ta = e.currentTarget;
+      const up = e.key === "ArrowUp";
+      const here = caretBox(ta, up ? ta.selectionStart : ta.selectionEnd);
+      // on the first (Up) or last (Down) visual line of the block: go to the neighbour, keeping the horizontal position
+      if (here.top === caretBox(ta, up ? 0 : v.length).top) return e.preventDefault(), onMove(up ? -1 : 1, here.left);
     }
     const atEnd = e.currentTarget.selectionStart === v.length;
     if (e.key !== "Enter" || e.shiftKey || !atEnd || (v.match(/^```/gm) || []).length % 2) return; // Shift+Enter, mid-text and open code fences: a plain newline
