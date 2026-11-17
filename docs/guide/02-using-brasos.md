@@ -2,7 +2,7 @@
 
 ## The desktop
 
-The desktop shows an icon for every app, followed by whatever is in your `/Desktop` folder. **Double-click** an icon, or select it and press **Enter**, to open it. Folders and files open in **Files**. **Right-click** the desktop for *Open Files* and *Refresh*.
+The desktop shows an icon for every app, followed by whatever is in your `/Desktop` folder. **Double-click** an icon, or select it and press **Enter**, to open it. Folders and files open in **Files**. **Drag** an icon to move it to any free spot; it stays where you put it. **Right-click** an app icon (or press **Delete** on it) to *Remove from desktop*: the app stays installed, and is still in Start and the taskbar. **Right-click** the desktop for *Open Files*, *Refresh*, *Arrange icons* and, once you have removed something, *Show removed apps*.
 
 ## First start
 
