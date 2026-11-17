@@ -23,6 +23,10 @@ test("parseDisks lists whole disks nothing is mounted from, and never the stick"
   expect(parseDisks("not json")).toEqual([]);
 });
 
+test("the lsblk columns include NAME, or partitions are not nested and every disk looks empty", async () => {
+  expect(await Bun.file(join(import.meta.dir, "../server.ts")).text()).toContain("lsblk -J -b -o NAME,");
+});
+
 test("progress follows the markers and the copied paths, and never goes backwards or past 100", () => {
   const st = { phase: 0, total: 0, copied: 0 };
   const seen = ["@phase 0", "@phase 1", "@total 4", "@phase 2", "copying path 'a' to 'local'...", "copying path 'b' to 'local'...", "installing the boot loader...", "@phase 4"].map((l) => progress(l, st));

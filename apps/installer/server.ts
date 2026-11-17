@@ -12,6 +12,7 @@ type Node = { path?: string; size?: number | string; model?: string | null; type
 const flag = (v: unknown) => v === true || v === "1" || v === 1;
 const mounted = (n: Node): boolean => !!n.mountpoints?.some(Boolean) || !!n.children?.some(mounted);
 
+// NAME must stay in the column list: without it lsblk prints a flat list and the partitions are never nested under their disk (every disk looked empty).
 /** the whole disks from `lsblk -J` that nothing is mounted from (so never the stick we booted from). Pure, so it is tested without a machine. */
 export function parseDisks(out: string): Disk[] {
   let tree: Node[];
@@ -46,7 +47,7 @@ export function progress(line: string, st: { phase: number; total: number; copie
 export const createSlice = ({ audit }: { audit: AuditFn }): Slice => {
   const job: Job = { state: "idle", disk: "", log: "", phase: 0, percent: 0 };
   const cmd = () => (process.env.BRASOS_INSTALLER_CMD ?? "").split(" ").filter(Boolean);
-  const lsblk = () => (process.env.BRASOS_INSTALLER_LSBLK ?? "lsblk -J -b -o PATH,SIZE,MODEL,TYPE,RM,ROTA,FSTYPE,LABEL,PARTTYPENAME,MOUNTPOINTS").split(" ").filter(Boolean);
+  const lsblk = () => (process.env.BRASOS_INSTALLER_LSBLK ?? "lsblk -J -b -o NAME,PATH,SIZE,MODEL,TYPE,RM,ROTA,FSTYPE,LABEL,PARTTYPENAME,MOUNTPOINTS").split(" ").filter(Boolean);
   // a missing program must be an answer, not a crash: the page shows it
   const disks = async () => {
     try {
