@@ -10,7 +10,7 @@ export const Default = () => {
     (async () => {
       await os.fs.mkdir("/Notes").catch(() => {});
       await os.fs.mkdir("/Notes/Ideas").catch(() => {});
-      await os.fs.write("/Notes/welcome.md", "# Welcome\n\nSome **bold**, *italic*, `code` and a [link](https://example.com).\n\n- one\n- two\n\n> a quote");
+      await os.fs.write("/Notes/welcome.md", "# Welcome\n\nSome **bold**, *italic*, `code` and a [link](https://example.com).\n\n- one\n- two\n\n[] empty\n[ ] todo\n[x] done\n- [x] dashed done\n\n> a quote");
       setReady(true);
     })();
   }, []);

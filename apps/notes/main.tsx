@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { os } from "@brasos/sdk";
-import { Breadcrumb, Button, Dialog, Icon, IconButton, TextField, TitleBar } from "@brasos/ui";
+import { Button, Dialog, Icon, IconButton, Menu, TextField, TitleBar } from "@brasos/ui";
 import "@brasos/ui/ui.css";
 import "./notes.css";
 import { join, parent, validName } from "../files/paths";
-import { Markdown, splitBlocks } from "./markdown";
+import { Markdown, moveLine, splitBlocks, toggleTask } from "./markdown";
 import { canDrop, remap } from "./tree";
 import { caretBox, posNear } from "./caret";
 
@@ -43,6 +43,11 @@ function Notes() {
   const dragPath = useRef<string | null>(null); // the file or folder being dragged in the tree
   const [dropOn, setDropOn] = useState<string | null>(null); // the folder (or root) it would land in
   const caretAt = useRef<{ x: number; dir: -1 | 1 } | null>(null); // the horizontal position to keep when an arrow key moves into another block
+  const [editing, setEditing] = useState<string | null>(null); // the tree row being renamed
+  const skipRename = useRef(false);
+  const [menu, setMenu] = useState<{ n: Node; x: number; y: number } | null>(null); // the tree's right-click menu
+  const [trashing, setTrashing] = useState<Node | null>(null); // the entry awaiting delete confirmation
+  const startAt = useRef<number | null>(null); // where the caret goes in a block made by Enter (after its list marker)
   const [hist, setHist] = useState({ stack: [] as string[], i: -1 }); // back and forward through opened notes
   const root = settings.root;
   const [tree, setTree] = useState<Node[]>([]);
@@ -55,6 +60,7 @@ function Notes() {
   const [readOnly, setReadOnly] = useState(false); // a truncated read must never be written back
   const [ask, setAsk] = useState<Ask | null>(null);
   const [status, setStatus] = useState("");
+  useEffect(() => void (startAt.current = null), [at]); // one-shot: only the block Enter just made uses it
   const text = toText(blocks);
   const fail = (e: unknown) => setStatus((e as Error).message.replace(/^BrasOS [^:]*: \d+ /, "").replace(/^\{"error":"(.*)"\}$/, "$1"));
 
@@ -148,7 +154,65 @@ function Notes() {
   };
   const drop = (dir: string) => (e: React.DragEvent) => (e.preventDefault(), e.stopPropagation(), void moveTo(dir));
 
-  const row = (n: Node, depth: number): React.ReactNode => (
+  // rename in place (double click a row); a file keeps a note extension so it stays in the list
+  const rename = async (n: Node, raw: string) => {
+    setEditing(null);
+    let name = raw.trim();
+    if (!name || name === n.name) return;
+    if (!validName(name)) return fail(new Error("That name can't be used"));
+    if (!n.dir && !/\.(md|markdown|txt)$/i.test(name)) name += ".md";
+    const dir = parentOfPath(n.path);
+    const to = join(dir, name);
+    try {
+      if ((await os.fs.list(dir)).some((e) => e.name === name)) return fail(new Error(`"${name}" already exists`));
+      await flush();
+      await os.fs.move(n.path, to);
+      setFile((f) => (f ? remap(f, n.path, to) : f));
+      setHist((h) => ({ ...h, stack: h.stack.map((x) => remap(x, n.path, to)) }));
+      setOpen((o) => new Set([...o].map((p) => remap(p, n.path, to))));
+      setSel(null);
+      await reload();
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  // delete = the files' trash (/.trash), after a confirmation
+  const trash = async (n: Node) => {
+    setTrashing(null);
+    const inside = (p: string) => p === n.path || p.startsWith(n.path + "/");
+    try {
+      if (file && inside(file)) (setFile(null), setBlocks([""]), setSaved("")); // clear first so autosave can't recreate it
+      else await flush();
+      await os.fs.remove(n.path);
+      setHist((h) => { const stack = h.stack.filter((p) => !inside(p)); return { stack, i: stack.length - 1 }; });
+      setSel(null);
+      await reload();
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  const kids = (n: Node, depth: number) =>
+    n.dir && open.has(n.path) && <ul>{n.kids?.length ? n.kids.map((k) => row(k, depth + 1)) : <li className="none" style={{ paddingLeft: 30 + depth * 14 }}>empty</li>}</ul>;
+  const row = (n: Node, depth: number): React.ReactNode =>
+    editing === n.path ? (
+      <li key={n.path}>
+        <div className="row" style={{ paddingLeft: 8 + depth * 14 }}>
+          <Icon name={n.dir ? "folder" : "text"} size={16} />
+          <input
+            className="rename"
+            ref={(el) => el?.focus()}
+            defaultValue={n.name}
+            aria-label="Name"
+            onFocus={(e) => e.currentTarget.setSelectionRange(0, n.name.replace(/\.(md|markdown|txt)$/i, "").length)}
+            onKeyDown={(e) => (e.key === "Enter" ? e.currentTarget.blur() : e.key === "Escape" && ((skipRename.current = true), e.currentTarget.blur()))}
+            onBlur={(e) => (skipRename.current ? ((skipRename.current = false), setEditing(null)) : void rename(n, e.currentTarget.value))}
+          />
+        </div>
+        {kids(n, depth)}
+      </li>
+    ) : (
     <li key={n.path}>
       <button
         type="button"
@@ -161,13 +225,15 @@ function Notes() {
         aria-current={file === n.path || sel?.path === n.path ? "true" : undefined}
         aria-expanded={n.dir ? open.has(n.path) : undefined}
         onClick={() => select(n)}
+        onDoubleClick={() => setEditing(n.path)}
+        onContextMenu={(e) => (e.preventDefault(), setMenu({ n, x: e.clientX, y: e.clientY }))}
       >
         <Icon name={n.dir ? "folder" : "text"} size={16} />
         <span>{n.name}</span>
       </button>
-      {n.dir && open.has(n.path) && <ul>{n.kids?.length ? n.kids.map((k) => row(k, depth + 1)) : <li className="none" style={{ paddingLeft: 30 + depth * 14 }}>empty</li>}</ul>}
+      {kids(n, depth)}
     </li>
-  );
+    );
 
   // clicking the empty space under the last block edits the end of the note
   const toEnd = () => {
@@ -182,8 +248,6 @@ function Notes() {
     setHist({ ...hist, i: hist.i + d });
     select({ name: path.split("/").pop()!, path, dir: false }, false);
   };
-  // a crumb that is a folder inside the notes folder opens it in the tree
-  const goTo = (path: string) => path !== file && path.startsWith(root) && select({ name: path.split("/").pop()!, path, dir: true });
   useEffect(() => void os.window.setTitle(file ? `${file.split("/").pop()} - Notes` : "Notes"), [file]);
 
   return (
@@ -192,7 +256,7 @@ function Notes() {
       <IconButton label={sidebar ? "Hide sidebar" : "Show sidebar"} onClick={() => setSidebar(!sidebar)}>☰</IconButton>
       <IconButton label="Back" disabled={hist.i <= 0} onClick={() => step(-1)}>←</IconButton>
       <IconButton label="Forward" disabled={hist.i >= hist.stack.length - 1} onClick={() => step(1)}>→</IconButton>
-      {file && <Breadcrumb path={file} onNavigate={goTo} />}
+      {file && <span className="file-name">{file.split("/").pop()}</span>}
       <span className="ui-drag" />
       <IconButton label="Settings" onClick={() => setShowSettings(true)}><Icon name="settings" size={16} /></IconButton>
     </TitleBar>
@@ -200,8 +264,8 @@ function Notes() {
       {sidebar && <nav className="side" aria-label="Notes">
         <div className="head">
           <div className="actions">
-            <Button onClick={() => create(false)}>New note</Button>
-            <Button onClick={() => create(true)}>New folder</Button>
+            <Button onClick={() => create(false)}><Icon name="plus" size={16} />New note</Button>
+            <IconButton label="New folder" onClick={() => create(true)}><Icon name="folder" size={18} /></IconButton>
           </div>
           <div className="root" title={root}>{root}</div>
         </div>
@@ -219,16 +283,22 @@ function Notes() {
                   key={i}
                   value={b}
                   first={i === 0}
-                  onChange={(v) => setBlocks((bs) => bs.map((x, j) => (j === i ? v : x)))}
-                  onSplit={() => (setBlocks((bs) => [...bs.slice(0, i + 1), "", ...bs.slice(i + 1)]), setAt(i + 1))}
+                  onChange={(v) => {
+                    const parts = v.includes("\n") ? splitBlocks(v) : [v]; // pasted lines become entries; a code fence stays one
+                    setBlocks((bs) => [...bs.slice(0, i), ...parts, ...bs.slice(i + 1)]);
+                    if (parts.length > 1) (caretAt.current = null, startAt.current = null, setAt(i + parts.length - 1));
+                  }}
+                  onSplit={(before, after, col) => (setBlocks((bs) => [...bs.slice(0, i), before, after, ...bs.slice(i + 1)]), (startAt.current = col), setAt(i + 1))}
+                  start={at === i ? startAt.current : null}
                   onRemove={() => (setBlocks((bs) => bs.filter((_, j) => j !== i)), setAt(i - 1))}
                   caret={at === i ? caretAt.current : null}
                   onMove={(d, x) => i + d >= 0 && i + d < blocks.length && ((caretAt.current = { x, dir: d }), setAt(i + d))}
+                  onSwap={(d) => i + d >= 0 && i + d < blocks.length && (setBlocks((bs) => { const c = [...bs]; [c[i], c[i + d]] = [c[i + d], c[i]]; return c; }), setAt(i + d))}
                   onBlur={() => setAt((a) => (a === i ? null : a))}
                 />
               ) : (
                 <div key={i} className="blk md" onClick={() => !readOnly && setAt(i)}>
-                  {b.trim() ? <Markdown text={b} /> : <p className="ph">Type something...</p>}
+                  {b.trim() ? <Markdown text={b} onToggle={readOnly ? undefined : (l) => setBlocks((bs) => bs.map((x, j) => (j === i ? toggleTask(x, l) : x)))} /> : <p className="ph">{i === blocks.findLastIndex((x) => !x.trim()) ? "Type something..." : " "}</p>}
                 </div>
               ),
             )}
@@ -241,6 +311,31 @@ function Notes() {
           {status && ` · ${status}`}
         </div>
       </main>
+      {menu && (
+        <Menu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            { label: "Rename", onSelect: () => setTimeout(() => setEditing(menu.n.path)) }, // after the menu has closed and let go of focus
+            { label: "Move to trash", danger: true, onSelect: () => setTrashing(menu.n) },
+          ]}
+        />
+      )}
+      {trashing && (
+        <Dialog
+          title="Move to trash?"
+          onClose={() => setTrashing(null)}
+          actions={
+            <>
+              <Button onClick={() => setTrashing(null)}>Cancel</Button>
+              <Button variant="danger" autoFocus onClick={() => void trash(trashing)}>Move to trash</Button>
+            </>
+          }
+        >
+          <p>{trashing.name}{trashing.dir ? " and everything in it" : ""} will go to the trash.</p>
+        </Dialog>
+      )}
       {ask && <NameDialog ask={ask} onClose={() => setAsk(null)} onError={fail} />}
     </div>
       {showSettings && <SettingsDialog initial={settings} onClose={() => setShowSettings(false)} onSave={(s) => applySettings(s).catch(fail)} />}
@@ -248,21 +343,34 @@ function Notes() {
   );
 }
 
-/** one block as raw markdown: Enter at its end starts the next block (or the next list item), Backspace on an empty block removes it */
-function BlockEditor({ value, first, caret, onChange, onSplit, onRemove, onMove, onBlur }: { value: string; first: boolean; caret: { x: number; dir: -1 | 1 } | null; onChange(v: string): void; onSplit(): void; onRemove(): void; onMove(d: -1 | 1, x: number): void; onBlur(): void }) {
+/** one entry (a single line, or a code fence) as raw markdown: Enter starts the next entry (continuing a list or task), Backspace on an empty one removes it */
+function BlockEditor({ value, first, caret, start, onChange, onSplit, onRemove, onMove, onSwap, onBlur }: { value: string; first: boolean; caret: { x: number; dir: -1 | 1 } | null; start: number | null; onChange(v: string): void; onSplit(before: string, after: string, col: number): void; onRemove(): void; onMove(d: -1 | 1, x: number): void; onSwap(d: -1 | 1): void; onBlur(): void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fit = () => ref.current && ((ref.current.style.height = "0"), (ref.current.style.height = ref.current.scrollHeight + "px"));
   useEffect(() => {
     ref.current?.focus();
     const ta = ref.current;
     if (!ta) return;
-    const at = caret ? posNear(ta, caret.x, caret.dir) : value.length;
+    const at = start !== null ? start : caret ? posNear(ta, caret.x, caret.dir) : value.length;
     ta.setSelectionRange(at, at);
   }, []);
-  useEffect(() => void fit(), [value]);
+  const caretPos = useRef<number | null>(null); // where to put the caret after a line move re-renders the text
+  useEffect(() => {
+    fit();
+    if (caretPos.current !== null) (ref.current?.setSelectionRange(caretPos.current, caretPos.current), (caretPos.current = null));
+  }, [value]);
   const key = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const v = e.currentTarget.value;
     if (e.key === "Backspace" && v === "" && !first) return e.preventDefault(), onRemove();
+    // Alt+Up/Down moves the line; at the block's first or last line the whole block swaps with its neighbour
+    if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      const d = e.key === "ArrowUp" ? -1 : 1;
+      const r = moveLine(v, e.currentTarget.selectionStart, d);
+      if (r) (caretPos.current = r.pos, onChange(r.text));
+      else onSwap(d);
+      return;
+    }
     // the arrow keys cross into the neighbouring block from its first or last line
     if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
       const ta = e.currentTarget;
@@ -271,13 +379,17 @@ function BlockEditor({ value, first, caret, onChange, onSplit, onRemove, onMove,
       // on the first (Up) or last (Down) visual line of the block: go to the neighbour, keeping the horizontal position
       if (here.top === caretBox(ta, up ? 0 : v.length).top) return e.preventDefault(), onMove(up ? -1 : 1, here.left);
     }
-    const atEnd = e.currentTarget.selectionStart === v.length;
-    if (e.key !== "Enter" || e.shiftKey || !atEnd || (v.match(/^```/gm) || []).length % 2) return; // Shift+Enter, mid-text and open code fences: a plain newline
-    e.preventDefault();
-    const m = v.split("\n").at(-1)!.match(/^(\s*)([-*+]|\d+\.)\s(.*)$/);
-    if (m && m[3]) onChange(v + "\n" + m[1] + (/\d/.test(m[2]) ? parseInt(m[2]) + 1 + "." : m[2]) + " ");
-    else if (m) (onChange(v.replace(/\n?[^\n]*$/, "")), onSplit()); // Enter on an empty item ends the list
-    else onSplit();
+    if (e.key !== "Enter") return;
+    const pos = e.currentTarget.selectionStart;
+    const before = v.slice(0, pos);
+    if ((before.match(/^```/gm) || []).length % 2) return; // inside a code fence: a plain newline
+    e.preventDefault(); // an entry is one line: Enter always starts the next one, with what follows the caret
+    const after = v.slice(e.currentTarget.selectionEnd);
+    const m = before.match(/^(\s*)(?:([-*+]|\d+\.)\s)?(\[[ xX]?\]\s)?(.*)$/)!;
+    if (!m[2] && !m[3]) return onSplit(before, after, 0);
+    if (!m[4].trim() && !after) return onChange(""); // Enter on an empty item ends the list
+    const prefix = m[1] + (m[2] ? (/\d/.test(m[2]) ? parseInt(m[2]) + 1 + "." : m[2]) + " " : "") + (m[3] ? "[ ] " : "");
+    onSplit(before, prefix + after, prefix.length);
   };
   return <textarea ref={ref} className="blk edit" aria-label="Edit block" rows={1} spellCheck={false} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={key} onBlur={onBlur} />;
 }

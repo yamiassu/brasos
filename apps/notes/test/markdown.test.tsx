@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Markdown } from "../markdown";
+import { Markdown, moveLine, toggleTask } from "../markdown";
 
 const html = (t: string) => renderToStaticMarkup(<Markdown text={t} />);
 
@@ -19,6 +19,15 @@ test("never emits raw html or javascript links", () => {
 
 import { splitBlocks } from "../markdown";
 test("splits blocks on blank lines but not inside fences", () => {
-  expect(splitBlocks("# a\n\n\nb\nc\n\n```\nx\n\ny\n```")).toEqual(["# a", "b\nc", "```\nx\n\ny\n```"]);
+  expect(splitBlocks("# a\n\n\nb\nc\n\n```\nx\n\ny\n```")).toEqual(["# a", "b", "c", "```\nx\n\ny\n```"]);
   expect(splitBlocks("")).toEqual([""]);
+});
+
+test("task boxes toggle and lines move", () => {
+  expect(toggleTask("a\n- [ ] x\n[x] y\n[] z", 1)).toBe("a\n- [x] x\n[x] y\n[] z");
+  expect(toggleTask("[x] y", 0)).toBe("[ ] y");
+  expect(toggleTask("[] z", 0)).toBe("[x] z");
+  expect(moveLine("one\ntwo\nthree", 5, -1)).toEqual({ text: "two\none\nthree", pos: 1 });
+  expect(moveLine("one\ntwo\nthree", 5, 1)).toEqual({ text: "one\nthree\ntwo", pos: 11 });
+  expect(moveLine("one\ntwo", 1, -1)).toBeNull();
 });
