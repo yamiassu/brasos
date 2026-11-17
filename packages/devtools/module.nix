@@ -20,9 +20,42 @@ let
     BRASOS_POWER_CMD = "/run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl"; # the host adds the action (poweroff or reboot)
   } // lib.optionalAttrs (config.brasos.setup.preseed != null) { BRASOS_SETUP_PRESEED = "${config.brasos.setup.preseed}"; }
     // lib.optionalAttrs config.brasos.setup.devSkip { BRASOS_SETUP_DEV_SKIP = "1"; };
+  # The live copy of the OS is the person's to edit, so an update must not blindly overwrite it, and must not leave it stale either.
+  # It is seeded from the store and stamped with a hash of what was seeded and the store path it came from. A new build replaces
+  # it only if it is still exactly what was seeded (never edited); an edited copy is kept. A copy made before stamps existed is
+  # backed up first, because nothing says whether it was edited. node_modules is kept (it is the slow part to get).
+  seed = pkgs.writeShellApplication {
+    name = "brasos-seed";
+    runtimeInputs = with pkgs; [ coreutils findutils diffutils gnused ];
+    text = ''
+      src=$1 d=$2
+      stamp=$d/.brasos-seed
+      tree() { (cd "$1" && find . -path ./node_modules -prune -o -type f ! -name .brasos-seed -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1); }
+      seed() {
+        keep=""
+        if [ -d "$d/node_modules" ]; then keep=$(mktemp -d) && mv "$d/node_modules" "$keep/"; fi
+        rm -rf "$d"; mkdir -p "$(dirname "$d")"; cp -r "$src" "$d"; chmod -R u+w "$d"
+        if [ -n "$keep" ]; then mv "$keep/node_modules" "$d/" && rmdir "$keep"; fi
+        printf '%s\n%s\n' "$(tree "$d")" "$src" > "$stamp"
+      }
+      if [ ! -d "$d" ]; then seed
+      elif [ -f "$stamp" ]; then
+        if [ "$(sed -n 2p "$stamp")" != "$src" ]; then
+          if [ "$(tree "$d")" = "$(sed -n 1p "$stamp")" ]; then seed
+          else echo "BrasOS: the new build is not applied because $d has your edits; run brasos-reset-shell to start from the new build"; fi
+        fi
+      else
+        if ! diff -rq -x node_modules -x .brasos-seed "$src" "$d" >/dev/null 2>&1; then
+          b="$d.backup-$(date +%Y%m%d-%H%M%S)"; mkdir -p "$b"; cp -r --no-preserve=ownership "$d"/. "$b"/ 2>/dev/null || true; rm -rf "$b/node_modules"
+          echo "BrasOS: the old interface copy was saved to $b"
+        fi
+        seed
+      fi
+    '';
+  };
   script = dir: ''
     d=${if dir == "os" then live else "/var/lib/brasos/safe"}
-    ${lib.optionalString (dir == "os") ''if [ ! -d "$d" ]; then mkdir -p "$(dirname "$d")" && cp -r ${src} "$d" && chmod -R u+w "$d"; fi''}
+    ${lib.optionalString (dir == "os") ''${seed}/bin/brasos-seed ${src} "$d"''}
     ${lib.optionalString (dir == "safe") ''rm -rf "$d" && cp -r ${src} "$d" && chmod -R u+w "$d"''}
     cd "$d"
     # the first boot has no network on many PCs (Wi-Fi is not set up yet): start from the pinned dependencies, then refresh if online
