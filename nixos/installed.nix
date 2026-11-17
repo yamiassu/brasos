@@ -1,6 +1,6 @@
 # What `brasos-install` puts on a PC's disk: the layout it creates (labels) and a UEFI bootloader. Dev profile: NOT secure.
 { modulesPath, lib, ... }: {
-  imports = [ (modulesPath + "/profiles/all-hardware.nix") ./video.nix ];
+  imports = [ (modulesPath + "/profiles/all-hardware.nix") ./video.nix ./splash.nix ];
   fileSystems."/" = { device = "/dev/disk/by-label/brasos-root"; fsType = "ext4"; };
   fileSystems."/boot" = { device = "/dev/disk/by-label/BRASOS-ESP"; fsType = "vfat"; };
   swapDevices = [ { device = "/dev/disk/by-partlabel/brasos-swap"; options = [ "nofail" ]; } ]; # present only if the install made one

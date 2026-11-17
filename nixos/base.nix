@@ -99,6 +99,16 @@ in {
   systemd.services."cage-tty1" = {
     serviceConfig.Restart = "always";
     serviceConfig.RestartSec = 1;
+    # Closing the desktop closes the browser properly first. systemd stops everything in the unit at once; the compositor dies at
+    # once, and a browser that loses its display exits on the spot, before it has written its cookies and site storage (so a
+    # website login, such as WhatsApp Web, was lost at every restart). Ask the browser to quit and wait for it (up to 25 s).
+    serviceConfig.ExecStop = pkgs.writeShellScript "brasos-browser-quit" ''
+      main() { ${pkgs.procps}/bin/pgrep -u brasos -f -- 'brasos-chromium' >/dev/null; }
+      ${pkgs.procps}/bin/pkill -u brasos -TERM -f -- '--kiosk' || true
+      for _ in $(seq 50); do main || exit 0; sleep 0.5; done
+      exit 0
+    '';
+    serviceConfig.TimeoutStopSec = 30;
     after = [ "brasos-shell.service" ];
     wants = [ "brasos-shell.service" ];
   };

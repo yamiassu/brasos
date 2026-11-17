@@ -77,6 +77,7 @@ in {
     (modulesPath + "/installer/cd-dvd/iso-image.nix")
     (modulesPath + "/profiles/all-hardware.nix") # drivers for the disks, network and GPUs of most PCs
     ./video.nix # KMS drivers early, firmware and Mesa: native resolution from the first screen
+    ./splash.nix # the BrasOS mark instead of the boot log
   ];
   options.brasos.installer.system = lib.mkOption {
     type = lib.types.package;
