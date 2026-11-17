@@ -5,7 +5,10 @@ import { readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { json, type AuditFn, type Slice } from "@brasos/host/types";
 
-export type NativeApp = { id: string; name: string; icon: string };
+export type NativeApp = { id: string; name: string; icon: string; takesUrl: boolean };
+
+/** the one address an app that takes one may be started with (the compositor checks the same rule again): http(s), bounded, URL characters only */
+export const safeUrl = (u: unknown): u is string => typeof u === "string" && u.length <= 2048 && /^https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+$/.test(u);
 export type NativeWindow = { id: number; title: string; app: string; focused: boolean; w: number; h: number; ssd: boolean; x: number; y: number };
 
 const clamp = (v: unknown, lo: number, hi: number) => Math.min(hi, Math.max(lo, Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : 0));
@@ -48,7 +51,7 @@ function loadApps(path?: string): NativeApp[] {
   try {
     return (JSON.parse(readFileSync(path, "utf8")) as any[])
       .filter((a) => /^[a-z0-9-]{1,40}$/.test(a?.id))
-      .map((a) => ({ id: a.id, name: String(a.name ?? a.id).slice(0, 80), icon: String(a.icon ?? "app").slice(0, 40) }));
+      .map((a) => ({ id: a.id, name: String(a.name ?? a.id).slice(0, 80), icon: String(a.icon ?? "app").slice(0, 40), takesUrl: a.takesUrl === true }));
   } catch {
     return [];
   }
@@ -78,11 +81,21 @@ export function createNative({ socket, apps: appsFile, audit }: { socket?: strin
       if (req.method === "POST" && p === "/os/native/launch") {
         const g = ctx.gate("native.control", { sameOrigin: true });
         if (!g.ok) return g.res;
-        const id = ((await req.json().catch(() => null)) as any)?.id;
+        const b = (await req.json().catch(() => null)) as any;
+        const id = b?.id;
         // only ids from the image's list: no request can name a command
-        if (typeof id !== "string" || !socket || !apps.some((a) => a.id === id)) return json({ error: "unknown native app" }, 404);
+        const app = typeof id === "string" && socket ? apps.find((a) => a.id === id) : undefined;
+        if (!app) return json({ error: "unknown native app" }, 404);
+        if (b.url !== undefined) {
+          // an address goes only to an app the image marked as taking one, and only a plain http(s) one
+          if (!app.takesUrl || !safeUrl(b.url)) return json({ error: "this app does not take that address" }, 400);
+          audit("native.launch", "info", { id }, { host: new URL(b.url).hostname.slice(0, 100) }); // the site, never the path or query
+          await send(socket!, `{"open":"${id}","url":"${b.url}"}
+`).catch(() => {});
+          return json({ ok: true }, 202);
+        }
         audit("native.launch", "info", { id });
-        await send(socket, `{"launch":"${id}"}
+        await send(socket!, `{"launch":"${id}"}
 `).catch(() => {});
         return json({ ok: true }, 202);
       }

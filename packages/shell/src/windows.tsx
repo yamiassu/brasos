@@ -1,6 +1,6 @@
 import { Component, type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import type { AppInfo } from "@brasos/sdk";
-import { Button, palettes } from "@brasos/ui";
+import { Button } from "@brasos/ui";
 
 /** src is set for PWA windows (the gateway URL the host handed back); hash opens a built-in app at a place (e.g. Files at /Desktop) */
 export type Win = { key: number; app: AppInfo; x: number; y: number; z: number; reload: number; src?: string; hash?: string; w?: number; h?: number; title?: string; min?: boolean; max?: boolean };
@@ -47,7 +47,7 @@ export class Boundary extends Component<{ style: CSSProperties; onClose: () => v
 }
 
 // The iframe lives in its own process; the shell detects a hung/crashed app by missing pongs.
-export function Frame({ win, palette, shield, onRestart, onClose, onRef }: { win: Win; palette?: string; shield: boolean; onRestart: () => void; onClose: () => void; onRef?: (el: HTMLIFrameElement | null) => void }) {
+export function Frame({ win, vars, shield, onRestart, onClose, onRef }: { win: Win; vars?: Record<string, string>; shield: boolean; onRestart: () => void; onClose: () => void; onRef?: (el: HTMLIFrameElement | null) => void }) {
   const ref = useRef<HTMLIFrameElement | null>(null);
   const [hung, setHung] = useState(false);
   useEffect(() => {
@@ -81,7 +81,7 @@ export function Frame({ win, palette, shield, onRestart, onClose, onRef }: { win
           e.currentTarget.focus();
           // built-in apps follow the user's accent color; websites are never told anything
           if (!win.src) e.currentTarget.contentWindow?.postMessage({ brasos: "window-state", max: !!win.max }, new URL(frameSrc(win)).origin);
-          if (!win.src && palette) e.currentTarget.contentWindow?.postMessage({ brasos: "prefs", vars: (palettes as Record<string, { vars: object }>)[palette]?.vars ?? {} }, new URL(frameSrc(win)).origin);
+          if (!win.src && vars) e.currentTarget.contentWindow?.postMessage({ brasos: "prefs", vars }, new URL(frameSrc(win)).origin);
         }}
         src={frameSrc(win)}
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"

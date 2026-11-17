@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { testHost, type TestHost } from "../../../packages/host/src/testing";
-import { parseManifest } from "../updates";
+import { interfaceBuild, parseManifest } from "../updates";
 
 const tmp = mkdtempSync(join(tmpdir(), "brasos-upd-"));
 // a fake updater is a Bun script (the command is split on spaces: no spaces in these paths); it writes its argv to a file
@@ -19,6 +19,23 @@ test("the manifest is accepted only in its exact shape", () => {
   expect(parseManifest(JSON.stringify({ ...ok, flake: "file:///etc/passwd" }))).toBeNull();
   expect(parseManifest(JSON.stringify({ ...ok, version: "a b" }))).toBeNull();
   expect(parseManifest(JSON.stringify({ flake: ok.flake }))).toBeNull();
+});
+
+test("the interface build: current, older, unstamped, or unknown where the image says nothing", () => {
+  const live = mkdtempSync(join(tmpdir(), "brasos-live-"));
+  const src = (h: string) => `/nix/store/${h.repeat(32).slice(0, 32)}-brasos-src`;
+  const env = { BRASOS_SRC: src("a"), BRASOS_LIVE: live };
+  expect(interfaceBuild({})).toBeNull();
+  expect(interfaceBuild({ BRASOS_SRC: "/tmp/x", BRASOS_LIVE: live })).toBeNull(); // not a store path
+  expect(interfaceBuild(env)).toEqual({ system: "aaaaaaaa", from: "", state: "unstamped" });
+  writeFileSync(join(live, ".brasos-seed"), `treehash
+${src("a")}
+`);
+  expect(interfaceBuild(env)).toEqual({ system: "aaaaaaaa", from: "aaaaaaaa", state: "current" });
+  writeFileSync(join(live, ".brasos-seed"), `treehash
+${src("b")}
+`);
+  expect(interfaceBuild(env)).toEqual({ system: "aaaaaaaa", from: "bbbbbbbb", state: "older" });
 });
 
 let h: TestHost;

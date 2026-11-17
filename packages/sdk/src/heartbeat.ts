@@ -28,13 +28,19 @@ export function installHeartbeat(w: any) {
 }
 
 const COLOR = /^#[0-9a-fA-F]{3,8}$/;
-/** the shell's accent choice: only the three accent variables, only plain colors, so a message can't inject styles */
+const PX = /^\d{1,2}px$/;
+/** the variables a window may take from the shell: the accent palette and the theme (packages/ui/src/theme.ts; a test keeps them equal) */
+export const WINDOW_VARS = [
+  "--bg", "--panel", "--panel-2", "--text", "--muted", "--icon", "--icon-hi", "--border", "--border-strong", "--hover", "--selected",
+  "--accent", "--accent-2", "--on-accent", "--radius", "--radius-sm",
+];
+/** the shell's palette and theme: only those variables, only plain colors or small pixel sizes, so a message can't inject styles */
 export function applyPrefs(w: any, m: { vars?: Record<string, string> }) {
   const root = w.document?.documentElement;
-  for (const k of ["--accent", "--accent-2", "--on-accent"]) {
+  if (!root) return;
+  for (const k of WINDOW_VARS) {
     const v = m.vars?.[k];
-    if (!root) return;
-    if (typeof v === "string" && COLOR.test(v)) root.style.setProperty(k, v);
+    if (typeof v === "string" && (k.startsWith("--radius") ? PX : COLOR).test(v)) root.style.setProperty(k, v);
     else root.style.removeProperty(k);
   }
 }

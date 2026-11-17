@@ -66,7 +66,7 @@ test("native apps launch by id only, from the image's list", async () => {
   await Bun.write(list, JSON.stringify([{ id: "foot", name: "Terminal", icon: "terminal", command: ["/bin/sh", "-c", "evil"] }, { id: "BAD ID", name: "x" }]));
   const h = await testHost({ nativeSocket: c.path, nativeApps: list });
   const get = (path: string, from = "localhost") => h.at("localhost", path, { headers: { origin: h.origin(from) } });
-  expect(await (await get("/os/native/apps")).json()).toEqual({ apps: [{ id: "foot", name: "Terminal", icon: "terminal" }] }); // no command leaks, bad ids dropped
+  expect(await (await get("/os/native/apps")).json()).toEqual({ apps: [{ id: "foot", name: "Terminal", icon: "terminal", takesUrl: false }] }); // no command leaks, bad ids dropped
   const launch = (id: unknown, from = "localhost") => h.at("localhost", "/os/native/launch", { method: "POST", headers: { origin: h.origin(from) }, body: JSON.stringify({ id }) });
   expect((await launch("foot")).status).toBe(202);
   expect((await launch("sh")).status).toBe(404);
@@ -105,4 +105,25 @@ test("place: the shell positions a window's content; bad numbers are refused; an
   const hard = await testHost({ packages: ["hardened"], nativeSocket: c.path });
   expect((await hard.at("localhost", "/os/native/place", { method: "POST", headers: asShell(hard), body: '{"id":5,"x":0,"y":0,"w":800,"h":600}' })).status).toBe(403);
   hard.stop();
+});
+
+test("an address goes only to an app that takes one, only as plain http(s), and only the site is audited", async () => {
+  const c = fakeCompositor([]);
+  const apps = join(mkdtempSync(join(tmpdir(), "brasos-apps-")), "apps.json");
+  await Bun.write(apps, JSON.stringify([{ id: "web", name: "Browser", icon: "browser", takesUrl: true }, { id: "foot", name: "Terminal", icon: "terminal" }]));
+  const h = await testHost({ nativeSocket: c.path, nativeApps: apps });
+  const launch = (body: unknown, from = "localhost") => h.at("localhost", "/os/native/launch", { method: "POST", headers: { origin: h.origin(from) }, body: JSON.stringify(body) });
+  expect((await launch({ id: "web", url: "https://accounts.example.com/signin?x=1&y=2#z" })).status).toBe(202);
+  expect((await launch({ id: "web" })).status).toBe(202);
+  for (const url of ["file:///etc/passwd", "javascript:alert(1)", "--remote-debugging-port=9222", "https://a b", 'https://a"b', "https://a\b", "ftp://x", "https://" + "a".repeat(2100), 42])
+    expect([String(url).slice(0, 30), (await launch({ id: "web", url })).status]).toEqual([String(url).slice(0, 30), 400]);
+  expect((await launch({ id: "foot", url: "https://example.com" })).status).toBe(400); // that app takes no address
+  expect((await launch({ id: "web", url: "https://example.com" }, "browser.localhost")).status).toBe(403); // an app may not launch anything itself
+  await Bun.sleep(100);
+  expect(c.got).toEqual(['{"open":"web","url":"https://accounts.example.com/signin?x=1&y=2#z"}', '{"launch":"web"}']);
+  const ev = h.events().filter((e) => e.event === "native.launch");
+  expect(JSON.stringify(ev)).toContain("accounts.example.com");
+  expect(JSON.stringify(ev)).not.toContain("signin");
+  expect(JSON.stringify(ev)).not.toContain("x=1");
+  h.stop();
 });

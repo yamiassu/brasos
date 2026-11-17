@@ -41,6 +41,7 @@ const SET: Record<string, { d: string; hi?: string; c?: string }> = {
   lock: { d: "M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z", hi: "M8 11V8a4 4 0 0 1 8 0v3", c: "#f0b429" },
   app: { d: "M12 3l8 4.5v9L12 21l-8-4.5v-9z", hi: "M4 7.5l8 4.5l8-4.5M12 12v9", c: "#9b87f5" },
   plus: { d: "M12 5v14M5 12h14", c: "#5fd39a" },
+  theme: { d: "M12 3c3.5 4 6 6.8 6 10a6 6 0 0 1-12 0c0-3.2 2.5-6 6-10z", hi: "M9 14a3 3 0 0 0 3 3", c: "#ff8fb1" },
   reload: { d: "M4 12a8 8 0 0 1 14-5.3", hi: "M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4", c: "#6cb6ff" },
 };
 

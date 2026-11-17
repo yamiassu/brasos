@@ -131,7 +131,7 @@ in {
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       path = with pkgs; [ bun bash coreutils util-linux wireplumber ]; # coreutils: cp, timeout; util-linux: lsblk, rfkill; wireplumber: wpctl (Settings, Installer)
-      environment = env;
+      environment = env // { BRASOS_SRC = "${src}"; BRASOS_LIVE = live; }; # Settings → Updates compares the interface's stamp with the system's build
       unitConfig = {
         Conflicts = [ "brasos-shell-safe.service" ];
         OnFailure = [ "brasos-shell-safe.service" ];

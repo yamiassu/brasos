@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { applyPalette } from "@brasos/ui";
+import { os } from "@brasos/sdk";
+import { applyTheme, defaultTheme, palettes, themeVars, validateTheme, type Theme } from "@brasos/ui";
 import "@brasos/ui/ui.css";
 import "./shell.css";
 import "./user.css"; // last on purpose: user overrides win
@@ -17,11 +18,22 @@ const remember = (on: boolean) => { try { on ? sessionStorage.setItem(KEY, "1") 
 function Root() {
   const [st, setSt] = useState<State | null>(null);
   const [unlocked, setUnlocked] = useState(was);
+  const [theme, setTheme] = useState<Theme>(defaultTheme);
+  // the theme (Settings → Theme) lives in the shared database; follow it live
+  useEffect(() => {
+    const col = os.db.collection("theme", { space: "shared" });
+    col.get("current").then((r) => setTheme(validateTheme(r.doc))).catch(() => {});
+    return col.watch((e) => e.id === "current" && setTheme(e.op === "put" ? validateTheme(e.doc) : defaultTheme()));
+  }, []);
+  const palette = (palettes as Record<string, { vars: Record<string, string> }>)[st?.prefs?.palette ?? ""]?.vars ?? {};
+  const windowVars = useMemo(() => ({ ...palette, ...themeVars(theme).vars }), [theme, st?.prefs?.palette]);
+  useEffect(() => {
+    applyTheme(theme, document.documentElement, { wallpaper: true, base: palette });
+  }, [theme, st?.prefs?.palette]);
   const load = () => fetch("/os/setup").then((r) => r.json()).then(setSt).catch(() => setSt({ available: false, done: true }));
   useEffect(() => void load(), []);
   useEffect(() => {
     if (!st?.prefs) return;
-    applyPalette(st.prefs.palette, document.documentElement);
     document.documentElement.lang = st.prefs.language;
   }, [st]);
   if (!st) return null;
@@ -56,7 +68,7 @@ function Root() {
       </div>
     );
   }
-  return <Shell prefs={st.prefs} user={st.user} hasPin={st.hasPin} onPinChanged={load} onLock={st.available && st.done && !st.devSkip ? () => (remember(false), setUnlocked(false)) : undefined} />;
+  return <Shell prefs={st.prefs} user={st.user} hasPin={st.hasPin} onPinChanged={load} windowVars={windowVars} onLock={st.available && st.done && !st.devSkip ? () => (remember(false), setUnlocked(false)) : undefined} />;
 }
 
 createRoot(document.getElementById("root")!).render(<Root />);

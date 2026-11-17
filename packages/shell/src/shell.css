@@ -19,9 +19,8 @@ html, body, #root { height: 100%; margin: 0; overflow: hidden; }
 
 /* the desktop: neutral night with a faint pool of light; the rare color is saved for what is focused */
 #root {
-  background:
-    radial-gradient(70% 55% at 20% 0%, #ffffff0a, transparent 70%),
-        var(--bg);
+  /* Settings → Theme sets --wallpaper (a color or a gradient); without it, the faint pool of light on the background color */
+  background: var(--wallpaper, radial-gradient(70% 55% at 20% 0%, #ffffff0a, transparent 70%), var(--bg));
 }
 
 /* first-boot installer and lock screen */

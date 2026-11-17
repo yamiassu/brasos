@@ -55,12 +55,27 @@ enum Cmd {
     Focus(u32),
     Close(u32),
     Launch(String),
+    /// an app that takes one web address (flag `u`): id, url
+    Open(String, String),
     /// id, x, y, w, h: where a window's content goes (the shell draws the frame around it)
     Place(u32, i32, i32, i32, i32),
 }
 
-/// `{"focus":3}`, `{"close":3}`, `{"launch":"foot"}`; anything else is ignored
+/// A web address that may be handed to a native app as its last argument: http(s) only, bounded, and only URL characters (no quote,
+/// backslash, space or control character), so it can't be mistaken for an option or break the command line.
+pub fn safe_url(u: &str) -> bool {
+    (u.starts_with("http://") || u.starts_with("https://"))
+        && u.len() <= 2048
+        && u.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._~:/?#[]@!$&'()*+,;=%".contains(&b))
+}
+
+/// `{"focus":3}`, `{"close":3}`, `{"launch":"foot"}`, `{"open":"web","url":"https://..."}`; anything else is ignored
 fn parse(line: &str) -> Option<Cmd> {
+    if let Some(r) = line.trim().strip_prefix("{\"open\":\"").and_then(|r| r.strip_suffix("\"}")) {
+        let (id, url) = r.split_once("\",\"url\":\"")?;
+        let id_ok = !id.is_empty() && id.len() <= 40 && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+        return (id_ok && safe_url(url)).then(|| Cmd::Open(id.to_string(), url.to_string()));
+    }
     if let Some(v) = line.trim().strip_prefix("{\"place\":[").and_then(|r| r.strip_suffix("]}")) {
         // window ids are u32 hashes (more than i32 can hold)
         let n: Vec<i64> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
@@ -88,12 +103,13 @@ fn parse(line: &str) -> Option<Cmd> {
 /// A native app from the image: started only by id. By default inside bubblewrap (no home, no network unless the image says so,
 /// no access to the control socket or the rest of /run); an app the image marks `open` (Steam: it needs a persistent home, GPU
 /// devices and its own sandboxing) runs as a plain user process. The list is a file the image owns (BRASOS_NATIVE_APPS):
-/// `id<TAB>flags<TAB>argv`, flags a string of `n` (network) and `o` (open: no sandbox) or `-`, argv separated by 0x1f.
+/// `id<TAB>flags<TAB>argv`, flags a string of `n` (network), `o` (open: no sandbox) and `u` (takes one web address as its last argument) or `-`, argv separated by 0x1f.
 /// The host never sends a command line, only an id.
 pub struct App {
     id: String,
     net: bool,
     open: bool,
+    url: bool,
     argv: Vec<String>,
 }
 
@@ -108,7 +124,7 @@ fn parse_apps(text: &str) -> Vec<App> {
             let mut f = l.splitn(3, '\t');
             let (id, flags, argv) = (f.next()?, f.next()?, f.next()?);
             let argv: Vec<String> = argv.split('\x1f').map(String::from).collect();
-            (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: flags.contains('n'), open: flags.contains('o'), argv })
+            (!argv.is_empty() && !argv[0].is_empty()).then(|| App { id: id.into(), net: flags.contains('n'), open: flags.contains('o'), url: flags.contains('u'), argv })
         })
         .collect()
 }
@@ -139,7 +155,7 @@ fn without_ambient_caps(c: &mut std::process::Command) {
     }
 }
 
-fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>) {
+fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>, url: Option<&str>) {
     let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/run/user/1000".into());
     let home = std::env::var("HOME").unwrap_or_else(|_| "/home/brasos".into());
     let (out, err) = log_of(app);
@@ -147,6 +163,9 @@ fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>) {
         // not sandboxed: the app sees the user's home and processes, so the image must opt in and hardened never ships one
         let mut c = std::process::Command::new(&app.argv[0]);
         c.args(&app.argv[1..]).env("WAYLAND_DISPLAY", wayland_display).stdout(out).stderr(err);
+        if let Some(u) = url {
+            c.arg("--").arg(u); // after `--`: an address, never an option
+        }
         without_ambient_caps(&mut c);
         if let Some(n) = xdisplay {
             c.env("DISPLAY", format!(":{n}"));
@@ -165,6 +184,7 @@ fn spawn_app(app: &App, wayland_display: &str, xdisplay: Option<u32>) {
         .args(["--setenv", "XDG_RUNTIME_DIR", &xdg, "--setenv", "WAYLAND_DISPLAY", wayland_display, "--setenv", "HOME", &home])
         .args(["--setenv", "PATH", "/run/current-system/sw/bin", "--setenv", "TERM", "xterm-256color", "--"])
         .args(&app.argv)
+        .args(url.map(|u| vec!["--", u]).unwrap_or_default())
         .stdout(out)
         .stderr(err);
     without_ambient_caps(&mut c);
@@ -290,7 +310,15 @@ impl Smallvil {
             let id = match c {
                 Cmd::Launch(app) => {
                     if let Some(a) = ctl.apps.iter().find(|a| a.id == app) {
-                        spawn_app(a, &self.socket_name.to_string_lossy(), self.xdisplay);
+                        spawn_app(a, &self.socket_name.to_string_lossy(), self.xdisplay, None);
+                        self.focus_next = true;
+                    }
+                    continue;
+                }
+                Cmd::Open(app, url) => {
+                    // only an app the image marked `u` takes an address, and only one that passed `safe_url`
+                    if let Some(a) = ctl.apps.iter().find(|a| a.id == app && a.url) {
+                        spawn_app(a, &self.socket_name.to_string_lossy(), self.xdisplay, Some(&url));
                         self.focus_next = true;
                     }
                     continue;
@@ -349,6 +377,17 @@ mod tests {
         assert!(parse("{\"launch\":\"../x\"}").is_none());
         assert!(parse("{\"launch\":\"a b\"}").is_none());
         assert!(matches!(parse("{\"focus\":7}"), Some(Cmd::Focus(7))));
+    }
+
+    #[test]
+    fn open_takes_only_a_plain_web_address() {
+        assert!(matches!(parse("{\"open\":\"web\",\"url\":\"https://example.com/a?b=c&d=1#x\"}"), Some(Cmd::Open(_, _))));
+        for bad in ["file:///etc/passwd", "javascript:alert(1)", "--remote-debugging-port=1", "https://a b", r"https://a\b","https://a\"b", "ftp://x"] {
+            assert!(parse(&format!("{{\"open\":\"web\",\"url\":\"{bad}\"}}")).is_none(), "{bad}");
+        }
+        assert!(parse("{\"open\":\"../x\",\"url\":\"https://a.b\"}").is_none());
+        assert!(!safe_url(&format!("https://a.b/{}", "x".repeat(2100))));
+        assert!(parse_apps("web	nou	/bin/chromium")[0].url);
     }
 
     #[test]

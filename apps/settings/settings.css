@@ -53,3 +53,11 @@ html, body, #root { height: 100%; margin: 0; }
 .settings th { font-size: 12px; font-weight: 500; color: var(--muted); }
 .settings tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 640px) { .settings nav { width: 150px; } .settings main { padding: 20px 16px; } }
+
+/* Theme page */
+.settings .presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; padding: 12px 0 4px; }
+.settings .preset { display: grid; gap: 8px; padding: 10px; font: inherit; color: var(--text); text-align: left; cursor: pointer; background: var(--hover); border: 1px solid var(--border); border-radius: var(--radius); }
+.settings .preset[aria-checked="true"] { border-color: var(--accent); background: var(--selected); }
+.settings .preset .chips { display: flex; height: 26px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
+.settings .preset .chips i { flex: 1; }
+.settings input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: none; cursor: pointer; }

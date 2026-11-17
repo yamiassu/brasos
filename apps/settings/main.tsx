@@ -1,7 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { os } from "@brasos/sdk";
-import { Button, Icon, SelectField } from "@brasos/ui";
+import { Button, Icon, SelectField, defaultTheme, themePresets, themeVars, validateTheme, type Theme } from "@brasos/ui";
 import "@brasos/ui/ui.css";
 import "./settings.css";
 import { useSystem } from "./data";
@@ -9,6 +9,7 @@ import { useSystem } from "./data";
 const PAGES = [
   { id: "system", name: "System", icon: "chip" },
   { id: "display", name: "Display", icon: "display" },
+  { id: "theme", name: "Theme", icon: "theme" },
   { id: "sound", name: "Sound", icon: "sound" },
   { id: "network", name: "Network", icon: "network" },
   { id: "devices", name: "Devices", icon: "plug" },
@@ -30,7 +31,7 @@ const Slider = ({ value, label, onChange }: { value: number; label: string; onCh
   <span className="slider"><input type="range" min={0} max={100} value={value} aria-label={label} onChange={(e) => onChange(+e.target.value)} /><output>{value}%</output></span>
 );
 
-type UpdateState = { enabled: boolean; current: string; url: string; latest: { version: string; notes: string } | null; available: boolean; error: string; job: { state: "idle" | "running" | "done" | "failed"; action: string; log: string } };
+type UpdateState = { enabled: boolean; current: string; interface: { system: string; from: string; state: "current" | "older" | "unstamped" } | null; url: string; latest: { version: string; notes: string } | null; available: boolean; error: string; job: { state: "idle" | "running" | "done" | "failed"; action: string; log: string } };
 
 /** the Updates page: what this system is, what the update server offers, and the three things that change it (all through `system.update`) */
 function UpdatesPage() {
@@ -55,6 +56,16 @@ function UpdatesPage() {
     <>
       <Card title="This system">
         <Row label="Version"><span className="value mono">{u.current || "unknown"}</span></Row>
+        {u.interface && (
+          <Row
+            label="Interface"
+            hint={u.interface.state === "older" ? "The apps on screen come from an older build (they were edited, or the interface hasn't restarted since the update). Start → Restart the interface, or run brasos-reset-shell in the Terminal to start from this build (that drops your edits)." : u.interface.state === "unstamped" ? "This copy of the interface has no build record; an update will back it up and replace it." : "The apps on screen are from the running system's build."}
+          >
+            <span className={`value mono ${u.interface.state === "older" ? "bad" : "ok"}`}>
+              {u.interface.state === "older" ? `build ${u.interface.from || "unknown"} · system ${u.interface.system}` : `build ${u.interface.system}${u.interface.state === "current" ? " · current" : ""}`}
+            </span>
+          </Row>
+        )}
         <Row label="Update server"><span className="value">{u.url || "none configured"}</span></Row>
         <Row label="Latest" hint={u.latest?.notes}><span className="value mono">{u.latest ? u.latest.version : "unknown"}</span></Row>
         {u.error && <p className="note">{u.error}</p>}
@@ -78,6 +89,79 @@ function UpdatesPage() {
           </Row>
         )}        {u.job.state === "failed" && <p className="note" role="alert">It failed. The system was not changed beyond what Nix completed. Last output: <span className="mono">{u.job.log.trim().split(/\r?\n/).slice(-3).join(" · ")}</span></p>}
         {asked.startsWith("failed") && <p className="note" role="alert">{asked}</p>}
+      </Card>
+    </>
+  );
+}
+
+const COLORS: { key: keyof Theme["custom"]; label: string; hint: string; css: string; fallback: string }[] = [
+  { key: "accent", label: "Accent", hint: "Buttons, focus and highlights", css: "--accent", fallback: "#5fd39a" },
+  { key: "accent2", label: "Second accent", hint: "The partner color in gradients", css: "--accent-2", fallback: "#9b87f5" },
+  { key: "bg", label: "Background", hint: "Behind every window", css: "--bg", fallback: "#0c0c0d" },
+  { key: "panel", label: "Panels", hint: "Cards, menus and window bodies", css: "--panel", fallback: "#131314" },
+  { key: "text", label: "Text", hint: "Main text color", css: "--text", fallback: "#ececee" },
+];
+
+/** the Theme page: presets, colors, wallpaper and corner shape. Saved in the shared database; the shell applies it live to itself and every window */
+function ThemePage() {
+  const col = useMemo(() => os.db.collection("theme", { space: "shared" }), []);
+  const [t, setT] = useState<Theme>(defaultTheme);
+  const [err, setErr] = useState("");
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    col.get("current").then((r) => setT(validateTheme(r.doc))).catch(() => {});
+    return col.watch((e) => e.id === "current" && setT(e.op === "put" ? validateTheme(e.doc) : defaultTheme()));
+  }, [col]);
+  // the controls update at once; the save is debounced so dragging a color picker is one write, not hundreds
+  const save = (n: Theme) => {
+    setT(n);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => col.put(n, "current").then(() => setErr(""), (e) => setErr(`Could not save the theme: ${e?.message ?? e}`)), 150);
+  };
+  const eff = themeVars(t).vars;
+  const w = t.wallpaper;
+  return (
+    <>
+      <Card title="Theme">
+        <div className="presets" role="radiogroup" aria-label="Theme">
+          {Object.entries(themePresets).map(([id, p]) => (
+            <button key={id} type="button" role="radio" aria-checked={t.preset === id} className="preset" onClick={() => save({ ...t, preset: id, custom: {} })}>
+              <span className="chips">{p.swatch.map((c) => <i key={c} style={{ background: c }} />)}</span>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="note">Pick a look, then change any color below. Choosing a theme again clears your custom colors.</p>
+      </Card>
+      <Card title="Colors">
+        {COLORS.map((c) => (
+          <Row key={c.key} label={c.label} hint={c.hint}>
+            <input type="color" aria-label={c.label} value={eff[c.css]?.slice(0, 7) ?? c.fallback} onChange={(e) => save({ ...t, custom: { ...t.custom, [c.key]: e.target.value } })} />
+          </Row>
+        ))}
+      </Card>
+      <Card title="Wallpaper">
+        <Row label="Style">
+          <SelectField label="Wallpaper style" value={w.kind} onChange={(e) => save({ ...t, wallpaper: { ...w, kind: e.target.value as Theme["wallpaper"]["kind"] } })}>
+            <option value="default">Theme default</option><option value="solid">Solid color</option><option value="gradient">Gradient</option>
+          </SelectField>
+        </Row>
+        {w.kind !== "default" && <Row label={w.kind === "gradient" ? "From" : "Color"}><input type="color" aria-label="Wallpaper color" value={w.a ?? "#0c0c0d"} onChange={(e) => save({ ...t, wallpaper: { ...w, a: e.target.value } })} /></Row>}
+        {w.kind === "gradient" && (
+          <>
+            <Row label="To"><input type="color" aria-label="Wallpaper second color" value={w.b ?? "#1a1a2e"} onChange={(e) => save({ ...t, wallpaper: { ...w, b: e.target.value } })} /></Row>
+            <Row label="Angle"><span className="slider"><input type="range" min={0} max={360} aria-label="Gradient angle" value={w.angle ?? 135} onChange={(e) => save({ ...t, wallpaper: { ...w, angle: +e.target.value } })} /><output>{w.angle ?? 135}°</output></span></Row>
+          </>
+        )}
+      </Card>
+      <Card title="Shape">
+        <Row label="Corner roundness" hint="Windows, cards and buttons">
+          <span className="slider"><input type="range" min={0} max={20} aria-label="Corner roundness" value={t.radius ?? 10} onChange={(e) => save({ ...t, radius: +e.target.value })} /><output>{t.radius ?? 10}px</output></span>
+        </Row>
+      </Card>
+      <Card>
+        <Row label="Reset" hint="Back to the default Night theme"><Button onClick={() => save(defaultTheme())}>Reset theme</Button></Row>
+        {err && <p className="note" role="alert">{err}</p>}
       </Card>
     </>
   );
@@ -155,6 +239,8 @@ function Settings() {
             ))}
           </Card>
         ))}
+
+        {page === "theme" && <ThemePage />}
 
         {page === "updates" && <UpdatesPage />}
 

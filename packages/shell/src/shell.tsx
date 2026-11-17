@@ -7,7 +7,7 @@ import { Desktop } from "./desktop";
 import { Launcher, search, type Hit } from "./launcher";
 import { isPinned, loadUnpinned, saveUnpinned, setPinned, type Unpinned, type Where } from "./pins";
 import { Battery, Clock, Mode, Network } from "./tray";
-import { atTopEdge, Boundary, DEFAULT_W, Frame, restoreLeft, type Win } from "./windows";
+import { atTopEdge, Boundary, DEFAULT_W, Frame, frameSrc, restoreLeft, type Win } from "./windows";
 import { InstallPrompt, type Inspection } from "./install";
 import { NativeWindows, type NativeWin } from "./native";
 
@@ -15,7 +15,7 @@ const post = (path: string, body: unknown) =>
   fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 const getJson = (path: string) => fetch(path).then((r) => r.json());
 
-export function Shell({ prefs, user, onLock, hasPin, onPinChanged }: { prefs?: { timezone: string; clock24: boolean; palette: string }; user?: { display: string }; onLock?: () => void; hasPin?: boolean; onPinChanged?: () => void }) {
+export function Shell({ prefs, user, onLock, hasPin, onPinChanged, windowVars }: { prefs?: { timezone: string; clock24: boolean; palette: string }; windowVars?: Record<string, string>; user?: { display: string }; onLock?: () => void; hasPin?: boolean; onPinChanged?: () => void }) {
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [wins, setWins] = useState<Win[]>([]);
@@ -83,7 +83,21 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged }: { prefs?: {
     return () => (clearInterval(t), clearInterval(desktopTimer));
   }, []);
 
-  const open = async (app: AppInfo, hash?: string) => {
+  const [nativeApps, setNativeApps] = useState<{ id: string; name: string; icon: string; takesUrl?: boolean }[]>([]);
+  useEffect(() => {
+    fetch("/os/native/apps").then((r) => (r.ok ? r.json() : { apps: [] })).then((r) => setNativeApps(r.apps ?? [])).catch(() => {});
+  }, []);
+  // The real browser (a Chromium window beside the desktop, from its own profile) is the default Browser where the image has one; the
+  // Browser app (sites through the gateway, inside BrasOS) stays as "Sandboxed browser". A window that asks the shell to open the Browser
+  // app, or an address, gets the real one.
+  const realBrowser = nativeApps.some((n) => n.id === "web" && n.takesUrl);
+  const openReal = async (url?: string) => {
+    const r = await post("/os/native/launch", { id: "web", ...(url && /^https?:\/\//.test(url) ? { url } : {}) });
+    if (!r.ok) setNote("Could not open the browser");
+    return r.ok;
+  };
+  const open = async (app: AppInfo, hash?: string, opts: { sandbox?: boolean } = {}) => {
+    if (app.id === "browser" && realBrowser && !opts.sandbox) return openReal(hash?.startsWith("url=") ? decodeURI(hash.slice(4)) : undefined);
     let src: string | undefined;
     if (app.kind === "pwa") {
       // PWAs run on the web gateway: the host mints the (per-site) origin for the app's start URL
@@ -194,10 +208,6 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged }: { prefs?: {
       { label: st ? "Unpin from Start" : "Pin to Start", onSelect: () => pin("start", a.id, !st) },
     ];
   };
-  const [nativeApps, setNativeApps] = useState<{ id: string; name: string; icon: string }[]>([]);
-  useEffect(() => {
-    fetch("/os/native/apps").then((r) => (r.ok ? r.json() : { apps: [] })).then((r) => setNativeApps(r.apps ?? [])).catch(() => {});
-  }, []);
   const hits: Hit[] = [
     ...apps.map((a) => ({ key: "a:" + a.id, kind: "App" as const, icon: a.icon, label: a.name, meta: "App", run: () => launch(a) })),
     ...nativeApps.map((n) => ({ key: "n:" + n.id, kind: "App" as const, icon: n.icon, label: n.name, meta: "Native app", run: () => void post("/os/native/launch", { id: n.id }) })),
@@ -229,6 +239,11 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged }: { prefs?: {
     addEventListener("contextmenu", onMenu);
     return () => removeEventListener("contextmenu", onMenu);
   }, []);
+  // a theme change reaches the windows that are already open (a window that opens later is told when it loads)
+  useEffect(() => {
+    if (!windowVars) return;
+    for (const w of wins) if (!w.src) frames.current.get(w.key)?.contentWindow?.postMessage({ brasos: "prefs", vars: windowVars }, new URL(frameSrc(w)).origin);
+  }, [windowVars]);
   // Ctrl+K from anywhere in the shell (a window's iframe keeps its own keys)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -366,7 +381,7 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged }: { prefs?: {
                   onPointerCancel: () => (setDragging(false), setSnap(null)),
                 }}
               >
-                <Frame win={w} onRef={(el) => (el ? frames.current.set(w.key, el) : frames.current.delete(w.key))} palette={prefs?.palette} shield={dragging} onRestart={() => patch(w.key, (c) => ({ reload: c.reload + 1 }))} onClose={() => close(w.key)} />
+                <Frame win={w} onRef={(el) => (el ? frames.current.set(w.key, el) : frames.current.delete(w.key))} vars={windowVars} shield={dragging} onRestart={() => patch(w.key, (c) => ({ reload: c.reload + 1 }))} onClose={() => close(w.key)} />
                 {/* clicks inside an iframe never reach us, so unfocused windows get a click-catcher */}
                 {w !== focused && <div className="shield" onPointerDown={() => focus(w.key)} />}
               </WindowFrame>
@@ -427,7 +442,7 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged }: { prefs?: {
             showAll={showAll} onToggleAll={() => setShowAll((v) => !v)}
             onContext={(h, e) => { const app = apps.find((a) => "a:" + a.id === h.key); if (app) setAppMenu({ x: e.clientX, y: e.clientY, app }); }}
             files={extra.files.slice(0, 5)} user={user?.display}
-            actions={[...(onLock ? [{ label: "Lock the screen", icon: "lock", onClick: () => (closeLauncher(), onLock()) }, { label: hasPin ? "Change or remove the PIN" : "Set a sign-in PIN", icon: "lock", onClick: () => (closeLauncher(), setPinDlg({ password: "", pin: "", again: "", error: "", busy: false })) }] : []), ...(canRestart ? [{ label: "Restart the interface", icon: "restart", onClick: () => (closeLauncher(), setConfirmRestart(true)) }] : []), ...(canPower ? [{ label: "Restart the computer", icon: "restart", onClick: () => (closeLauncher(), setConfirmPower("reboot")) }, { label: "Shut down", icon: "power", onClick: () => (closeLauncher(), setConfirmPower("poweroff")) }] : [])]}
+            actions={[...(realBrowser ? [{ label: "Sandboxed browser (inside BrasOS)", icon: "browser", onClick: () => { closeLauncher(); const b = apps.find((x) => x.id === "browser"); if (b) void open(b, undefined, { sandbox: true }); } }] : []), ...(onLock ? [{ label: "Lock the screen", icon: "lock", onClick: () => (closeLauncher(), onLock()) }, { label: hasPin ? "Change or remove the PIN" : "Set a sign-in PIN", icon: "lock", onClick: () => (closeLauncher(), setPinDlg({ password: "", pin: "", again: "", error: "", busy: false })) }] : []), ...(canRestart ? [{ label: "Restart the interface", icon: "restart", onClick: () => (closeLauncher(), setConfirmRestart(true)) }] : []), ...(canPower ? [{ label: "Restart the computer", icon: "restart", onClick: () => (closeLauncher(), setConfirmPower("reboot")) }, { label: "Shut down", icon: "power", onClick: () => (closeLauncher(), setConfirmPower("poweroff")) }] : [])]}
           />
         </>
       )}
