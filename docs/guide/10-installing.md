@@ -18,12 +18,14 @@ Write the image to a USB stick (`dd`, or Rufus in DD mode) and boot the PC from 
 
 The stick boots straight into **Install BrasOS**, fullscreen: there is no desktop on the live image. The desktop appears only on the installed system, after its first boot (you create the account and set your preferences there). The installer lists the disks the machine reports (never one that is in use, so never the stick you booted from), you pick one, choose the swap size, see the layout it will create and type `erase` to confirm. It then shows the real progress: partitioning, formatting, copying the system and the boot loader. When it says it is done, remove the stick and press Restart.
 
-It partitions the disk (1 GB EFI system partition, an optional swap partition, and the rest ext4), installs the system with systemd-boot, and needs no network. Everything on the chosen disk is erased.
+The first screen is **Connect to the internet**: a network cable connects by itself, and for Wi-Fi you pick a network and type its password. It is optional. When you are online and the update server answers, it asks whether to install the **latest build** directly instead of the version on the stick (the download makes the install longer; if it fails, the install continues with the stick's version).
+
+It partitions the disk (1 GB EFI system partition, an optional swap partition, and the rest ext4), installs the system with systemd-boot, and needs no network unless you chose the latest build. Everything on the chosen disk is erased.
 
 Prefer a terminal? The Terminal app runs the same thing:
 
 ```bash
-brasos-install [--swap 4] /dev/nvme0n1     # the disk to ERASE, with an optional swap size in GB: run it without an argument to list the disks
+brasos-install [--swap 4] [--latest] /dev/nvme0n1     # the disk to ERASE, with an optional swap size in GB: run it without an argument to list the disks
 ```
 
 It asks you to type `ERASE` first.

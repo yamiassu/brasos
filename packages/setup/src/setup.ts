@@ -11,7 +11,9 @@ export const KEYBOARDS = ["br-abnt2", "us", "us-intl"] as const;
 
 export type Prefs = { language: string; timezone: string; keyboard: string; clock24: boolean; palette: string; deviceName: string };
 export type SetupInput = { display: string; username: string; password: string; prefs: Prefs };
-type Stored = { done: true; at: number; account: { username: string; display: string; hash: string; pinHash?: string }; prefs: Prefs };
+type Account = { username: string; display: string; hash: string; pinHash?: string };
+/** `account` is the owner (the administrator: the one made at first boot, never deletable); `others` are the accounts the owner added in Settings */
+type Stored = { done: true; at: number; account: Account; others?: Account[]; prefs: Prefs };
 
 export class SetupError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -52,6 +54,12 @@ export function validateSetup(b: any): SetupInput {
   return { display, username: b.username, password: pw, prefs: validatePrefs(b.prefs) };
 }
 
+/** a new account's name, username and password (the same rules as first boot) */
+export function validateAccount(b: any): { display: string; username: string; password: string } {
+  const v = validateSetup({ ...(b && typeof b === "object" ? b : {}), prefs: { language: "en-US", timezone: "UTC", keyboard: "us", clock24: true, palette: "green", deviceName: "brasos" } });
+  return { display: v.display, username: v.username, password: v.password };
+}
+
 /** a sign-in PIN: 4 to 8 digits, not one repeated digit and not a plain run (1234, 8765). A PIN only unlocks the screen, like the password. */
 export function validatePin(pin: unknown): string {
   if (typeof pin !== "string" || !/^\d{4,8}$/.test(pin)) return bad("the PIN must be 4 to 8 digits");
@@ -60,6 +68,7 @@ export function validatePin(pin: unknown): string {
   if (d.every((x, i) => i === 0 || x - d[i - 1] === step) && Math.abs(step) <= 1) bad("that PIN is too easy to guess (no repeated digits or runs like 1234)");
   return pin;
 }
+const MAX_ACCOUNTS = 16;
 const MAX_PIN_FAILS = 5; // consecutive wrong PINs before the PIN is switched off until the password is used
 
 export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: string; audit: AuditFn; preseed?: string; devSkip?: boolean }) {
@@ -110,12 +119,24 @@ export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: 
 
   let busy = false; // one completion at a time: hashing is async, so two requests could race
   const fails: number[] = [];
-  let pinFails = 0; // in memory: a restart gives the PIN a fresh start (the screen lock is not access control)
+  const pinFails = new Map<string, number>(); // in memory, per account: a restart gives the PIN a fresh start (the screen lock is not access control)
+  const everyone = (s: Stored): Account[] => [s.account, ...(s.others ?? [])];
+  const pinOn = (a: Account) => !!a.pinHash && (pinFails.get(a.username) ?? 0) < MAX_PIN_FAILS;
   const publicState = () => {
     const s = read();
     return s
-      ? { available: true, done: true, user: { username: s.account.username, display: s.account.display }, prefs: s.prefs, hasPin: !!s.account.pinHash && pinFails < MAX_PIN_FAILS, ...(devSkip ? { devSkip: true } : {}) }
+      ? { available: true, done: true, user: { username: s.account.username, display: s.account.display }, accounts: everyone(s).map((a) => ({ username: a.username, display: a.display, hasPin: pinOn(a) })), prefs: s.prefs, hasPin: pinOn(s.account), ...(devSkip ? { devSkip: true } : {}) }
       : { available: !!file, done: false };
+  };
+  /** the owner's password, for anything that adds, removes or resets an account: true when it is right (throttled and audited like the PIN) */
+  const ownerOk = async (s: Stored, password: unknown, event: string) => {
+    const ok = typeof password === "string" && password.length <= 128 && (await Bun.password.verify(password, s.account.hash).catch(() => false));
+    if (!ok) {
+      fails.push(Date.now());
+      audit(event, "deny", { app: "settings" }, { reason: "password" });
+      await Bun.sleep(400);
+    }
+    return ok;
   };
   /** the per-minute limit shared by the password and the PIN: true when this attempt must be refused */
   const throttled = () => {
@@ -128,8 +149,16 @@ export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: 
     name: "setup",
     async handle(req, ctx) {
       const path = ctx.url.pathname;
-      if (ctx.target.kind !== "shell" || !/^\/os\/(setup|prefs|login|pin)/.test(path)) return;
+      if (ctx.target.kind !== "shell" || !/^\/os\/(setup|prefs|login|pin|accounts)/.test(path)) return;
       if (path === "/os/setup" && req.method === "GET") return json(publicState());
+      // the accounts list (Settings → Accounts); the changes are POSTs below
+      if (path === "/os/accounts" && req.method === "GET") {
+        const g = ctx.gate("accounts.manage", { quiet: true });
+        if (!g.ok) return g.res;
+        const s = read();
+        if (!s) return json({ error: "not set up" }, 409);
+        return json({ devSkip: !!devSkip, accounts: everyone(s).map((a, i) => ({ username: a.username, display: a.display, owner: i === 0, hasPin: !!a.pinHash })) });
+      }
       if (req.method !== "POST") return;
 
       if (path === "/os/setup/complete") {
@@ -175,7 +204,8 @@ export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: 
         const b: any = await req.json().catch(() => null);
         const s = read();
         if (!s) return json({ error: "not set up" }, 409);
-        const ok = typeof b?.password === "string" && b.password.length <= 128 && (await Bun.password.verify(b.password, s.account.hash).catch(() => false));
+        const who = typeof b?.username === "string" ? everyone(s).find((a) => a.username === b.username) : s.account; // the signed-in account, the owner by default
+        const ok = !!who && typeof b?.password === "string" && b.password.length <= 128 && (await Bun.password.verify(b.password, who.hash).catch(() => false));
         if (!ok) {
           fails.push(Date.now());
           audit("setup.pin", "deny", { app: "shell" }, { reason: "password" });
@@ -183,10 +213,10 @@ export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: 
           return json({ error: "wrong password" }, 401);
         }
         try {
-          if (b.pin === null) delete s.account.pinHash;
-          else s.account.pinHash = await Bun.password.hash(validatePin(b.pin), { algorithm: "argon2id" });
+          if (b.pin === null) delete who!.pinHash;
+          else who!.pinHash = await Bun.password.hash(validatePin(b.pin), { algorithm: "argon2id" });
           write(s);
-          pinFails = 0;
+          pinFails.delete(who!.username);
           audit("setup.pin", "info", { app: "shell" }, { action: b.pin === null ? "remove" : "set" }); // never the PIN, nor its hash
           return json({ ok: true, hasPin: b.pin !== null });
         } catch (e) {
@@ -200,8 +230,9 @@ export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: 
         const now = Date.now();
         const b: any = await req.json().catch(() => null);
         const s = read();
+        const who = s && typeof b?.username === "string" ? everyone(s).find((a) => a.username === b.username) : undefined;
         const byPin = typeof b?.pin === "string";
-        if (byPin && pinFails >= MAX_PIN_FAILS) {
+        if (byPin && (pinFails.get(String(b?.username)) ?? 0) >= MAX_PIN_FAILS) {
           audit("login", "deny", { app: "shell" }, { method: "pin", reason: "pin-locked" }, { key: "pin-locked", ms: 10_000 });
           return json({ error: "the PIN is switched off after too many wrong tries; use your password" }, 403);
         }
@@ -210,20 +241,72 @@ export function createSetup({ stateDir, audit, preseed, devSkip }: { stateDir?: 
           return json({ error: "too many attempts, wait a minute" }, 429);
         }
         const ok = byPin
-          ? !!s?.account.pinHash && b.pin.length <= 8 && b.username === s.account.username && (await Bun.password.verify(b.pin, s.account.pinHash).catch(() => false))
-          : !!s && typeof b?.username === "string" && typeof b?.password === "string" && b.password.length <= 128 &&
-            b.username === s.account.username && (await Bun.password.verify(b.password, s.account.hash).catch(() => false));
+          ? !!who?.pinHash && b.pin.length <= 8 && (await Bun.password.verify(b.pin, who.pinHash).catch(() => false))
+          : !!who && typeof b?.password === "string" && b.password.length <= 128 && (await Bun.password.verify(b.password, who.hash).catch(() => false));
         if (!ok) {
           fails.push(now);
-          if (byPin) pinFails++;
+          if (byPin && who) pinFails.set(who.username, (pinFails.get(who.username) ?? 0) + 1);
           audit("login", "deny", { app: "shell" }, { username: String(b?.username ?? "").slice(0, 32), method: byPin ? "pin" : "password" });
           await Bun.sleep(400); // slows guessing a little; the counter above stops it
           return json({ error: byPin ? "wrong PIN" : "wrong username or password" }, 401);
         }
         fails.length = 0;
-        pinFails = 0;
-        audit("login", "allow", { app: "shell" }, { username: s!.account.username, method: byPin ? "pin" : "password" });
-        return json({ ok: true });
+        pinFails.delete(who!.username);
+        audit("login", "allow", { app: "shell" }, { username: who!.username, method: byPin ? "pin" : "password" });
+        return json({ ok: true, user: { username: who!.username, display: who!.display } });
+      }
+
+      // managing accounts (Settings → Accounts): `accounts.manage`, held by the Settings app alone. Every change needs the owner's password.
+      // These are BrasOS profiles for the lock screen, not Linux users: they share the one home folder and are not access control.
+      if (/^\/os\/accounts\/(create|update|delete)$/.test(path) && req.method === "POST") {
+        const op = path.slice("/os/accounts/".length);
+        const g = ctx.gate("accounts.manage");
+        if (!g.ok) return g.res;
+        const s = read();
+        if (!s) return json({ error: "not set up" }, 409);
+        if (devSkip) return json({ error: "accounts are off in the development shortcut (there is no lock screen)" }, 409);
+        if (throttled()) return json({ error: "too many attempts, wait a minute" }, 429);
+        const b: any = await req.json().catch(() => null);
+        const event = `accounts.${op}`;
+        if (!(await ownerOk(s, b?.ownerPassword, event))) return json({ error: "wrong password" }, 401);
+        const list = everyone(s);
+        try {
+          if (op === "create") {
+            if (list.length >= MAX_ACCOUNTS) throw new SetupError(`at most ${MAX_ACCOUNTS} accounts`);
+            const v = validateAccount(b);
+            if (list.some((a) => a.username === v.username)) throw new SetupError("that username is taken", 409);
+            const hash = await Bun.password.hash(v.password, { algorithm: "argon2id" });
+            s.others = [...(s.others ?? []), { username: v.username, display: v.display, hash }];
+            write(s);
+            audit(event, "info", { app: "settings" }, { username: v.username }); // never the password, nor its hash
+            return json({ ok: true });
+          }
+          const target = typeof b?.username === "string" ? list.find((a) => a.username === b.username) : undefined;
+          if (!target) throw new SetupError("no such account", 404);
+          if (op === "delete") {
+            if (target === s.account) throw new SetupError("the owner account cannot be deleted", 409);
+            s.others = (s.others ?? []).filter((a) => a !== target);
+            pinFails.delete(target.username);
+          } else {
+            // update: the display name, a new password (which also switches the PIN off), or just the PIN removed
+            if (b.display !== undefined) {
+              const d = typeof b.display === "string" ? b.display.trim() : "";
+              if (!d || d.length > 64 || /[\u0000-\u001f]/.test(d)) throw new SetupError("invalid name");
+              target.display = d;
+            }
+            if (b.newPassword !== undefined) {
+              validateAccount({ display: target.display, username: target.username, password: b.newPassword });
+              target.hash = await Bun.password.hash(b.newPassword, { algorithm: "argon2id" });
+              delete target.pinHash;
+            }
+            if (b.removePin === true) delete target.pinHash;
+          }
+          write(s);
+          audit(event, "info", { app: "settings" }, { username: target.username });
+          return json({ ok: true });
+        } catch (e) {
+          return e instanceof SetupError ? json({ error: e.message }, e.status) : json({ error: "failed" }, 500);
+        }
       }
     },
   };

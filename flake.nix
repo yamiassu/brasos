@@ -49,9 +49,9 @@
         # bootable UEFI/USB image of the dev profile: `nix build .#iso` (see scripts/iso/build.sh)
         # (the live system is the dev-drm one; `brasos-install` writes brasos-installed to a disk)
         brasos-installed = mk false [ ./nixos/installed.nix drm ];
-        brasos-iso = mk false [ ./nixos/iso.nix dev-drm { brasos.installer.system = self.nixosConfigurations.brasos-installed.config.system.build.toplevel; } ];
+        brasos-iso = mk false [ ./nixos/iso.nix dev-drm { brasos.installer.system = self.nixosConfigurations.brasos-installed.config.system.build.toplevel; brasos.installer.updateUrl = self.nixosConfigurations.brasos-installed.config.brasos.updates.url; } ];
         # test fixture: the same ISO, installing itself onto /dev/vda at boot (scripts/iso/test.sh)
-        brasos-iso-test = mk false [ ./nixos/iso.nix ./nixos/iso-test.nix dev-drm { brasos.installer.system = self.nixosConfigurations.brasos-installed.config.system.build.toplevel; } ];
+        brasos-iso-test = mk false [ ./nixos/iso.nix ./nixos/iso-test.nix dev-drm { brasos.installer.system = self.nixosConfigurations.brasos-installed.config.system.build.toplevel; brasos.installer.updateUrl = self.nixosConfigurations.brasos-installed.config.brasos.updates.url; } ];
       };
       packages.x86_64-linux.iso = self.nixosConfigurations.brasos-iso.config.system.build.isoImage;
       packages.x86_64-linux.iso-test = self.nixosConfigurations.brasos-iso-test.config.system.build.isoImage;

@@ -16,7 +16,7 @@ test("a fresh system needs setup; completing it stores the account safely", asyn
   expect(await state(h)).toEqual({ available: true, done: false });
   expect((await post(h, "/os/setup/complete", good)).status).toBe(200);
   const s = await state(h);
-  expect(s).toEqual({ available: true, done: true, user: { username: "maria", display: "Maria Souza" }, prefs, hasPin: false });
+  expect(s).toEqual({ available: true, done: true, user: { username: "maria", display: "Maria Souza" }, accounts: [{ username: "maria", display: "Maria Souza", hasPin: false }], prefs, hasPin: false });
   const raw = readFileSync(join(h.stateDir, "setup.json"), "utf8");
   expect(raw).not.toContain("correct horse"); // only an argon2 hash is stored
   expect(raw).toContain("$argon2id$");
@@ -149,3 +149,62 @@ test("five wrong PINs switch the PIN off until the password is used", async () =
   expect((await state(h)).hasPin).toBe(false);
   h.stop();
 });
+
+const login = (h: TestHost, username: string, secret: Record<string, string>) => post(h, "/os/login", { username, ...secret });
+const acct = (h: TestHost, op: string, body: unknown, from = "settings.localhost") => post(h, `/os/accounts/${op}`, { ownerPassword: good.password, ...(body as object) }, from);
+
+test("the owner adds, changes and removes accounts from Settings; the others sign in on the lock screen", async () => {
+  const h = await testHost();
+  await post(h, "/os/setup/complete", good);
+  const joao = { display: "João Lima", username: "joao", password: "another long pass 7" };
+  expect((await acct(h, "create", joao)).status).toBe(200);
+  expect((await acct(h, "create", joao)).status).toBe(409); // the name is taken
+  expect((await acct(h, "create", { ...joao, username: "ana", password: "short" })).status).toBe(400);
+  const list = await (await h.at("localhost", "/os/accounts", { headers: { origin: h.origin("settings.localhost") } })).json() as any;
+  expect(list.accounts).toEqual([{ username: "maria", display: "Maria Souza", owner: true, hasPin: false }, { username: "joao", display: "João Lima", owner: false, hasPin: false }]);
+  expect(JSON.stringify(list)).not.toContain("argon2");
+  expect((await state(h)).accounts.map((a: any) => a.username)).toEqual(["maria", "joao"]); // the lock screen offers both
+  // the new account signs in with its own password, and not with the owner's
+  const ok = await login(h, "joao", { password: joao.password });
+  expect(ok.status).toBe(200);
+  expect((await ok.json() as any).user).toEqual({ username: "joao", display: "João Lima" });
+  expect((await login(h, "joao", { password: good.password })).status).toBe(401);
+  // a new password replaces the old one; a new name shows up
+  expect((await acct(h, "update", { username: "joao", display: "João L.", newPassword: "brand new password 9" })).status).toBe(200);
+  expect((await login(h, "joao", { password: joao.password })).status).toBe(401);
+  expect((await login(h, "joao", { password: "brand new password 9" })).status).toBe(200);
+  expect((await state(h)).accounts[1].display).toBe("João L.");
+  // the owner is never deleted; another account can be, and then cannot sign in
+  expect((await acct(h, "delete", { username: "maria" })).status).toBe(409);
+  expect((await acct(h, "delete", { username: "nobody" })).status).toBe(404);
+  expect((await acct(h, "delete", { username: "joao" })).status).toBe(200);
+  expect((await login(h, "joao", { password: "brand new password 9" })).status).toBe(401);
+  const raw = readFileSync(join(h.stateDir, "setup.json"), "utf8");
+  expect(raw).not.toContain("brand new password");
+  const trail = JSON.stringify(h.events());
+  expect(trail).not.toContain("another long pass");
+  expect(trail).not.toContain("brand new password");
+  expect(h.events().some((e) => e.event === "accounts.create" && e.outcome !== "deny" && e.detail.username === "joao")).toBe(true);
+  h.stop();
+}, 60_000);
+
+test("account changes need the owner's password and the Settings app: nobody else gets in", async () => {
+  const h = await testHost();
+  await post(h, "/os/setup/complete", good);
+  const body = { display: "Eve", username: "eve", password: "evil long password 1" };
+  expect((await acct(h, "create", { ...body, ownerPassword: "not the password" })).status).toBe(401);
+  expect((await acct(h, "create", { ...body, ownerPassword: undefined })).status).toBe(401);
+  for (const from of ["about.localhost", "terminal.localhost", "localhost"]) expect((await acct(h, "create", body, from)).status).toBe(403); // apps and the shell hold no accounts.manage
+  expect((await h.at("localhost", "/os/accounts", { headers: { origin: "http://evil.example" } })).status).toBe(403);
+  expect((await state(h)).accounts.length).toBe(1);
+  expect(h.events().some((e) => e.event === "accounts.create" && e.outcome === "deny")).toBe(true);
+  h.stop();
+}, 60_000);
+
+test("the hardened package refuses account management outright", async () => {
+  const h = await testHost({ packages: ["hardened"] });
+  await post(h, "/os/setup/complete", good);
+  expect((await acct(h, "create", { display: "Eve", username: "eve", password: "evil long password 1" })).status).toBeGreaterThanOrEqual(400);
+  expect((await h.at("localhost", "/os/accounts", { headers: { origin: h.origin("settings.localhost") } })).status).toBeGreaterThanOrEqual(400);
+  h.stop();
+}, 60_000);

@@ -30,14 +30,18 @@ let
     }
     EOF
   '';
-  lsblk = "${pkgs.util-linux}/bin/lsblk -J -b -o PATH,SIZE,MODEL,TYPE,RM,ROTA,FSTYPE,LABEL,PARTTYPENAME,MOUNTPOINTS";
+  lsblk = "${pkgs.util-linux}/bin/lsblk -J -b -o NAME,PATH,SIZE,MODEL,TYPE,RM,ROTA,FSTYPE,LABEL,PARTTYPENAME,MOUNTPOINTS";
   install = pkgs.writeShellScriptBin "brasos-install" ''
     set -euo pipefail
     [ "$(id -u)" = 0 ] || exec sudo "$0" "$@"
-    export PATH=${lib.makeBinPath (with pkgs; [ parted dosfstools e2fsprogs util-linux coreutils gnugrep systemd config.nix.package config.system.build.nixos-install ])}:$PATH
-    yes=0; swap=0 # --yes: the installer app asks the person itself; --swap GB: a swap partition of that size
-    while [ "''${1:-}" = --yes ] || [ "''${1:-}" = --swap ]; do
-      if [ "$1" = --yes ]; then yes=1; shift; else swap=''${2:?--swap needs a size in GB}; shift 2; fi
+    export PATH=${lib.makeBinPath (with pkgs; [ parted dosfstools e2fsprogs util-linux coreutils gnugrep systemd curl jq config.nix.package config.system.build.nixos-install ])}:$PATH
+    yes=0; swap=0; latest=0 # --yes: the installer app asks the person itself; --swap GB: a swap partition of that size; --latest: the newest build, from the network
+    while [ "''${1:-}" = --yes ] || [ "''${1:-}" = --swap ] || [ "''${1:-}" = --latest ]; do
+      case $1 in
+        --yes) yes=1; shift;;
+        --latest) latest=1; shift;;
+        *) swap=''${2:?--swap needs a size in GB}; shift 2;;
+      esac
     done
     case $swap in (*[!0-9]*|"") echo "--swap takes whole GB"; exit 1;; esac
     disk=''${1:-}
@@ -67,7 +71,17 @@ let
     mkdir -p /mnt/boot && mount /dev/disk/by-partlabel/brasos-esp /mnt/boot
     echo "@total $(nix-store -qR ${cfg.system} | wc -l)"
     echo "@phase 2"
-    nixos-install --system ${cfg.system} --no-root-passwd --no-channel-copy --option substituters ""
+    done_=0
+    if [ $latest = 1 ] && [ -n "${cfg.updateUrl}" ]; then
+      # the newest build, named by the update manifest (a plain https flake reference, as in brasos-update); on any failure the bundled one is installed
+      echo "installing the latest build from the network"
+      export NIX_CONFIG="experimental-features = nix-command flakes"
+      if m=$(curl -fsS --max-time 20 --max-filesize 65536 --proto '=https' ${lib.escapeShellArg cfg.updateUrl})         && ref=$(jq -er 'select(.flake | test("^https://[A-Za-z0-9._~:/?#=&%+-]{1,400}$")) | .flake' <<<"$m")         && nixos-install --flake "$ref#brasos-installed" --no-root-passwd --no-channel-copy; then done_=1
+      else echo "the latest build could not be installed: using the one on this stick"; fi
+    fi
+    if [ $done_ = 0 ]; then
+      nixos-install --system ${cfg.system} --no-root-passwd --no-channel-copy --option substituters ""
+    fi
     echo "@phase 4"
     umount -R /mnt
     echo "BRASOS INSTALLED: remove the stick and reboot"
@@ -82,6 +96,11 @@ in {
   options.brasos.installer.system = lib.mkOption {
     type = lib.types.package;
     description = "The system `brasos-install` puts on the disk (the flake's brasos-installed).";
+  };
+  options.brasos.installer.updateUrl = lib.mkOption {
+    type = lib.types.str;
+    default = "";
+    description = "HTTPS URL of the update manifest; when set, the installer can offer the newest build over the network.";
   };
   config = {
     isoImage = {
@@ -101,6 +120,11 @@ in {
     systemd.services.brasos-shell-safe.environment.BRASOS_INSTALLER_LSBLK = lsblk;
     systemd.services.brasos-shell.environment.BRASOS_INSTALLER_CMD = "/run/wrappers/bin/sudo ${install}/bin/brasos-install";
     systemd.services.brasos-shell-safe.environment.BRASOS_INSTALLER_CMD = "/run/wrappers/bin/sudo ${install}/bin/brasos-install";
+    # the installer's network screen (Wi-Fi) and the "latest build" question: the program and the manifest are named here, never by a page
+    systemd.services.brasos-shell.environment.BRASOS_INSTALLER_NMCLI = "${pkgs.networkmanager}/bin/nmcli";
+    systemd.services.brasos-shell-safe.environment.BRASOS_INSTALLER_NMCLI = "${pkgs.networkmanager}/bin/nmcli";
+    systemd.services.brasos-shell.environment.BRASOS_INSTALLER_LATEST_URL = cfg.updateUrl;
+    systemd.services.brasos-shell-safe.environment.BRASOS_INSTALLER_LATEST_URL = cfg.updateUrl;
     boot.supportedFilesystems = [ "ext4" "vfat" "btrfs" ];
     hardware.enableRedistributableFirmware = true; # Wi-Fi and GPU firmware
     networking.networkmanager.enable = lib.mkDefault true;

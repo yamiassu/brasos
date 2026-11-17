@@ -5,6 +5,7 @@ import { Button, Icon, SelectField, defaultTheme, themePresets, themeVars, valid
 import "@brasos/ui/ui.css";
 import "./settings.css";
 import { useSystem } from "./data";
+import { AccountsPage } from "./accounts";
 
 const PAGES = [
   { id: "system", name: "System", icon: "chip" },
@@ -14,6 +15,7 @@ const PAGES = [
   { id: "network", name: "Network", icon: "network" },
   { id: "devices", name: "Devices", icon: "plug" },
   { id: "drivers", name: "Drivers", icon: "dev" },
+  { id: "accounts", name: "Accounts", icon: "user" },
   { id: "updates", name: "Updates", icon: "reload" },
 ] as const;
 type PageId = (typeof PAGES)[number]["id"];
@@ -243,6 +245,7 @@ function Settings() {
         {page === "theme" && <ThemePage />}
 
         {page === "updates" && <UpdatesPage />}
+        {page === "accounts" && <AccountsPage />}
 
         {page === "drivers" && (
           <>

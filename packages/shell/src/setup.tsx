@@ -184,7 +184,7 @@ export function Setup({ onSubmit }: { onSubmit(form: SetupForm): Promise<string 
 }
 
 /** the lock screen: the time, the account's name and a password. It locks the screen; it is not access control to the machine. */
-export function Login({ display, hasPin, onSubmit }: { display: string; hasPin?: boolean; onSubmit(secret: string, kind: "password" | "pin"): Promise<string | void> }) {
+export function Login({ display, hasPin, others, onSwitch, onSubmit }: { display: string; hasPin?: boolean; others?: { username: string; display: string }[]; onSwitch?(username: string): void; onSubmit(secret: string, kind: "password" | "pin"): Promise<string | void> }) {
   const [usePin, setUsePin] = useState(!!hasPin);
   const [pw, setPw] = useState("");
   const [show, setShow] = useState(false);
@@ -225,6 +225,11 @@ export function Login({ display, hasPin, onSubmit }: { display: string; hasPin?:
         {error && <p role="alert" className="setup-error">{error}</p>}
         <Button variant="primary" type="submit" disabled={busy || !pw}>{busy ? "Unlocking…" : "Unlock"}</Button>
         {hasPin && <button type="button" className="eye" onClick={() => (setUsePin(!usePin), setPw(""), setError(""))}>{usePin ? "Use the password instead" : "Use the PIN instead"}</button>}
+        {!!others?.length && (
+          <div className="field-row" role="group" aria-label="Other accounts" style={{ flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
+            {others.map((o) => <button key={o.username} type="button" className="eye" onClick={() => onSwitch?.(o.username)}>{o.display}</button>)}
+          </div>
+        )}
         <p className="setup-note">This locks the screen. It does not encrypt the disk.</p>
       </form>
     </div>

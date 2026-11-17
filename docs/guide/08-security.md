@@ -25,7 +25,7 @@ The dev image is for building BrasOS. Never put anything real on it.
 
 ## The first account
 
-On first start the installer creates one account: a name, a username, and a password stored only as an argon2id hash in the state folder (readable only by the service). The password locks the shell; it is not access control, because every program on the machine can reach the local server. Wrong passwords are audited and rate-limited (five a minute). The hardened image keeps the installer and the lock screen, since a machine still needs its first account.
+On first start the installer creates one account: a name, a username, and a password stored only as an argon2id hash in the state folder (readable only by the service). The password locks the shell; it is not access control, because every program on the machine can reach the local server. Wrong passwords are audited and rate-limited (five a minute). The hardened image keeps the installer and the lock screen, since a machine still needs its first account. The owner can add more accounts in Settings (dev profile only: the capability is denied in the hardened image); they are lock-screen profiles sharing one home folder, with no isolation between them.
 
 ## Files and the web
 

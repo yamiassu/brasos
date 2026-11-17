@@ -29,6 +29,37 @@ export function parseDisks(out: string): Disk[] {
     }));
 }
 
+export type Wifi = { ssid: string; signal: number; secure: boolean; active: boolean };
+/** one line of `nmcli -t`: fields split on colons, `\:` and `\\` being literal */
+export const splitTerse = (line: string): string[] => {
+  const out: string[] = [];
+  let cur = "";
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === "\\" && i + 1 < line.length) cur += line[++i];
+    else if (line[i] === ":") (out.push(cur), (cur = ""));
+    else cur += line[i];
+  }
+  return [...out, cur];
+};
+/** `nmcli -t -f ACTIVE,SSID,SIGNAL,SECURITY dev wifi list`: strongest entry per network name, the connected one first */
+export function parseWifi(out: string): Wifi[] {
+  const best = new Map<string, Wifi>();
+  for (const l of out.split(/\r?\n/)) {
+    const [active, ssid, signal, security] = splitTerse(l);
+    if (!ssid) continue;
+    const w = { ssid, signal: Number(signal) || 0, secure: !!security && security !== "--", active: active === "yes" };
+    const o = best.get(ssid);
+    if (!o || w.active || (!o.active && w.signal > o.signal)) best.set(ssid, w);
+  }
+  return [...best.values()].sort((a, b) => +b.active - +a.active || b.signal - a.signal);
+}
+/** `nmcli -t -f TYPE,STATE dev`: is any real network device connected (not loopback)? */
+export const parseConnected = (out: string) => out.split(/\r?\n/).some((l) => { const [t, s] = splitTerse(l); return !!t && t !== "loopback" && s === "connected"; });
+/** a network name (1–32 bytes, no control characters, never an option) and a Wi-Fi password (empty, 8–63 characters or 64 hex digits) */
+export const validWifi = (ssid: unknown, pass: unknown) =>
+  typeof ssid === "string" && typeof pass === "string" && ssid.length > 0 && new TextEncoder().encode(ssid).length <= 32 && !ssid.startsWith("-") && !/[\x00-\x1f\x7f]/.test(ssid) &&
+  !/[\x00-\x1f\x7f]/.test(pass) && (pass === "" || (pass.length >= 8 && pass.length <= 63) || /^[0-9a-fA-F]{64}$/.test(pass));
+
 type Job = { state: "idle" | "running" | "done" | "failed"; disk: string; log: string; phase: number; percent: number };
 const MAX_LOG = 20_000;
 
@@ -56,10 +87,23 @@ export const createSlice = ({ audit }: { audit: AuditFn }): Slice => {
       return null;
     }
   };
-  const run = (disk: string, swapGB: number) => {
+  // the image names nmcli and the update manifest; a page supplies only a network name and its password
+  const nmcli = () => (process.env.BRASOS_INSTALLER_NMCLI ?? "").split(" ").filter(Boolean);
+  const text = async (argv: string[]) => { const p = Bun.spawn(argv, { stdout: "pipe", stderr: "ignore", stdin: "ignore" }); const t = await new Response(p.stdout).text(); await p.exited; return p.exitCode === 0 ? t : ""; };
+  const latest = async () => {
+    const url = process.env.BRASOS_INSTALLER_LATEST_URL ?? "";
+    if (!url) return null;
+    try {
+      const m = (await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json()) as { version?: unknown; notes?: unknown };
+      return typeof m.version === "string" ? { version: m.version.slice(0, 80), notes: typeof m.notes === "string" ? m.notes.slice(0, 300) : "" } : null;
+    } catch {
+      return null;
+    }
+  };
+  const run = (disk: string, swapGB: number, wantLatest: boolean) => {
     Object.assign(job, { state: "running", disk, log: "", phase: 0, percent: 0 });
-    audit("installer.start", "info", { app: "installer" }, { disk, swapGB });
-    const p = Bun.spawn([...cmd(), "--yes", ...(swapGB ? ["--swap", String(swapGB)] : []), disk], { stdout: "pipe", stderr: "pipe", stdin: "ignore" });
+    audit("installer.start", "info", { app: "installer" }, { disk, swapGB, latest: wantLatest });
+    const p = Bun.spawn([...cmd(), "--yes", ...(swapGB ? ["--swap", String(swapGB)] : []), ...(wantLatest ? ["--latest"] : []), disk], { stdout: "pipe", stderr: "pipe", stdin: "ignore" });
     const st = { phase: 0, total: 0, copied: 0 };
     const pump = async (s: ReadableStream<Uint8Array>) => {
       let rest = "";
@@ -82,7 +126,7 @@ export const createSlice = ({ audit }: { audit: AuditFn }): Slice => {
     async handle(req, ctx) {
       if (ctx.target.kind !== "app" || ctx.target.id !== "installer") return;
       const p = ctx.url.pathname;
-      if (!["/disks", "/status", "/install", "/reboot"].includes(p)) return;
+      if (!["/disks", "/status", "/install", "/reboot", "/network", "/network/connect"].includes(p)) return;
       // a same-origin GET carries no Origin header (the gate identifies it by Sec-Fetch-Site), so sameOrigin is for the POSTs
       const g = ctx.gate("installer.run", { sameOrigin: req.method !== "GET" });
       if (!g.ok) return g.res;
@@ -92,6 +136,24 @@ export const createSlice = ({ audit }: { audit: AuditFn }): Slice => {
         return d ? json({ disks: d }) : json({ error: "this system could not list its disks (lsblk is not available)" }, 500);
       }
       if (p === "/status" && req.method === "GET") return json(job);
+      if (p === "/network" && req.method === "GET") {
+        if (!nmcli().length) return json({ available: false, connected: false, wifi: [], latest: null });
+        const connected = parseConnected(await text([...nmcli(), "-t", "-f", "TYPE,STATE", "dev"]));
+        const wifi = parseWifi(await text([...nmcli(), "-t", "-f", "ACTIVE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list"]));
+        return json({ available: true, connected, wifi, latest: connected ? await latest() : null });
+      }
+      if (p === "/network/connect" && req.method === "POST") {
+        const body = (await req.json().catch(() => null)) as { ssid?: unknown; password?: unknown } | null;
+        const password = body?.password === undefined ? "" : body.password;
+        if (!nmcli().length) return json({ error: "this system cannot manage networks" }, 501);
+        if (!validWifi(body?.ssid, password)) return json({ error: "that network name or password is not valid (a password is 8 to 63 characters)" }, 400);
+        // the password goes on nmcli's command line for the few seconds it takes: this is the live install image, one user, never the installed system
+        const c = Bun.spawn([...nmcli(), "--wait", "30", "dev", "wifi", "connect", body!.ssid as string, ...(password ? ["password", password as string] : [])], { stdout: "pipe", stderr: "pipe", stdin: "ignore" });
+        const [out, err] = await Promise.all([new Response(c.stdout).text(), new Response(c.stderr).text(), c.exited]);
+        audit("installer.network", c.exitCode === 0 ? "info" : "warn", { app: "installer" }, { ok: c.exitCode === 0 }); // never the name or the password
+        if (c.exitCode === 0) return json({ ok: true });
+        return json({ error: (err || out).split((password as string) || "\u0000").join("…").trim().split("\n")[0].slice(0, 200) || "could not connect" }, 400);
+      }
       if (p === "/reboot" && req.method === "POST") {
         if (job.state !== "done") return json({ error: "nothing was installed" }, 409);
         audit("installer.reboot", "info", { app: "installer" });
@@ -101,13 +163,13 @@ export const createSlice = ({ audit }: { audit: AuditFn }): Slice => {
       }
       if (p === "/install" && req.method === "POST") {
         if (job.state === "running") return json({ error: "an install is already running" }, 409);
-        const body = (await req.json().catch(() => null)) as { disk?: unknown; swapGB?: unknown } | null;
+        const body = (await req.json().catch(() => null)) as { disk?: unknown; swapGB?: unknown; latest?: unknown } | null;
         const disk = typeof body?.disk === "string" ? body.disk : "";
         const swap = body?.swapGB === undefined ? 0 : body.swapGB;
         if (!Number.isInteger(swap) || (swap as number) < 0 || (swap as number) > 64) return json({ error: "swap: whole GB, 0 to 64" }, 400);
         // only a disk that is listed now (whole, unmounted) can be erased, whatever the page sent
         if (!DISK.test(disk) || !(await disks())?.some((d) => d.path === disk)) return json({ error: "not an installable disk" }, 400);
-        run(disk, swap as number);
+        run(disk, swap as number, body?.latest === true);
         return json(job, 202);
       }
       return json({ error: "method not allowed" }, 405);

@@ -15,7 +15,7 @@ const post = (path: string, body: unknown) =>
   fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 const getJson = (path: string) => fetch(path).then((r) => r.json());
 
-export function Shell({ prefs, user, onLock, hasPin, onPinChanged, windowVars }: { prefs?: { timezone: string; clock24: boolean; palette: string }; windowVars?: Record<string, string>; user?: { display: string }; onLock?: () => void; hasPin?: boolean; onPinChanged?: () => void }) {
+export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, windowVars }: { prefs?: { timezone: string; clock24: boolean; palette: string }; windowVars?: Record<string, string>; user?: { display: string }; username?: string; onLock?: () => void; hasPin?: boolean; onPinChanged?: () => void }) {
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [wins, setWins] = useState<Win[]>([]);
@@ -30,7 +30,7 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged, windowVars }:
     if (!pinDlg) return;
     if (!remove && pinDlg.pin !== pinDlg.again) return setPinDlg({ ...pinDlg, error: "The two PINs are not the same" });
     setPinDlg({ ...pinDlg, busy: true, error: "" });
-    const r = await post("/os/pin", { password: pinDlg.password, pin: remove ? null : pinDlg.pin });
+    const r = await post("/os/pin", { username, password: pinDlg.password, pin: remove ? null : pinDlg.pin });
     if (!r.ok) {
       const error = r.status === 401 ? "Wrong password" : (await r.json().catch(() => ({}))).error ?? "Could not save the PIN";
       return setPinDlg((d) => d && { ...d, busy: false, password: "", error });

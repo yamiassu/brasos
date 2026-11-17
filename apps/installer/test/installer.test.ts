@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { testHost, type TestHost } from "../../../packages/host/src/testing";
-import { parseDisks, progress } from "../server";
+import { parseConnected, parseDisks, parseWifi, progress, splitTerse, validWifi } from "../server";
 
 const lsblk = (devs: unknown[]) => JSON.stringify({ blockdevices: devs });
 const tmp = mkdtempSync(join(tmpdir(), "brasos-inst-"));
@@ -113,5 +113,46 @@ test("a missing lsblk is an answer the page can show, not a crash", async () => 
     expect((await call(h, "installer", "/install", { method: "POST", body: JSON.stringify({ disk: "/dev/vdb" }) })).status).toBe(400); // nothing is installable when nothing is listed
   } finally {
     [process.env.BRASOS_INSTALLER_CMD, process.env.BRASOS_INSTALLER_LSBLK] = keep as [string, string];
+  }
+});
+
+test("nmcli's terse output: escaped colons, the strongest entry per network, the connected one first", () => {
+  expect(splitTerse("yes:Caf\\:e:70:WPA2")).toEqual(["yes", "Caf:e", "70", "WPA2"]);
+  const w = parseWifi("no:Home:40:WPA2\nno:Home:80:WPA2\nyes:Office:30:--\nno::1:WPA2\n");
+  expect(w).toEqual([{ ssid: "Office", signal: 30, secure: false, active: true }, { ssid: "Home", signal: 80, secure: true, active: false }]);
+  expect(parseConnected("loopback:connected\nethernet:unavailable")).toBe(false);
+  expect(parseConnected("wifi:connected\nloopback:connected")).toBe(true);
+});
+
+test("only a plausible network name and password are ever handed to nmcli", () => {
+  expect(validWifi("Home", "")).toBe(true);
+  expect(validWifi("Home", "12345678")).toBe(true);
+  expect(validWifi("Home", "short")).toBe(false);
+  expect(validWifi("-o", "")).toBe(false);
+  expect(validWifi("a\nb", "")).toBe(false);
+  expect(validWifi("x".repeat(33), "")).toBe(false);
+  expect(validWifi("", "")).toBe(false);
+  expect(validWifi("Home", 7)).toBe(false);
+});
+
+test("the network routes are the installer's alone, connect validates first, and the password never reaches the audit trail", async () => {
+  expect((await call(h, "about", "/network")).status).toBe(403);
+  expect((await call(h, "terminal", "/network/connect", { method: "POST", body: "{}" })).status).toBe(403);
+  expect((await call(hardened, "installer", "/network")).status).not.toBe(200);
+  const keep = [process.env.BRASOS_INSTALLER_CMD, process.env.BRASOS_INSTALLER_NMCLI];
+  process.env.BRASOS_INSTALLER_CMD = script("fake-install3.js", "console.log('x');");
+  process.env.BRASOS_INSTALLER_NMCLI = script("fake-nmcli.js", `const a = process.argv.slice(2); if (a.includes("connect")) { console.error("Error: bad secret " + a[a.indexOf("password") + 1]); process.exit(4); } else if (a.includes("wifi")) console.log("no:Home:80:WPA2"); else console.log("wifi:connected");`);
+  try {
+    const n = await (await call(h, "installer", "/network")).json();
+    expect(n).toEqual({ available: true, connected: true, wifi: [{ ssid: "Home", signal: 80, secure: true, active: false }], latest: null });
+    expect((await call(h, "installer", "/network/connect", { method: "POST", body: JSON.stringify({ ssid: "-bad", password: "" }) })).status).toBe(400);
+    const r = await call(h, "installer", "/network/connect", { method: "POST", body: JSON.stringify({ ssid: "Home", password: "hunter2hunter2" }) });
+    expect(r.status).toBe(400);
+    expect(JSON.stringify(await r.json())).not.toContain("hunter2hunter2"); // an error from the tool is shown, minus the password
+    await Bun.sleep(100);
+    expect(JSON.stringify(h.events())).not.toContain("hunter2hunter2");
+    expect(JSON.stringify(h.events())).not.toContain("Home");
+  } finally {
+    [process.env.BRASOS_INSTALLER_CMD, process.env.BRASOS_INSTALLER_NMCLI] = keep as [string, string];
   }
 });

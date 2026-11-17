@@ -16,6 +16,8 @@ The first time BrasOS starts, a short setup runs instead of the desktop:
 
 After that the screen is locked with your password when you press the lock button in the tray, and BrasOS asks for it again in a new session. The password locks the screen; it does not encrypt the disk or stop other programs on the machine. The accent, clock and time zone take effect immediately; the keyboard layout, system time zone and device name are recorded for the system to apply. For a fleet of machines, an administrator can provision the account ahead of time (see the setup package's README) so nobody sees the installer.
 
+**More accounts.** The account you made is the owner. In **Settings → Accounts** the owner can add accounts for other people, rename them, set a new password and remove them (each change asks for your password again). Everyone then picks their account on the lock screen and has their own password and optional PIN. These are lock-screen profiles, not separate computer users: all accounts see the same files and apps.
+
 ## The taskbar
 
 The **taskbar** along the bottom works like the one you know:
