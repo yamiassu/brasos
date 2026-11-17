@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { os, type FsEntry } from "@brasos/sdk";
-import { Breadcrumb, Button, Dialog, Icon, IconButton, IconTile, List, Menu, TextField, Toolbar, type MenuItem } from "@brasos/ui";
+import { Breadcrumb, Button, Dialog, Icon, IconButton, IconTile, List, Menu, TextField, Toolbar, useMarquee, type MenuItem } from "@brasos/ui";
 import "@brasos/ui/ui.css";
 import "./files.css";
 import { baseName, formatSize, iconFor, imageMime, isImage, isText, join, parent, sortEntries, startFromHash, validName, type SortKey } from "./paths";
@@ -14,7 +14,7 @@ const PLACES = [
 ];
 
 type Preview = { name: string; kind: "text" | "image" | "none"; content?: string; note?: string };
-type Ask = { title: string; label: string; initial: string; confirm: string; onSubmit(name: string): Promise<unknown> } | { title: string; confirmDelete: FsEntry };
+type Ask = { title: string; label: string; initial: string; confirm: string; onSubmit(name: string): Promise<unknown> } | { title: string; confirmDelete: FsEntry[] };
 
 function Files() {
   const start = startFromHash(location.hash);
@@ -25,6 +25,7 @@ function Files() {
   const [filter, setFilter] = useState("");
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [selected, setSelected] = useState<FsEntry | null>(null);
+  const [multi, setMulti] = useState<string[]>([]); // names picked with a selection box (two or more); `selected` is then empty
   const [wantSelect, setWantSelect] = useState(start.select);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [editing, setEditing] = useState<string | null>(null); // draft text while editing
@@ -41,6 +42,7 @@ function Files() {
       if (ticket !== loaded.current) return;
       setEntries(list);
       setSelected(list.find((e) => e.name === select) ?? null);
+      setMulti([]);
       setStatus(`${list.length} item${list.length === 1 ? "" : "s"}`);
     } catch (e) {
       fail(e);
@@ -93,15 +95,20 @@ function Files() {
     return () => void (cancelled = true);
   }, [selected?.name, selected?.mtime, dir]);
 
-  const open = (e: FsEntry) => (e.kind === "dir" ? go(join(dir, e.name)) : setSelected(e));
+  const open = (e: FsEntry) => (e.kind === "dir" ? go(join(dir, e.name)) : pick(e));
   const after = (path = dir, select?: string) => load(path, select);
 
   const newFolder = () => setAsk({ title: "New folder", label: "Name", initial: "", confirm: "Create", onSubmit: async (n) => (await os.fs.mkdir(join(dir, n)), after(dir, n)) });
   const newFile = () => setAsk({ title: "New file", label: "Name", initial: "untitled.txt", confirm: "Create", onSubmit: async (n) => (await os.fs.write(join(dir, n), ""), after(dir, n)) });
   const renameOf = (t: FsEntry) => setAsk({ title: "Rename", label: "New name", initial: t.name, confirm: "Rename", onSubmit: async (n) => (await os.fs.move(join(dir, t.name), join(dir, n)), after(dir, n)) });
-  const removeOf = (t: FsEntry) => setAsk({ title: "Move to trash?", confirmDelete: t });
+  const removeOf = (t: FsEntry[]) => setAsk({ title: "Move to trash?", confirmDelete: t });
   const rename = () => selected && renameOf(selected);
-  const remove = () => selected && removeOf(selected);
+  const remove = () => (selected ? removeOf([selected]) : multi.length && removeOf(entries.filter((e) => multi.includes(e.name))));
+  const pick = (e: FsEntry | null) => (setMulti([]), setSelected(e));
+  const marquee = useMarquee(
+    (keys) => (keys.length === 1 ? (setMulti([]), setSelected(entries.find((e) => e.name === keys[0]) ?? null)) : (setSelected(null), setMulti(keys))),
+    () => (setSelected(null), setMulti([])),
+  );
 
   // right click: on an item it offers what you can do with it, on empty space what you can do in this folder
   const [menu, setMenu] = useState<{ x: number; y: number; target: FsEntry | null } | null>(null);
@@ -110,7 +117,7 @@ function Files() {
     const el = e.target as HTMLElement;
     const name = el.closest(".ui-item")?.querySelector(".name")?.textContent ?? el.closest(".ui-tile")?.getAttribute("aria-label");
     const target = entries.find((x) => x.name === name) ?? null;
-    if (target) setSelected(target);
+    if (target && !multi.includes(target.name)) pick(target);
     setMenu({ x: e.clientX, y: e.clientY, target });
   };
   const menuItems = (t: FsEntry | null): MenuItem[] =>
@@ -119,7 +126,7 @@ function Files() {
           ...(t.kind === "dir" ? [{ label: "Open", onSelect: () => open(t) }] : []),
           { label: "Rename", onSelect: () => renameOf(t) },
           { label: "Copy path", onSelect: () => void navigator.clipboard?.writeText(join(dir, t.name)).then(() => setStatus("Path copied"), () => setStatus("Couldn't copy the path")) },
-          { label: "Move to trash", danger: true, onSelect: () => removeOf(t) },
+          { label: multi.length > 1 && multi.includes(t.name) ? `Move ${multi.length} items to trash` : "Move to trash", danger: true, onSelect: () => (multi.length > 1 && multi.includes(t.name) ? remove() : removeOf([t])) },
         ]
       : [
           { label: "New folder", onSelect: newFolder },
@@ -168,10 +175,10 @@ function Files() {
           <Button onClick={newFolder}>New folder</Button>
           <Button onClick={newFile}>New file</Button>
           <Button disabled={!selected} onClick={rename}>Rename</Button>
-          <Button variant="danger" disabled={!selected} onClick={remove}>Delete</Button>
+          <Button variant="danger" disabled={!selected && multi.length < 2} onClick={remove}>Delete</Button>
         </nav>
 
-        <div className="browse" onContextMenu={onContext}>
+        <div className="browse" onContextMenu={onContext} onPointerDown={marquee.onPointerDown}>
           {view === "list" ? (
             <>
               <div className="cols" role="group" aria-label="Sort by">
@@ -183,8 +190,9 @@ function Files() {
                 label={`Contents of ${dir}`}
                 items={shown}
                 selected={selected}
+                marked={multi}
                 getKey={(e) => e.name}
-                onSelect={setSelected}
+                onSelect={pick}
                 onOpen={open}
                 render={(e) => (
                   <>
@@ -199,7 +207,7 @@ function Files() {
             </>
           ) : (
             <div className="grid" role="group" aria-label={`Contents of ${dir}`}>
-              {shown.map((e) => <IconTile key={e.name} icon={iconFor(e)} label={e.name} selected={selected?.name === e.name} onSelect={() => setSelected(e)} onOpen={() => open(e)} />)}
+              {shown.map((e) => <IconTile key={e.name} icon={iconFor(e)} label={e.name} itemKey={e.name} selected={selected?.name === e.name || multi.includes(e.name)} onSelect={() => pick(e)} onOpen={() => open(e)} />)}
             </div>
           )}
           {!shown.length && <p className="empty">{filter ? "Nothing matches that filter." : "This folder is empty."}</p>}
@@ -229,6 +237,7 @@ function Files() {
         )}
       </div>
       <div className="status" role="status">{status}</div>
+      {marquee.box}
       {menu && <Menu items={menuItems(menu.target)} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
 
       {ask && "confirmDelete" in ask && (
@@ -238,11 +247,11 @@ function Files() {
           actions={
             <>
               <Button onClick={() => setAsk(null)}>Cancel</Button>
-              <Button variant="danger" autoFocus onClick={() => (setAsk(null), os.fs.remove(join(dir, ask.confirmDelete.name)).then(() => after()).catch(fail))}>Move to trash</Button>
+              <Button variant="danger" autoFocus onClick={() => (setAsk(null), Promise.all(ask.confirmDelete.map((t) => os.fs.remove(join(dir, t.name)))).then(() => after()).catch((e) => (fail(e), after())))}>Move to trash</Button>
             </>
           }
         >
-          <p>{ask.confirmDelete.name} will go to the trash.</p>
+          <p>{ask.confirmDelete.length === 1 ? ask.confirmDelete[0].name : `${ask.confirmDelete.length} items`} will go to the trash.</p>
         </Dialog>
       )}
       {ask && "onSubmit" in ask && <NameDialog ask={ask} onClose={() => setAsk(null)} onError={fail} />}

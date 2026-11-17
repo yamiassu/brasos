@@ -113,7 +113,7 @@ function newTab() {
   });
 
   // Copy: Ctrl+C copies when something is selected (otherwise it is the usual interrupt), Ctrl+Shift+C always copies.
-  // Paste is the browser's own Ctrl+V or Ctrl+Shift+V. Ctrl+click, or Ctrl+right-click, on a web address (or on a selected one) opens it in the browser app.
+  // Paste is the browser's own Ctrl+V or Ctrl+Shift+V (the key handler below lets it through). Ctrl+click, or Ctrl+right-click, on a web address (or on a selected one) opens it in the browser app.
   const copy = () => {
     const text = term.getSelection();
     if (!text) return false;
@@ -146,6 +146,8 @@ function newTab() {
   // Ctrl+Shift+T new tab, Ctrl+Shift+W close it, Ctrl+Shift+Left/Right switch. Plain Ctrl keys stay with the shell program.
   term.attachCustomKeyEventHandler((e) => {
     if (e.type === "keydown" && e.ctrlKey && !e.altKey && e.code === "KeyC" && (e.shiftKey || term.hasSelection())) return !copy(); // handled: not sent to the program
+    // Paste: leave Ctrl+V / Ctrl+Shift+V to the browser (xterm would otherwise take the key as ^V and cancel the paste event)
+    if (e.ctrlKey && !e.altKey && e.code === "KeyV") return false;
     if (e.type !== "keydown" || !e.ctrlKey || !e.shiftKey) return true;
     const run = { KeyT: newTab, KeyW: () => closeTab(t), ArrowLeft: () => step(-1), ArrowRight: () => step(1) }[e.code];
     if (!run) return true;

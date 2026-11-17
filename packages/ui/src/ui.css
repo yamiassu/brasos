@@ -193,3 +193,6 @@ button.ui-tray-item:hover { background: var(--hover); color: var(--text); }
 .ui-start-foot { display: flex; align-items: center; gap: 4px; padding: 10px 14px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 40%, transparent); }
 .ui-start-foot .who { display: flex; align-items: center; gap: 10px; margin-right: auto; color: var(--muted); }
 .ui-mark { flex: none; display: block; }
+
+/* the box drawn while dragging a selection */
+.ui-marquee { position: fixed; z-index: 2000; pointer-events: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 2px; }

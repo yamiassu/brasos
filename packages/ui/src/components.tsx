@@ -1,7 +1,7 @@
 // @brasos/ui: the basic components for building an OS interface. Plain React, no runtime dependencies, styled by ui.css tokens.
 // Accessibility is part of each component (roles, labels, keyboard), not an extra.
 import {
-  type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type Ref,
+  type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref,
   useEffect, useLayoutEffect, useRef, useState,
 } from "react";
 
@@ -66,9 +66,11 @@ export function Breadcrumb({ path, onNavigate, rootName }: { path: string; onNav
  * A keyboard-navigable list: Up/Down/Home/End move the selection, Enter opens, double-click opens. One tab stop (the list).
  * Items are rendered by `render`; `selected` is controlled by the parent.
  */
-export function List<T>({ items, selected, onSelect, onOpen, render, getKey, label, style }: {
+export function List<T>({ items, selected, marked, onSelect, onOpen, render, getKey, label, style }: {
   items: T[];
   selected: T | null;
+  /** more keys shown as selected (a multiple selection); `selected` stays the one the keyboard moves from */
+  marked?: string[];
   onSelect(item: T): void;
   onOpen?(item: T): void;
   render(item: T): ReactNode;
@@ -96,7 +98,8 @@ export function List<T>({ items, selected, onSelect, onOpen, render, getKey, lab
         <div
           key={getKey(item)}
           role="option"
-          aria-selected={!!selected && getKey(item) === getKey(selected)}
+          aria-selected={(!!selected && getKey(item) === getKey(selected)) || !!marked?.includes(getKey(item))}
+          data-key={getKey(item)}
           className="ui-item"
           onClick={() => onSelect(item)}
           onDoubleClick={() => onOpen?.(item)}
@@ -109,11 +112,12 @@ export function List<T>({ items, selected, onSelect, onOpen, render, getKey, lab
 }
 
 /** A glyph with a label: desktop icons and file grids. A button, so it is focusable; Enter or double-click opens. */
-export function IconTile({ icon, label, selected, onSelect, onOpen }: { icon: ReactNode; label: string; selected?: boolean; onSelect?(): void; onOpen?(): void }) {
+export function IconTile({ icon, label, selected, itemKey, onSelect, onOpen }: { icon: ReactNode; label: string; selected?: boolean; /** what a box selection reports for this tile */ itemKey?: string; onSelect?(e: ReactMouseEvent): void; onOpen?(): void }) {
   return (
     <button
       type="button"
       className="ui-tile"
+      data-key={itemKey}
       aria-selected={!!selected}
       aria-label={label}
       onClick={onSelect}
@@ -294,4 +298,41 @@ export function BrandMark({ size = 32 }: { size?: number }) {
       <path d="M43 48h8a16 16 0 0 1 0 32h-8z" fill="url(#brasos-mark-flow)" />
     </svg>
   );
+}
+
+/**
+ * Box selection: press on empty space and drag; every element with a `data-key` the box touches is reported (`onChange(keys)`),
+ * and a press that doesn't drag reports nothing (`onClear`). Spread `onPointerDown` on the container and render `box` inside it.
+ */
+export function useMarquee(onChange: (keys: string[]) => void, onClear?: () => void) {
+  const [r, setR] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
+    const t = e.target as HTMLElement;
+    if (e.button !== 0 || t.closest("[data-key],button,input,textarea,select,a")) return;
+    const root = e.currentTarget, x0 = e.clientX, y0 = e.clientY;
+    let moved = false;
+    const move = (m: PointerEvent) => {
+      if (!moved && Math.hypot(m.clientX - x0, m.clientY - y0) < 4) return;
+      moved = true;
+      const b = { left: Math.min(x0, m.clientX), top: Math.min(y0, m.clientY), width: Math.abs(m.clientX - x0), height: Math.abs(m.clientY - y0) };
+      setR(b);
+      onChange([...root.querySelectorAll<HTMLElement>("[data-key]")].filter((el) => {
+        const q = el.getBoundingClientRect();
+        return q.left < b.left + b.width && q.right > b.left && q.top < b.top + b.height && q.bottom > b.top;
+      }).map((el) => el.dataset.key!));
+    };
+    const up = () => {
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", up);
+      removeEventListener("pointercancel", up);
+      document.body.style.userSelect = "";
+      setR(null);
+      if (!moved) onClear?.();
+    };
+    document.body.style.userSelect = "none";
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", up);
+    addEventListener("pointercancel", up);
+  };
+  return { onPointerDown, box: r && <div className="ui-marquee" aria-hidden="true" style={r} /> };
 }

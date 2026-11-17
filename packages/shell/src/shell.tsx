@@ -437,12 +437,6 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged, windowVars }:
         </div>
         <Tray>
           {note && <TrayItem label={note}>{note}</TrayItem>}
-          {canRestart && <TrayItem icon="edit" label="Edit the interface (opens its source in Files)" onClick={() => openPath("/BrasOS")} />}
-          {canRestart && <TrayItem icon="plus" label="New app" onClick={() => setNewApp({ id: "", name: "" })} />}
-          {canRestart && <TrayItem icon="reload" label="Reload the interface (rebuild from source, no restart)" onClick={reload} />}
-          {canRestart && <TrayItem icon="restart" label="Restart the interface" onClick={() => setConfirmRestart(true)} />}
-          {user && <TrayItem icon="user" label={`Signed in as ${user.display}`} />}
-          {onLock && <TrayItem icon="lock" label="Lock the screen" onClick={onLock} />}
           <Mode packages={packages} />
           <Network />
           <Battery />
@@ -457,7 +451,7 @@ export function Shell({ prefs, user, onLock, hasPin, onPinChanged, windowVars }:
             showAll={showAll} onToggleAll={() => setShowAll((v) => !v)}
             onContext={(h, e) => { const app = apps.find((a) => "a:" + a.id === h.key); if (app) setAppMenu({ x: e.clientX, y: e.clientY, app }); }}
             files={extra.files.slice(0, 5)} user={user?.display}
-            actions={[...(realBrowser ? [{ label: "Sandboxed browser (inside BrasOS)", icon: "browser", onClick: () => { closeLauncher(); const b = apps.find((x) => x.id === "browser"); if (b) void open(b, undefined, { sandbox: true }); } }] : []), ...(onLock ? [{ label: "Lock the screen", icon: "lock", onClick: () => (closeLauncher(), onLock()) }, { label: hasPin ? "Change or remove the PIN" : "Set a sign-in PIN", icon: "lock", onClick: () => (closeLauncher(), setPinDlg({ password: "", pin: "", again: "", error: "", busy: false })) }] : []), ...(canRestart ? [{ label: "Restart the interface", icon: "restart", onClick: () => (closeLauncher(), setConfirmRestart(true)) }] : []), ...(canPower ? [{ label: "Restart the computer", icon: "restart", onClick: () => (closeLauncher(), setConfirmPower("reboot")) }, { label: "Shut down", icon: "power", onClick: () => (closeLauncher(), setConfirmPower("poweroff")) }] : [])]}
+            actions={[...(realBrowser ? [{ label: "Sandboxed browser (inside BrasOS)", icon: "browser", onClick: () => { closeLauncher(); const b = apps.find((x) => x.id === "browser"); if (b) void open(b, undefined, { sandbox: true }); } }] : []), ...(onLock ? [{ label: "Lock the screen", icon: "lock", onClick: () => (closeLauncher(), onLock()) }, { label: hasPin ? "Change or remove the PIN" : "Set a sign-in PIN", icon: "lock", onClick: () => (closeLauncher(), setPinDlg({ password: "", pin: "", again: "", error: "", busy: false })) }] : []), ...(canRestart ? [{ label: "Edit the interface (opens its source in Files)", icon: "edit", onClick: () => (closeLauncher(), openPath("/BrasOS")) }, { label: "New app", icon: "plus", onClick: () => (closeLauncher(), setNewApp({ id: "", name: "" })) }, { label: "Reload the interface (no restart)", icon: "reload", onClick: () => (closeLauncher(), reload()) }, { label: "Restart the interface", icon: "restart", onClick: () => (closeLauncher(), setConfirmRestart(true)) }] : []), ...(canPower ? [{ label: "Restart the computer", icon: "restart", onClick: () => (closeLauncher(), setConfirmPower("reboot")) }, { label: "Shut down", icon: "power", onClick: () => (closeLauncher(), setConfirmPower("poweroff")) }] : [])]}
           />
         </>
       )}

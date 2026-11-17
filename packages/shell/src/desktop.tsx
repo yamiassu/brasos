@@ -3,7 +3,7 @@
 // installed: it is still in Start and the taskbar). Where things are is kept by desktop-layout.ts.
 import { useEffect, useRef, useState } from "react";
 import type { AppInfo, FsEntry } from "@brasos/sdk";
-import { IconTile, Menu, type MenuItem } from "@brasos/ui";
+import { IconTile, Menu, useMarquee, type MenuItem } from "@brasos/ui";
 import { arrange, cellAt, CELL, loadLayout, nearestFree, pixel, rowsFor, saveLayout, type Layout } from "./desktop-layout";
 
 const TEXT = /\.(txt|md|json|ts|tsx|js|css|html|csv|log|toml|ya?ml)$/i;
@@ -21,7 +21,7 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
   onOpenPath(path: string): void;
   onRefresh(): void;
 }) {
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState<string[]>([]); // a click picks one; a box (or Ctrl+click) picks several
   const [menu, setMenu] = useState<{ x: number; y: number; item?: Item } | null>(null);
   const [layout, setLayout] = useState<Layout>(loadLayout);
   const [size, setSize] = useState({ w: 1000, h: 600 });
@@ -48,7 +48,14 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
   const rows = rowsFor(size.h);
   const cells = arrange(items.map((i) => i.key), layout.cells, rows);
 
-  const remove = (it: Item) => it.app && (setSelected(""), change({ ...layout, hidden: [...new Set([...layout.hidden, it.app.id])] }));
+  // removing an icon from the desktop applies to every selected app icon when the one asked about is among them
+  const remove = (it: Item) => {
+    const gone = (selected.includes(it.key) ? items.filter((i) => selected.includes(i.key)) : [it]).flatMap((i) => (i.app ? [i.app.id] : []));
+    if (!gone.length) return;
+    setSelected([]);
+    change({ ...layout, hidden: [...new Set([...layout.hidden, ...gone])] });
+  };
+  const marquee = useMarquee(setSelected, () => setSelected([]));
 
   const onUp = (e: React.PointerEvent, it: Item) => {
     const g = grab.current;
@@ -77,7 +84,7 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
       className="icons"
       role="group"
       aria-label="Desktop"
-      onPointerDown={(e) => e.target === e.currentTarget && setSelected("")}
+      onPointerDown={marquee.onPointerDown}
       onContextMenu={(e) => (e.preventDefault(), setMenu({ x: e.clientX, y: e.clientY }))}
     >
       {items.map((it) => {
@@ -85,6 +92,7 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
         return (
           <div
             key={it.key}
+            data-key={it.key}
             className={"icon" + (moving?.key === it.key ? " dragging" : "")}
             style={pos}
             onPointerDown={(e) => {
@@ -98,19 +106,20 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
               // captured only once it is a drag: a captured press would send the click and double click to this wrapper instead of the icon
               if (!g.moved) try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
               g.moved = dragged.current = true;
-              setSelected(it.key);
+              if (!selected.includes(it.key)) setSelected([it.key]);
               setMoving({ key: it.key, left: g.left + e.clientX - g.x, top: g.top + e.clientY - g.y });
             }}
             onPointerUp={(e) => onUp(e, it)}
             onPointerCancel={() => (grab.current = null, setMoving(null))}
             onClickCapture={(e) => dragged.current && (dragged.current = false, e.stopPropagation())}
             onKeyDown={(e) => e.key === "Delete" && remove(it)}
-            onContextMenu={(e) => (e.preventDefault(), e.stopPropagation(), setSelected(it.key), setMenu({ x: e.clientX, y: e.clientY, item: it }))}
+            onContextMenu={(e) => (e.preventDefault(), e.stopPropagation(), selected.includes(it.key) || setSelected([it.key]), setMenu({ x: e.clientX, y: e.clientY, item: it }))}
           >
-            <IconTile icon={it.icon} label={it.label} selected={selected === it.key} onSelect={() => setSelected(it.key)} onOpen={it.open} />
+            <IconTile icon={it.icon} label={it.label} selected={selected.includes(it.key)} onSelect={(e) => setSelected(e.ctrlKey || e.shiftKey ? (selected.includes(it.key) ? selected.filter((k) => k !== it.key) : [...selected, it.key]) : [it.key])} onOpen={it.open} />
           </div>
         );
       })}
+      {marquee.box}
       {menu && <Menu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={menuItems(menu.item)} />}
     </div>
   );

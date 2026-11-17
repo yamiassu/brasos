@@ -1,4 +1,4 @@
-// The right side of the taskbar: the security mode, network, battery and the clock.
+// The right side of the taskbar: the security mode, network, battery (only where there is one) and the clock.
 import { useEffect, useState } from "react";
 import { TrayItem } from "@brasos/ui";
 
@@ -30,16 +30,20 @@ export function Network() {
   return <TrayItem icon={online ? "network" : "offline"} label={online ? "Network: connected" : "Network: offline"} />;
 }
 
-/** only where the browser has the Battery API (laptops; not in a VM, not in every browser) */
+/**
+ * Only where there is a battery. Chromium answers the Battery API on every machine; a computer without one reports the fixed answer
+ * "full, charging, never discharging", so that exact answer means "no battery" (a laptop full on mains shows up once it is unplugged).
+ */
 export function Battery() {
-  const [level, setLevel] = useState<number | null>(null);
+  const [s, setS] = useState<{ level: number; charging: boolean } | null>(null);
   useEffect(() => {
     let b: any;
-    const update = () => setLevel(Math.round(b.level * 100));
-    (navigator as any).getBattery?.().then((x: any) => ((b = x), update(), b.addEventListener("levelchange", update))).catch(() => {});
-    return () => b?.removeEventListener("levelchange", update);
+    const update = () => setS(b.level === 1 && b.charging && b.chargingTime === 0 && b.dischargingTime === Infinity ? null : { level: Math.round(b.level * 100), charging: b.charging });
+    const evs = ["levelchange", "chargingchange"];
+    (navigator as any).getBattery?.().then((x: any) => ((b = x), update(), evs.forEach((e) => b.addEventListener(e, update)))).catch(() => {});
+    return () => b && evs.forEach((e) => b.removeEventListener(e, update));
   }, []);
-  return level === null ? null : <TrayItem icon="battery" label={`Battery ${level}%`}>{level}%</TrayItem>;
+  return s === null ? null : <TrayItem icon="battery" label={`Battery ${s.level}%${s.charging ? ", charging" : ""}`}>{s.level}%{s.charging ? " ⚡" : ""}</TrayItem>;
 }
 
 /** nobody should mistake a dev image for a hardened one */
