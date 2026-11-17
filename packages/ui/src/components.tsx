@@ -165,7 +165,7 @@ export function Dialog({ title, children, actions, onClose }: { title: string; c
 }
 
 /** Window chrome (title bar and body). Dragging and focus are the shell's business: pass pointer handlers in `headerProps`. */
-export function WindowFrame({ title, icon, focused, bare, maximized, minimized, onClose, onMinimize, onMaximize, onResize, headerProps, style, children }: {
+export function WindowFrame({ title, icon, focused, bare, maximized, minimized, onClose, onMinimize, onMaximize, onResize, onResizeStart, onResizeEnd, headerProps, style, children }: {
   title: string;
   /** the window with the user's attention glows brighter */
   focused?: boolean;
@@ -181,6 +181,9 @@ export function WindowFrame({ title, icon, focused, bare, maximized, minimized, 
   onMaximize?(): void;
   /** when given, a grip in the lower right corner resizes the window (it sits above the app's frame, so it works over an iframe too) */
   onResize?(w: number, h: number): void;
+  /** the grip was pressed / let go: the shell shields the app frames meanwhile, so the pointer is not lost to a frame under it */
+  onResizeStart?(): void;
+  onResizeEnd?(): void;
   headerProps?: HTMLAttributes<HTMLElement>;
   style?: CSSProperties;
   children: ReactNode;
@@ -207,12 +210,15 @@ export function WindowFrame({ title, icon, focused, bare, maximized, minimized, 
           onPointerDown={(e) => {
             const r = ref.current?.getBoundingClientRect();
             if (e.button !== 0 || !r) return;
+            e.preventDefault();
             grab.current = { x: e.clientX, y: e.clientY, w: r.width, h: r.height };
+            onResizeStart?.();
             try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
           }}
           onPointerMove={(e) => grab.current && onResize(Math.max(240, Math.round(grab.current.w + e.clientX - grab.current.x)), Math.max(120, Math.round(grab.current.h + e.clientY - grab.current.y)))}
-          onPointerUp={() => (grab.current = null)}
-          onPointerCancel={() => (grab.current = null)}
+          onPointerUp={() => (grab.current = null, onResizeEnd?.())}
+          onPointerCancel={() => (grab.current = null, onResizeEnd?.())}
+          onLostPointerCapture={() => grab.current && (grab.current = null, onResizeEnd?.())}
         />
       )}
     </section>

@@ -328,6 +328,8 @@ export function Shell({ prefs, user, onLock }: { prefs?: { timezone: string; clo
                 onMinimize={() => minimize(w.key)}
                 onMaximize={() => toggleMax(w.key)}
                 onResize={(ww, hh) => patch(w.key, () => ({ w: ww, h: hh }))}
+                onResizeStart={() => (setDragging(true), focus(w.key))}
+                onResizeEnd={() => setDragging(false)}
                 headerProps={{
                   onPointerDown: (e) => {
                     dragFrom.current = { x: e.clientX, y: e.clientY };

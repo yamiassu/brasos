@@ -6,6 +6,7 @@ import "@brasos/ui/ui.css";
 import "./notes.css";
 import { join, parent, validName } from "../files/paths";
 import { Markdown, splitBlocks } from "./markdown";
+import { canDrop, remap } from "./tree";
 
 type Node = { name: string; path: string; dir: boolean; kids?: Node[] };
 type Ask = { title: string; label: string; initial: string; confirm: string; run(v: string): Promise<unknown> };
@@ -21,6 +22,7 @@ const stored = (): Settings => {
     return DEFAULTS;
   }
 };
+const parentOfPath = (p: string) => p.replace(/\/[^/]*$/, "") || "/";
 const toText = (blocks: string[]) => blocks.filter((b) => b.trim()).join("\n\n");
 
 async function walk(path: string, depth = 0): Promise<Node[]> {
@@ -37,6 +39,9 @@ function Notes() {
   const [settings, setSettings] = useState(stored);
   const [showSettings, setShowSettings] = useState(false);
   const [sidebar, setSidebar] = useState(true);
+  const dragPath = useRef<string | null>(null); // the file or folder being dragged in the tree
+  const [dropOn, setDropOn] = useState<string | null>(null); // the folder (or root) it would land in
+  const caretAt = useRef<"start" | "end">("end"); // where the caret goes when arrow keys move into another block
   const [hist, setHist] = useState({ stack: [] as string[], i: -1 }); // back and forward through opened notes
   const root = settings.root;
   const [tree, setTree] = useState<Node[]>([]);
@@ -114,11 +119,43 @@ function Notes() {
     setSettings(s);
   };
 
+  // drop a dragged file or folder into a folder (or the notes folder itself)
+  const moveTo = async (dir: string) => {
+    const from = dragPath.current;
+    dragPath.current = null;
+    setDropOn(null);
+    if (!from || !canDrop(from, dir)) return;
+    const to = join(dir, from.split("/").pop()!);
+    try {
+      await flush();
+      await os.fs.move(from, to);
+      setFile((f) => (f ? remap(f, from, to) : f));
+      setHist((h) => ({ ...h, stack: h.stack.map((x) => remap(x, from, to)) }));
+      setSel(null);
+      setOpen((o) => new Set(o).add(dir));
+      await reload();
+      setStatus(`Moved to ${dir}`);
+    } catch (e) {
+      fail(e);
+    }
+  };
+  const over = (dir: string) => (e: React.DragEvent) => {
+    if (!dragPath.current || !canDrop(dragPath.current, dir)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDropOn(dir);
+  };
+  const drop = (dir: string) => (e: React.DragEvent) => (e.preventDefault(), e.stopPropagation(), void moveTo(dir));
+
   const row = (n: Node, depth: number): React.ReactNode => (
     <li key={n.path}>
       <button
         type="button"
-        className="row"
+        className={"row" + (dropOn === n.path ? " drop" : "")}
+        draggable
+        onDragStart={(e) => ((dragPath.current = n.path), (e.dataTransfer.effectAllowed = "move"), e.dataTransfer.setData("text/plain", n.path))}
+        onDragEnd={() => ((dragPath.current = null), setDropOn(null))}
+        {...(n.dir ? { onDragOver: over(n.path), onDrop: drop(n.path) } : { onDragOver: over(parentOfPath(n.path)), onDrop: drop(parentOfPath(n.path)) })}
         style={{ paddingLeft: 8 + depth * 14 }}
         aria-current={file === n.path || sel?.path === n.path ? "true" : undefined}
         aria-expanded={n.dir ? open.has(n.path) : undefined}
@@ -167,7 +204,7 @@ function Notes() {
           </div>
           <div className="root" title={root}>{root}</div>
         </div>
-        <ul className="tree">
+        <ul className={"tree" + (dropOn === root ? " drop" : "")} onDragOver={over(root)} onDrop={drop(root)} onDragLeave={(e) => e.currentTarget === e.target && setDropOn(null)}>
           {tree.map((n) => row(n, 0))}
           {!tree.length && <li className="none">No notes yet.</li>}
         </ul>
@@ -184,6 +221,8 @@ function Notes() {
                   onChange={(v) => setBlocks((bs) => bs.map((x, j) => (j === i ? v : x)))}
                   onSplit={() => (setBlocks((bs) => [...bs.slice(0, i + 1), "", ...bs.slice(i + 1)]), setAt(i + 1))}
                   onRemove={() => (setBlocks((bs) => bs.filter((_, j) => j !== i)), setAt(i - 1))}
+                  caret={caretAt.current}
+                  onMove={(d) => i + d >= 0 && i + d < blocks.length && ((caretAt.current = d > 0 ? "start" : "end"), setAt(i + d))}
                   onBlur={() => setAt((a) => (a === i ? null : a))}
                 />
               ) : (
@@ -209,17 +248,23 @@ function Notes() {
 }
 
 /** one block as raw markdown: Enter at its end starts the next block (or the next list item), Backspace on an empty block removes it */
-function BlockEditor({ value, first, onChange, onSplit, onRemove, onBlur }: { value: string; first: boolean; onChange(v: string): void; onSplit(): void; onRemove(): void; onBlur(): void }) {
+function BlockEditor({ value, first, caret, onChange, onSplit, onRemove, onMove, onBlur }: { value: string; first: boolean; caret: "start" | "end"; onChange(v: string): void; onSplit(): void; onRemove(): void; onMove(d: -1 | 1): void; onBlur(): void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fit = () => ref.current && ((ref.current.style.height = "0"), (ref.current.style.height = ref.current.scrollHeight + "px"));
   useEffect(() => {
     ref.current?.focus();
-    ref.current?.setSelectionRange(value.length, value.length);
+    const at = caret === "start" ? 0 : value.length;
+    ref.current?.setSelectionRange(at, at);
   }, []);
   useEffect(() => void fit(), [value]);
   const key = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const v = e.currentTarget.value;
     if (e.key === "Backspace" && v === "" && !first) return e.preventDefault(), onRemove();
+    // the arrow keys cross into the neighbouring block from its first or last line
+    if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      const { selectionStart: a, selectionEnd: b } = e.currentTarget;
+      if (e.key === "ArrowUp" ? !v.slice(0, a).includes("\n") : !v.slice(b).includes("\n")) return e.preventDefault(), onMove(e.key === "ArrowUp" ? -1 : 1);
+    }
     const atEnd = e.currentTarget.selectionStart === v.length;
     if (e.key !== "Enter" || e.shiftKey || !atEnd || (v.match(/^```/gm) || []).length % 2) return; // Shift+Enter, mid-text and open code fences: a plain newline
     e.preventDefault();
