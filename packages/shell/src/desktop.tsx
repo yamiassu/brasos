@@ -1,9 +1,10 @@
 // The desktop: an icon for every app, then whatever is in the user's /Desktop folder. Double-click or Enter opens.
 // Icons can be dragged to any free cell of the grid, and an app's icon can be removed from the desktop (the app stays
-// installed: it is still in Start and the taskbar). Where things are is kept by desktop-layout.ts.
+// installed: it is still in Start and the taskbar). A file or folder can be moved to the trash (Delete) or deleted for good
+// (Shift+Delete), after a confirmation. Where things are is kept by desktop-layout.ts.
 import { useEffect, useRef, useState } from "react";
 import type { AppInfo, FsEntry } from "@brasos/sdk";
-import { IconTile, Menu, useMarquee, type MenuItem } from "@brasos/ui";
+import { Button, Dialog, IconTile, Menu, useMarquee, type MenuItem } from "@brasos/ui";
 import { arrange, cellAt, CELL, loadLayout, nearestFree, pixel, rowsFor, saveLayout, type Layout } from "./desktop-layout";
 
 const TEXT = /\.(txt|md|json|ts|tsx|js|css|html|csv|log|toml|ya?ml)$/i;
@@ -12,15 +13,18 @@ export const iconFor = (e: FsEntry) => (e.kind === "dir" ? "folder" : e.kind ===
 
 const DRAG_START = 4; // px the pointer must travel before a press is a drag (a click or double click is not)
 
-type Item = { key: string; icon: string; label: string; app?: AppInfo; open(): void };
+type Item = { key: string; icon: string; label: string; app?: AppInfo; path?: string; open(): void };
 
-export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
+export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh, onDelete }: {
   apps: AppInfo[];
   entries: FsEntry[];
   onOpenApp(app: AppInfo): void;
   onOpenPath(path: string): void;
   onRefresh(): void;
+  /** moves files and folders to the trash, or deletes them for good */
+  onDelete?(paths: string[], forever: boolean): Promise<unknown>;
 }) {
+  const [ask, setAsk] = useState<{ paths: string[]; forever: boolean } | null>(null);
   const [selected, setSelected] = useState<string[]>([]); // a click picks one; a box (or Ctrl+click) picks several
   const [menu, setMenu] = useState<{ x: number; y: number; item?: Item } | null>(null);
   const [layout, setLayout] = useState<Layout>(loadLayout);
@@ -43,7 +47,7 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
   const change = (l: Layout) => (setLayout(l), saveLayout(l));
   const items: Item[] = [
     ...apps.filter((a) => !layout.hidden.includes(a.id)).map((a): Item => ({ key: "app:" + a.id, icon: a.icon, label: a.name, app: a, open: () => onOpenApp(a) })),
-    ...entries.map((e): Item => ({ key: "fs:" + e.name, icon: iconFor(e), label: e.name, open: () => onOpenPath("/Desktop/" + e.name) })),
+    ...entries.map((e): Item => ({ key: "fs:" + e.name, icon: iconFor(e), label: e.name, path: "/Desktop/" + e.name, open: () => onOpenPath("/Desktop/" + e.name) })),
   ];
   const rows = rowsFor(size.h);
   const cells = arrange(items.map((i) => i.key), layout.cells, rows);
@@ -54,6 +58,16 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
     if (!gone.length) return;
     setSelected([]);
     change({ ...layout, hidden: [...new Set([...layout.hidden, ...gone])] });
+  };
+  // deleting applies to every selected file and folder when the one asked about is among them
+  const del = (it: Item, forever: boolean) => {
+    const paths = (selected.includes(it.key) ? items.filter((i) => selected.includes(i.key)) : [it]).flatMap((i) => (i.path ? [i.path] : []));
+    if (paths.length && onDelete) setAsk({ paths, forever });
+  };
+  const onKey = (e: React.KeyboardEvent, it: Item) => {
+    if (e.key !== "Delete") return;
+    if (it.path) del(it, e.shiftKey);
+    else remove(it);
   };
   const marquee = useMarquee(setSelected, () => setSelected([]));
 
@@ -70,7 +84,16 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
 
   const menuItems = (it?: Item): MenuItem[] =>
     it
-      ? [{ label: it.app ? `Open ${it.label}` : "Open", onSelect: it.open }, ...(it.app ? [{ label: "Remove from desktop", onSelect: () => remove(it) }] : [])]
+      ? [
+          { label: it.app ? `Open ${it.label}` : "Open", onSelect: it.open },
+          ...(it.app ? [{ label: "Remove from desktop", onSelect: () => remove(it) }] : []),
+          ...(it.path && onDelete
+            ? [
+                { label: "Move to trash", danger: true, onSelect: () => del(it, false) },
+                { label: "Delete permanently", danger: true, onSelect: () => del(it, true) },
+              ]
+            : []),
+        ]
       : [
           { label: "Open Files", onSelect: () => onOpenPath("/Desktop") },
           { label: "Refresh", onSelect: onRefresh },
@@ -112,7 +135,7 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
             onPointerUp={(e) => onUp(e, it)}
             onPointerCancel={() => (grab.current = null, setMoving(null))}
             onClickCapture={(e) => dragged.current && (dragged.current = false, e.stopPropagation())}
-            onKeyDown={(e) => e.key === "Delete" && remove(it)}
+            onKeyDown={(e) => onKey(e, it)}
             onContextMenu={(e) => (e.preventDefault(), e.stopPropagation(), selected.includes(it.key) || setSelected([it.key]), setMenu({ x: e.clientX, y: e.clientY, item: it }))}
           >
             <IconTile icon={it.icon} label={it.label} selected={selected.includes(it.key)} onSelect={(e) => setSelected(e.ctrlKey || e.shiftKey ? (selected.includes(it.key) ? selected.filter((k) => k !== it.key) : [...selected, it.key]) : [it.key])} onOpen={it.open} />
@@ -121,6 +144,25 @@ export function Desktop({ apps, entries, onOpenApp, onOpenPath, onRefresh }: {
       })}
       {marquee.box}
       {menu && <Menu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={menuItems(menu.item)} />}
+      {ask && (
+        <Dialog
+          title={ask.forever ? "Delete permanently?" : "Move to trash?"}
+          onClose={() => setAsk(null)}
+          actions={
+            <>
+              <Button onClick={() => setAsk(null)}>Cancel</Button>
+              <Button variant="danger" autoFocus onClick={() => (setAsk(null), setSelected([]), onDelete?.(ask.paths, ask.forever))}>
+                {ask.forever ? "Delete permanently" : "Move to trash"}
+              </Button>
+            </>
+          }
+        >
+          <p>
+            {ask.paths.length === 1 ? ask.paths[0].slice("/Desktop/".length) : `${ask.paths.length} items`}
+            {ask.forever ? " will be deleted permanently. This can't be undone." : " will go to the trash."}
+          </p>
+        </Dialog>
+      )}
     </div>
   );
 }

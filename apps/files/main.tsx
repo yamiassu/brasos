@@ -48,7 +48,7 @@ const PLACES = [
 ];
 
 type Preview = { name: string; kind: "text" | "image" | "none"; content?: string; note?: string };
-type Ask = { title: string; label: string; initial: string; confirm: string; onSubmit(name: string): Promise<unknown> } | { title: string; confirmDelete: FsEntry[] };
+type Ask = { title: string; label: string; initial: string; confirm: string; onSubmit(name: string): Promise<unknown> } | { title: string; confirmDelete: FsEntry[]; forever?: boolean };
 
 function Files() {
   const start = startFromHash(location.hash);
@@ -187,9 +187,9 @@ function Files() {
     }
   };
   const editor = (e: FsEntry) => (renaming === e.name ? <RenameInput name={e.name} onDone={(v) => void commitRename(e, v)} /> : undefined);
-  const removeOf = (t: FsEntry[]) => setAsk({ title: "Move to trash?", confirmDelete: t });
+  const removeOf = (t: FsEntry[], forever = false) => setAsk({ title: forever ? "Delete permanently?" : "Move to trash?", confirmDelete: t, forever });
   const rename = () => selected && renameOf(selected);
-  const remove = () => (selected ? removeOf([selected]) : multi.length && removeOf(entries.filter((e) => multi.includes(e.name))));
+  const remove = (forever = false) => (selected ? removeOf([selected], forever) : multi.length && removeOf(entries.filter((e) => multi.includes(e.name)), forever));
   const pick = (e: FsEntry | null) => (setMulti([]), setSelected(e), (anchor.current = e?.name ?? null));
   // Ctrl/Cmd toggles one item in or out of the selection; Shift selects everything from the last plain click (the anchor) to this one
   const pickWith = (e: FsEntry, m?: { ctrl: boolean; shift: boolean }) => {
@@ -231,6 +231,7 @@ function Files() {
           { label: isPinned(join(dir, t.name)) ? "Unpin from sidebar" : "Pin to sidebar", onSelect: () => togglePin(join(dir, t.name), t.kind === "dir") },
           { label: "Copy path", onSelect: () => void navigator.clipboard?.writeText(join(dir, t.name)).then(() => setStatus("Path copied"), () => setStatus("Couldn't copy the path")) },
           { label: multi.length > 1 && multi.includes(t.name) ? `Move ${multi.length} items to trash` : "Move to trash", danger: true, onSelect: () => (multi.length > 1 && multi.includes(t.name) ? remove() : removeOf([t])) },
+          { label: multi.length > 1 && multi.includes(t.name) ? `Delete ${multi.length} items permanently` : "Delete permanently", danger: true, onSelect: () => (multi.length > 1 && multi.includes(t.name) ? remove(true) : removeOf([t], true)) },
         ]
       : [
           { label: "New folder", onSelect: newFolder },
@@ -261,7 +262,7 @@ function Files() {
       setMulti(names.length > 1 ? names : []);
       return;
     }
-    if (e.key === "Delete") remove();
+    if (e.key === "Delete") remove(e.shiftKey); // Shift+Delete skips the trash
     else if (e.key === "F2") rename();
     else if (e.key === "Backspace" || (e.altKey && e.key === "ArrowUp")) dir !== "/" && !inDrives && (e.preventDefault(), go(parent(dir)));
   };
@@ -294,7 +295,7 @@ function Files() {
           <Button disabled={inDrives} onClick={newFolder}>New folder</Button>
           <Button disabled={inDrives} onClick={newFile}>New file</Button>
           <Button disabled={!selected} onClick={rename}>Rename</Button>
-          <Button variant="danger" disabled={!selected && multi.length < 2} onClick={remove}>Delete</Button>
+          <Button variant="danger" disabled={!selected && multi.length < 2} onClick={() => remove()}>Delete</Button>
         </nav>
 
         <Splitter side="left" label="Resize the sidebar" value={sizes.left} min={120} max={360} onChange={(left) => setSizes((z) => ({ ...z, left }))} />
@@ -386,11 +387,11 @@ function Files() {
           actions={
             <>
               <Button onClick={() => setAsk(null)}>Cancel</Button>
-              <Button variant="danger" autoFocus onClick={() => (setAsk(null), Promise.all(ask.confirmDelete.map((t) => os.fs.remove(join(dir, t.name)))).then(() => after()).catch((e) => (fail(e), after())))}>Move to trash</Button>
+              <Button variant="danger" autoFocus onClick={() => (setAsk(null), Promise.all(ask.confirmDelete.map((t) => (ask.forever ? os.fs.removeForever : os.fs.remove)(join(dir, t.name)))).then(() => after()).catch((e) => (fail(e), after())))}>{ask.forever ? "Delete permanently" : "Move to trash"}</Button>
             </>
           }
         >
-          <p>{ask.confirmDelete.length === 1 ? ask.confirmDelete[0].name : `${ask.confirmDelete.length} items`} will go to the trash.</p>
+          <p>{ask.confirmDelete.length === 1 ? ask.confirmDelete[0].name : `${ask.confirmDelete.length} items`}{ask.forever ? " will be deleted permanently. This can't be undone." : " will go to the trash."}</p>
         </Dialog>
       )}
       {ask && "onSubmit" in ask && <NameDialog ask={ask} onClose={() => setAsk(null)} onError={fail} />}

@@ -54,7 +54,7 @@ export type HostOptions = {
 };
 
 /** capabilities the shell UI itself holds (it lists apps and opens PWA windows) */
-const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "docs.read", "ui.host", "system.restart", "system.power", "setup.write", "setup.login", "apps.install", "native.read", "native.control", "network.read", "network.control", "db.own", "db.shared"];
+const SHELL_CAPS = ["apps.read", "apps.uninstall", "web.open", "fs.read", "fs.write", "docs.read", "ui.host", "system.restart", "system.power", "setup.write", "setup.login", "apps.install", "native.read", "native.control", "network.read", "network.control", "db.own", "db.shared"];
 /** what a user can grant an installed PWA (never anything that controls the OS itself); a PWA window is a website to the host, so these are checked again at the gate */
 /** the BrasOS browser extension may only ask for an app to be added (the shell shows the prompt and decides) */
 const EXTENSION_CAPS = ["apps.request"];

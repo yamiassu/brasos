@@ -66,6 +66,15 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
       .then(setEntries)
       .catch(() => setEntries([]));
 
+  // the desktop's delete: to the trash, or for good (moved there, then purged); the desktop reloads either way
+  const deletePaths = async (paths: string[], forever: boolean) => {
+    for (const path of paths) {
+      const r = await post("/os/fs/delete", { path }).catch(() => null);
+      if (forever && r?.ok) await post("/os/fs/purge", { name: (await r.json()).path.slice("/.trash/".length) }).catch(() => {});
+    }
+    loadDesktop();
+  };
+
   useEffect(() => {
     loadApps();
     loadDesktop();
@@ -681,7 +690,7 @@ export function Shell({ prefs, user, username, onLock, hasPin, onPinChanged, win
         />
       )}
       <div className="layer">
-        <Desktop apps={apps} entries={entries} onOpenApp={(a) => open(a)} onOpenPath={openPath} onRefresh={loadDesktop} />
+        <Desktop apps={apps} entries={entries} onOpenApp={(a) => open(a)} onOpenPath={openPath} onRefresh={loadDesktop} onDelete={deletePaths} />
       </div>
     </div>
   );

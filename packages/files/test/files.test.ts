@@ -152,14 +152,17 @@ test("a symlink inside the home can't lead outside it", async () => {
   expect((await fs("move", { from: "/Documents/f", to: "/Documents/link/f" })).status).toBe(403);
 });
 
-test("only apps holding the permission may touch files; the shell can read but not write", async () => {
+test("only apps holding the permission (and the shell, for the desktop) may touch files", async () => {
   expect((await fs("list", { path: "/" }, "about.localhost")).status).toBe(403);
   expect((await fs("list", { path: "/" }, "terminal.localhost")).status).toBe(403);
   const anonymous = await h.at("localhost", "/os/fs/list", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: "/" }) });
   expect(anonymous.status).toBe(403); // no caller identity
   expect((await fs("list", { path: "/" }, "localhost")).status).toBe(200);
-  expect((await fs("write", { path: "/Desktop/x", content: "y" }, "localhost")).status).toBe(403);
-  for (const op of ["restore", "purge"]) expect((await fs(op, { all: true, name: "x" }, "localhost")).status).toBe(403); // emptying the trash is a write
+  // the desktop deletes: to the trash, or for good (moved there, then purged)
+  await ok("write", { path: "/Desktop/x", content: "y" });
+  const t = (await ok("delete", { path: "/Desktop/x" }, "localhost")).path.slice("/.trash/".length);
+  expect(await ok("purge", { name: t }, "localhost")).toEqual({ removed: 1 });
+  for (const op of ["write", "delete", "purge"]) expect((await fs(op, { path: "/Desktop/y", content: "z", all: true }, "about.localhost")).status).toBe(403);
   expect((await fs("purge", { all: true }, "about.localhost")).status).toBe(403);
   const evil = await h.at("localhost", "/os/fs/list", { method: "POST", headers: { origin: "http://evil.com", "content-type": "application/json" }, body: JSON.stringify({ path: "/" }) });
   expect(evil.status).toBe(403);

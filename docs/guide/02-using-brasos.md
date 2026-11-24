@@ -2,7 +2,7 @@
 
 ## The desktop
 
-The desktop shows an icon for every app, followed by whatever is in your `/Desktop` folder. **Double-click** an icon, or select it and press **Enter**, to open it. Folders and files open in **Files**. **Drag** an icon to move it to any free spot; it stays where you put it. **Right-click** an app icon (or press **Delete** on it) to *Remove from desktop*: the app stays installed, and is still in Start and the taskbar. **Right-click** the desktop for *Open Files*, *Refresh*, *Arrange icons* and, once you have removed something, *Show removed apps*.
+The desktop shows an icon for every app, followed by whatever is in your `/Desktop` folder. **Double-click** an icon, or select it and press **Enter**, to open it. Folders and files open in **Files**. **Drag** an icon to move it to any free spot; it stays where you put it. **Right-click** an app icon (or press **Delete** on it) to *Remove from desktop*: the app stays installed, and is still in Start and the taskbar. **Right-click** a file or folder (or press **Delete** on it) to *Move to trash*, or choose *Delete permanently* (**Shift+Delete**) to skip the trash; both ask first, and apply to everything selected. **Right-click** the desktop for *Open Files*, *Refresh*, *Arrange icons* and, once you have removed something, *Show removed apps*.
 
 ## First start
 
@@ -47,7 +47,7 @@ The **Drives** place in the sidebar lists the disks in this computer, their volu
 | Move the selection | **Up/Down**, **Home**, **End** |
 | New folder / new file | The toolbar buttons |
 | Rename | Select it, then **Rename** or **F2** |
-| Delete | Select it, then **Delete**. It goes to the trash, it is not erased: open **Trash** (Start, or Trash in Files' sidebar) to restore it (double-click, or **Restore**) or delete it for good (**Delete forever**, **Empty trash**) |
+| Delete | Select it, then **Delete**. It goes to the trash, it is not erased (**Shift+Delete**, or *Delete permanently* in the right-click menu, skips the trash after asking): open **Trash** (Start, or Trash in Files' sidebar) to restore it (double-click, or **Restore**) or delete it for good (**Delete forever**, **Empty trash**) |
 | Preview | Select a file. Text files (up to 1 MB) show their contents and can be edited with **Edit**, then **Save**; small images are shown |
 
 ## Religare

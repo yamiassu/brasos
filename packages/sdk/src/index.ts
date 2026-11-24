@@ -229,6 +229,12 @@ export function createOS(env: Env) {
       restore: (name: string) => (inside() ? call<{ path: string }>("/os/fs/restore", { name }).then(changed("fs-changed")) : poly().restore(name)),
       /** deletes one trashed item for good (not recoverable) */
       purge: (name: string) => (inside() ? call<{ removed: number }>("/os/fs/purge", { name }).then(changed("fs-changed")) : poly().purge(name)),
+      /** deletes a file or folder for good, without keeping it in the trash (not recoverable) */
+      removeForever: async (path: string) => {
+        const { path: trashed } = inside() ? await call<{ path: string }>("/os/fs/delete", { path }) : await poly().remove(path);
+        const name = trashed.slice("/.trash/".length);
+        return inside() ? call<{ removed: number }>("/os/fs/purge", { name }).then(changed("fs-changed")) : poly().purge(name);
+      },
       /** deletes everything in the trash for good (not recoverable) */
       emptyTrash: () => (inside() ? call<{ removed: number }>("/os/fs/purge", { all: true }).then(changed("fs-changed")) : poly().purge()),
     },
