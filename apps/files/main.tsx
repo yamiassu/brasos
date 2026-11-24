@@ -280,7 +280,7 @@ function Files() {
       <div className="split">
         <nav className="places" aria-label="Places" style={{ width: sizes.left }}>
           {PLACES.map((p) => (
-            <button key={p.path} type="button" aria-current={dir === p.path || (p.path !== "/" && dir.startsWith(p.path + "/")) ? "true" : undefined} onClick={() => go(p.path)}>
+            <button key={p.path} type="button" aria-current={dir === p.path || (p.path !== "/" && dir.startsWith(p.path + "/")) ? "true" : undefined} onClick={() => (p.path === "/.trash" ? os.apps.open("trash").then((opened) => opened || go(p.path)) : go(p.path))}>
               <Icon name={p.icon} size={18} />{p.name}
             </button>
           ))}

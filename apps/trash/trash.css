@@ -1,0 +1,14 @@
+html, body, #root { height: 100%; margin: 0; }
+.trash { height: 100%; display: flex; flex-direction: column; }
+.trash .find { width: 180px; height: 28px; padding: 0 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; color: var(--text); font: inherit; outline: 0; }
+.trash .find:focus { border-color: var(--accent); }
+.trash .cols { display: flex; gap: var(--gap); padding: 4px 10px 4px 36px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.trash .ui-list { flex: 1; overflow: auto; }
+.trash .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trash .from { width: 30%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trash .when { width: 120px; }
+.trash .size { width: 64px; text-align: right; }
+.trash .ui-item .from, .trash .ui-item .when, .trash .ui-item .size { color: var(--muted); font-size: 12px; }
+.trash .empty { flex: 1; margin: 0; padding: 48px 16px; text-align: center; color: var(--muted); }
+.trash .status { padding: 3px 10px; font-size: 12px; color: var(--muted); background: var(--panel); border-top: 1px solid var(--border); min-height: 18px; }
+@media (max-width: 520px) { .trash .from, .trash .when { display: none; } .trash .find { width: 110px; } }

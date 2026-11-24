@@ -1,0 +1,1 @@
+{ "name": "Trash", "short_name": "Trash", "start_url": "/", "display": "standalone", "brasos": { "icon": "trash", "permissions": ["fs.read", "fs.write"] } }

@@ -1,7 +1,7 @@
 // The fs polyfill: the same API as os.fs, over an in-memory tree, so apps (and Storybook) run in a plain browser.
 // Same rules as the host's files slice: virtual absolute paths, ".." collapses at the root, delete moves to /.trash.
 // ponytail: memory only (gone on reload); back it with OPFS if a polyfilled app ever needs to keep files.
-import type { FsEntry } from "./index";
+import type { FsEntry, TrashEntry } from "./index";
 
 type Node = { kind: "dir"; mtime: number; kids: Map<string, Node> } | { kind: "file"; mtime: number; data: Uint8Array };
 
@@ -96,11 +96,51 @@ export function createMemoryFs(seed: Record<string, string | null> = {}) {
       const { parts, virtual } = need(path);
       if (!parts.length || parts[0] === ".trash") return fail("can't delete that");
       if (!root.kids.has(".trash")) root.kids.set(".trash", { kind: "dir", mtime: Date.now(), kids: new Map() });
-      const target = `/.trash/${Date.now()}-${parts.at(-1)}`;
+      const trash = root.kids.get(".trash") as Extract<Node, { kind: "dir" }>;
+      let t = Date.now();
+      while (trash.kids.has(`${t}-${parts.at(-1)}`)) t++;
+      const target = `/.trash/${t}-${parts.at(-1)}`;
       await api.move(virtual, target);
+      from.set(`${t}-${parts.at(-1)}`, virtual);
       return { path: target };
     },
+    async trash(): Promise<TrashEntry[]> {
+      const trash = root.kids.get(".trash");
+      if (trash?.kind !== "dir") return [];
+      return [...trash.kids]
+        .map(([n, k]) => ({ ...entry(n, k), from: from.get(n) ?? null, deleted: Number(/^(\d+)-/.exec(n)?.[1] ?? k.mtime) }))
+        .sort((a, b) => b.deleted - a.deleted);
+    },
+    async restore(name: string) {
+      const trash = root.kids.get(".trash");
+      if (typeof name !== "string" || name.includes("/") || trash?.kind !== "dir" || !trash.kids.has(name)) return fail("not found");
+      const original = norm(from.get(name) ?? "/" + name.replace(/^\d+-/, ""));
+      const dir = ensure(original.slice(0, -1));
+      const base = original.at(-1)!;
+      const dot = base.lastIndexOf(".");
+      const [stem, ext] = dot > 0 ? [base.slice(0, dot), base.slice(dot)] : [base, ""];
+      let pick = base;
+      for (let i = 2; dir.kids.has(pick); i++) pick = `${stem} (${i})${ext}`;
+      dir.kids.set(pick, trash.kids.get(name)!);
+      trash.kids.delete(name);
+      from.delete(name);
+      return { path: "/" + [...original.slice(0, -1), pick].join("/") };
+    },
+    async purge(name?: string) {
+      const trash = root.kids.get(".trash");
+      if (trash?.kind !== "dir") return name === undefined ? { removed: 0 } : fail("not found");
+      if (name === undefined) {
+        const removed = trash.kids.size;
+        trash.kids.clear();
+        from.clear();
+        return { removed };
+      }
+      if (!trash.kids.delete(name)) return fail("not found");
+      from.delete(name);
+      return { removed: 1 };
+    },
   };
+  const from = new Map<string, string>(); // trash name -> where it was deleted from
 
   const ensure = (parts: string[]) => {
     let d = root as Extract<Node, { kind: "dir" }>;

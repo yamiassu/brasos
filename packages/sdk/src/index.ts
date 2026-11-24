@@ -24,6 +24,8 @@ export type AppInfo = {
 };
 
 export type FsEntry = { name: string; kind: "dir" | "file" | "link"; size: number; mtime: number };
+/** an item in the trash: `name` is its name there, `from` where it was deleted from (null if unknown), `deleted` when (ms) */
+export type TrashEntry = FsEntry & { from: string | null; deleted: number };
 
 /** An action an AI agent can take. Registered with the browser's WebMCP (`document.modelContext`, formerly `navigator.modelContext`) when present. */
 export type ToolDef = {
@@ -221,6 +223,14 @@ export function createOS(env: Env) {
       move: (from: string, to: string) => (inside() ? call<{ path: string }>("/os/fs/move", { from, to }).then(changed("fs-changed")) : poly().move(from, to)),
       /** moves to the trash (recoverable) */
       remove: (path: string) => (inside() ? call<{ path: string }>("/os/fs/delete", { path }).then(changed("fs-changed")) : poly().remove(path)),
+      /** the trash, newest first */
+      trash: () => (inside() ? call<TrashEntry[]>("/os/fs/trash", {}) : poly().trash()),
+      /** puts a trashed item back where it was (as "name (2)" if that name is taken); returns where it went */
+      restore: (name: string) => (inside() ? call<{ path: string }>("/os/fs/restore", { name }).then(changed("fs-changed")) : poly().restore(name)),
+      /** deletes one trashed item for good (not recoverable) */
+      purge: (name: string) => (inside() ? call<{ removed: number }>("/os/fs/purge", { name }).then(changed("fs-changed")) : poly().purge(name)),
+      /** deletes everything in the trash for good (not recoverable) */
+      emptyTrash: () => (inside() ? call<{ removed: number }>("/os/fs/purge", { all: true }).then(changed("fs-changed")) : poly().purge()),
     },
     /** The OS's own guides (markdown rendered to HTML on the host). Polyfill: whatever the page supplies, else rejects with UnsupportedError. */
     docs: {

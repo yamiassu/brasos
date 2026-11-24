@@ -47,7 +47,7 @@ The **Drives** place in the sidebar lists the disks in this computer, their volu
 | Move the selection | **Up/Down**, **Home**, **End** |
 | New folder / new file | The toolbar buttons |
 | Rename | Select it, then **Rename** or **F2** |
-| Delete | Select it, then **Delete**. It goes to the trash (`/.trash`), it is not erased |
+| Delete | Select it, then **Delete**. It goes to the trash, it is not erased: open **Trash** (Start, or Trash in Files' sidebar) to restore it (double-click, or **Restore**) or delete it for good (**Delete forever**, **Empty trash**) |
 | Preview | Select a file. Text files (up to 1 MB) show their contents and can be edited with **Edit**, then **Save**; small images are shown |
 
 ## Religare

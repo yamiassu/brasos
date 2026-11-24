@@ -56,7 +56,7 @@ An app with `window.control` can move, resize, retitle and close its window (`os
 
 ## Files
 
-Paths are virtual and absolute inside the user's home: `/Desktop/notes.txt`. `os.fs.read` returns `{ path, size, encoding, content, truncated }`: text comes back as `"utf8"`, anything else as `"base64"`. Reads are capped at 1 MiB, writes at 5 MiB. `os.fs.remove` moves to `/.trash`. After a change the SDK tells the shell, so the desktop refreshes.
+Paths are virtual and absolute inside the user's home: `/Desktop/notes.txt`. `os.fs.read` returns `{ path, size, encoding, content, truncated }`: text comes back as `"utf8"`, anything else as `"base64"`. Reads are capped at 1 MiB, writes at 5 MiB. `os.fs.remove` moves to `/.trash`; `os.fs.trash()` lists it (each item with where it came from), `os.fs.restore(name)` puts one back, `os.fs.purge(name)` and `os.fs.emptyTrash()` delete for good. After a change the SDK tells the shell, so the desktop refreshes.
 
 ## Tools for AI agents
 
